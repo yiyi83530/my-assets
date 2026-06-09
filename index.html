@@ -1397,7 +1397,7 @@ function formatDate(dateVal) {
                             <!-- 日期 px-0、小字體、置中 -->
                             <td class="py-3 px-0 font-mono text-[10px] text-slate-400/85 whitespace-nowrap text-center">${tx.date}</td>
                             <!-- 股票代號名稱 靠左 -->
-                            <td class="py-3 px-4 text-left whitespace-nowrap">${formatStockName(tx.stock)}</td>
+                            <td class="py-3 px-3 text-left whitespace-nowrap">${formatStockName(tx.stock)}</td>
                             <!-- 交易類型 px-0、置中 -->
                             <td class="py-3 px-0 text-center whitespace-nowrap">
                                 <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-[10px] font-extrabold tracking-wide whitespace-nowrap ${typeColor}">
@@ -1405,12 +1405,12 @@ function formatDate(dateVal) {
                                 </span>
                             </td>
                             <!-- 數據一律置中 -->
-                            <td class="py-3 px-4 text-center font-mono whitespace-nowrap">${tx.qty.toLocaleString()}</td>
-                            <td class="py-3 px-4 text-center font-mono whitespace-nowrap">${formatMoney(tx.price)}</td>
-                            <td class="py-3 px-4 text-center font-mono font-bold text-slate-800 whitespace-nowrap">${formatMoney(tx.actualAmount)}</td>
+                            <td class="py-3 px-3 text-center font-mono whitespace-nowrap">${tx.qty.toLocaleString()}</td>
+                            <td class="py-3 px-3 text-center font-mono whitespace-nowrap">${formatMoney(tx.price)}</td>
+                            <td class="py-3 px-3 text-center font-mono font-bold text-slate-800 whitespace-nowrap">${formatMoney(tx.actualAmount)}</td>
                             <!-- 備註 靠左 -->
-                            <td class="py-3 px-4 text-left text-slate-500 max-w-xs truncate whitespace-nowrap" title="${escapeHtml(tx.note || '')}">${escapeHtml(tx.note || '-')}</td>
-                            <td class="py-3 px-4 text-center whitespace-nowrap">
+                            <td class="py-3 px-3 text-left text-slate-500 max-w-xs truncate whitespace-nowrap" title="${escapeHtml(tx.note || '')}">${escapeHtml(tx.note || '-')}</td>
+                            <td class="py-3 px-3 text-center whitespace-nowrap">
                                 <button onclick="deleteTransaction('${tx.id}')" class="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition" title="刪除本筆">
                                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                 </button>
