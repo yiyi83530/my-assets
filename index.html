@@ -40,7 +40,7 @@
     <!-- 頂部導覽列 -->
     <header class="border-b border-rose-100 bg-white sticky top-0 z-40 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 py-3.5 flex flex-col sm:flex-row justify-between items-center gap-3">
-            <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-3 w-full sm:w-auto justify-start">
                 <div class="bg-rose-500 p-2.5 rounded-2xl text-white shadow-md shadow-rose-200">
                     <i data-lucide="piggy-bank" class="w-6 h-6"></i>
                 </div>
@@ -57,18 +57,18 @@
                 </div>
             </div>
             
-            <!-- 導覽切換 Tab 與 設定 -->
-            <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
-                <div class="bg-slate-100/80 p-1 rounded-xl flex">
-                    <button onclick="switchTab('assets')" id="tabBtnAssets" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 bg-white text-slate-800 shadow-sm">
+            <!-- 導覽切換 Tab 與 設定 (手機版 100% 寬度、兩側留白、平分 Tab) -->
+            <div class="flex items-center space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                <div class="bg-slate-100/80 p-1 rounded-xl flex flex-1 sm:flex-initial">
+                    <button onclick="switchTab('assets')" id="tabBtnAssets" class="flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 bg-white text-slate-800 shadow-sm text-center">
                         資產與負債
                     </button>
-                    <button onclick="switchTab('stocks')" id="tabBtnStocks" class="px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 text-slate-500 hover:text-slate-800">
+                    <button onclick="switchTab('stocks')" id="tabBtnStocks" class="flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 text-slate-500 hover:text-slate-800 text-center">
                         股票庫存
                     </button>
                 </div>
                 
-                <button onclick="openConfigModal()" class="p-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm transition" title="雲端設定">
+                <button onclick="openConfigModal()" class="p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm transition shrink-0" title="雲端設定">
                     <i data-lucide="settings" class="w-4 h-4"></i>
                 </button>
             </div>
@@ -227,7 +227,7 @@
                             </div>
                             <p class="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
                                 <i data-lucide="sparkles" class="w-3 h-3 text-rose-400 animate-pulse"></i>
-                                根據「分頁二」的持股與手動市價自動計算
+                                根據股票庫存手動現值自動計算
                             </p>
                         </div>
                     </div>
@@ -252,6 +252,28 @@
         <!-- ==================== TAB 2: 股票庫存與交易 (STOCKS) ==================== -->
         <section id="tabContentStocks" class="space-y-6 hidden">
             
+            <!-- 👑 股票篩選與控制年度看板 (置頂設計，一進來即可篩選) -->
+            <div class="bg-white border border-rose-100 rounded-2xl p-4 md:p-5 shadow-sm flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div class="flex items-center space-x-2.5">
+                    <span class="p-2 bg-rose-50 text-rose-500 rounded-xl shadow-xs border border-rose-100/50">
+                        <i data-lucide="calendar" class="w-5 h-5"></i>
+                    </span>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-800">股票年度投資看板</h3>
+                        <p class="text-[10px] text-slate-400 mt-0.5">切換下方選單，可同步篩選庫存現值與交易流水紀錄</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                    <label class="text-xs text-slate-500 font-bold whitespace-nowrap">統計年度：</label>
+                    <select id="yearFilter" onchange="renderAll()" class="w-full sm:w-44 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-700 focus:outline-none focus:border-rose-300">
+                        <option value="All">全部年度 (All)</option>
+                        <option value="2026">2026 年</option>
+                        <option value="2025">2025 年</option>
+                        <option value="2024">2024 年</option>
+                    </select>
+                </div>
+            </div>
+
             <!-- 證券概覽卡片 -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div class="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm">
@@ -280,7 +302,7 @@
                     </h3>
                     <div class="text-xs text-slate-400 flex items-center gap-1">
                         <i data-lucide="info" class="w-3.5 h-3.5 text-blue-500"></i>
-                        <span>在「現價」欄位點擊修改新價並按下 Enter，即刻同步損益與總資產！</span>
+                        <span>在「現價」欄位點擊修改新價並按下 Enter，即刻同步損益！</span>
                     </div>
                 </div>
 
@@ -313,14 +335,9 @@
                         <i data-lucide="history" class="text-rose-500 w-4.5 h-4.5"></i> 股票交易流水歷史紀錄
                     </h3>
                     
-                    <div class="flex items-center space-x-2">
-                        <label class="text-xs text-slate-500 font-bold">篩選年度：</label>
-                        <select id="yearFilter" onchange="renderAll()" class="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-bold text-slate-700 focus:outline-none focus:border-rose-300">
-                            <option value="All">全部年度 (All)</option>
-                            <option value="2026">2026 年</option>
-                            <option value="2025">2025 年</option>
-                            <option value="2024">2024 年</option>
-                        </select>
+                    <div class="text-xs text-slate-400 font-bold flex items-center gap-1.5">
+                        <i data-lucide="filter" class="w-3.5 h-3.5 text-rose-400"></i>
+                        <span>已同步套用上方年度篩選</span>
                     </div>
                 </div>
 
@@ -348,12 +365,12 @@
 
     </main>
 
-    <!-- 🐷 可愛懸浮記帳按鈕 (Floating Action Button) -->
+    <!-- 🐷 可愛懸浮記帳按鈕 -->
     <button onclick="openTransactionModal()" class="fixed bottom-6 right-6 bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-sm px-5 py-4 rounded-full shadow-lg hover:shadow-rose-300 flex items-center gap-2 transition transform hover:scale-105 z-40">
         🐷 記一筆股票
     </button>
 
-    <!-- ==================== MODAL 1: 新增股票交易 (無下拉，紅綠雙按鈕) ==================== -->
+    <!-- ==================== MODAL 1: 新增股票交易 ==================== -->
     <div id="transactionModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-white border border-rose-100 rounded-2xl w-full max-w-lg overflow-hidden shadow-xl transform transition-all">
             <div class="px-6 py-4 border-b border-rose-100 flex justify-between items-center">
@@ -574,6 +591,8 @@
 
     <!-- JavaScript 核心 -->
     <script>
+        const INITIAL_CAPITAL = 1000000;
+
         // 全域狀態：整合資產與負債 🐷
         let state = {
             transactions: [],
@@ -607,7 +626,7 @@
             'AAPL': 188
         };
 
-        // 升級版 Google Apps Script 原始碼
+        // 升級版 Google Apps Script 原始碼 (與雲端資料庫保持 100% 同步)
         const updatedGASCode = `function doGet(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet();
   var txSheet = sheet.getSheetByName("Transactions") || sheet.insertSheet("Transactions");
@@ -954,13 +973,13 @@ function formatDate(dateVal) {
             const tabContentStocks = document.getElementById('tabContentStocks');
 
             if (tabId === 'assets') {
-                tabBtnAssets.className = "px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 bg-white text-slate-800 shadow-sm";
-                tabBtnStocks.className = "px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 text-slate-500 hover:text-slate-800";
+                tabBtnAssets.className = "flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 bg-white text-slate-800 shadow-sm text-center";
+                tabBtnStocks.className = "flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 text-slate-500 hover:text-slate-800 text-center";
                 tabContentAssets.classList.remove('hidden');
                 tabContentStocks.classList.add('hidden');
             } else {
-                tabBtnStocks.className = "px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 bg-white text-slate-800 shadow-sm";
-                tabBtnAssets.className = "px-4 py-1.5 text-xs font-bold rounded-lg transition-all duration-200 text-slate-500 hover:text-slate-800";
+                tabBtnStocks.className = "flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 bg-white text-slate-800 shadow-sm text-center";
+                tabBtnAssets.className = "flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 text-slate-500 hover:text-slate-800 text-center";
                 tabContentStocks.classList.remove('hidden');
                 tabContentAssets.classList.add('hidden');
             }
@@ -969,11 +988,12 @@ function formatDate(dateVal) {
 
         // ==================== 統計計算邏輯 🐷 ====================
         
-        // 1. 股票庫存與損益計算
-        function calculateStockPortfolio() {
+        // 1. 股票庫存與損益計算 (選填參數 forceYear，若強設定為 'All' 則不受頂部篩選影響，方便總資產連動)
+        function calculateStockPortfolio(forceYear = null) {
             let portfolioMap = {};
+            
             // 先過濾篩選年度
-            const selectedYear = document.getElementById('yearFilter').value;
+            const selectedYear = forceYear || document.getElementById('yearFilter').value;
             
             const filteredTx = state.transactions.filter(tx => {
                 if (selectedYear === 'All') return true;
@@ -982,7 +1002,7 @@ function formatDate(dateVal) {
             });
 
             // 依日期排序重組
-            const sortedTx = [...state.transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const sortedTx = [...filteredTx].sort((a, b) => new Date(a.date) - new Date(b.date));
             
             sortedTx.forEach(tx => {
                 const stock = tx.stock;
@@ -1084,10 +1104,13 @@ function formatDate(dateVal) {
 
         // ==================== 渲染 UI ====================
         function renderAll() {
-            // 1. 計算股票部分
+            // 1. 計算篩選年度股票數據 (呈現於股票庫存頁面)
             const stockData = calculateStockPortfolio();
 
-            // 2. 計算資產負債數據
+            // 2. 另外計算全年度(真實即時)股票庫存總市值，給 Tab 1 (資產總值) 使用，維持個人真實當前資產精確度
+            const realTimeStockData = calculateStockPortfolio('All');
+
+            // 3. 計算資產負債數據
             let totalNtdSavings = 0;
             let totalForeignSavings = 0;
             let totalOtherAssets = 0;
@@ -1131,21 +1154,21 @@ function formatDate(dateVal) {
                 }
             });
 
-            // 如果活存帳號是空的提示
+            // 活存空白提示
             if (ntdSavingsList.innerHTML === '') ntdSavingsList.innerHTML = `<p class="text-xs text-slate-400 py-2">無台幣活存帳戶</p>`;
             if (foreignSavingsList.innerHTML === '') foreignSavingsList.innerHTML = `<p class="text-xs text-slate-400 py-2">無外幣活存帳戶</p>`;
             if (otherAssetsList.innerHTML === '') otherAssetsList.innerHTML = `<p class="text-xs text-slate-400 py-2">無其他信託資產</p>`;
             if (liabilitiesList.innerHTML === '') liabilitiesList.innerHTML = `<p class="text-xs text-slate-400 py-2">無任何負債項目</p>`;
 
-            // 更新各大項小計
+            // 更新小計
             document.getElementById('ntdSavingsTotal').innerText = formatMoney(totalNtdSavings);
             document.getElementById('foreignSavingsTotal').innerText = formatMoney(totalForeignSavings);
             
-            // 證券資產即時連動庫存
-            document.getElementById('stockPortfolioVal').innerText = formatMoney(stockData.currentPortfolioValue);
+            // 證券資產連動 (維持實時最新市值)
+            document.getElementById('stockPortfolioVal').innerText = formatMoney(realTimeStockData.currentPortfolioValue);
 
-            // 計算最後總值
-            const grandTotalAssets = totalNtdSavings + totalForeignSavings + totalOtherAssets + stockData.currentPortfolioValue;
+            // 計算最終淨值
+            const grandTotalAssets = totalNtdSavings + totalForeignSavings + totalOtherAssets + realTimeStockData.currentPortfolioValue;
             const netWorth = grandTotalAssets - totalLiabilities;
             const netGrowth = netWorth - state.lastMonthNetWorth;
             const growthRate = state.lastMonthNetWorth > 0 ? (netGrowth / state.lastMonthNetWorth) * 100 : 0;
@@ -1167,7 +1190,7 @@ function formatDate(dateVal) {
                 <span class="font-mono">${arrow} ${sign}${formatMoney(netGrowth)} (${sign}${growthRate.toFixed(2)}%)</span>
             `;
 
-            // ==================== 股票分頁 UI 渲染 ====================
+            // ==================== 股票分頁 UI 渲染 (套用篩選年度數據) ====================
             document.getElementById('stockSummaryMarketVal').innerText = formatMoney(stockData.currentPortfolioValue);
             document.getElementById('stockSummaryCost').innerText = formatMoney(stockData.totalInvestmentCost);
             
@@ -1181,7 +1204,7 @@ function formatDate(dateVal) {
             summaryProfitRateEl.innerText = `${profitSign}${stockData.profitRate.toFixed(2)}%`;
             summaryProfitRateEl.className = `text-2xl font-extrabold font-mono mt-1 ${profitColor}`;
 
-            // 持股明細庫存表格
+            // 持股明細庫存表格 (已連動年度)
             const stockTableBody = document.getElementById('stockTableBody');
             stockTableBody.innerHTML = '';
 
@@ -1189,7 +1212,7 @@ function formatDate(dateVal) {
                 stockTableBody.innerHTML = `
                     <tr>
                         <td colspan="9" class="text-center py-8 text-slate-400 text-xs">
-                            帳上目前沒有任何持股，點擊右下角「🐷 記一筆股票」來建倉！
+                            此篩選年度內無任何持股紀錄。點擊右下角「🐷 記一筆股票」來記錄！
                         </td>
                     </tr>
                 `;
@@ -1231,7 +1254,7 @@ function formatDate(dateVal) {
                 });
             }
 
-            // 流水帳歷史表格
+            // 流水帳歷史表格 (已套用上方年度篩選)
             const txHistoryTableBody = document.getElementById('txHistoryTableBody');
             txHistoryTableBody.innerHTML = '';
 
