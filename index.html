@@ -12,7 +12,7 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;500;600;700;800&family=Noto+Sans+TC:wght@300;400;500;700;955&display=swap');
         body {
             font-family: 'Inter', 'Noto Sans TC', sans-serif;
             background-color: #fcf8f8; /* 帶有極微粉紅感的溫暖白 */
@@ -310,15 +310,15 @@
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="border-b border-slate-200 text-xs text-slate-400 uppercase tracking-wider">
-                                <th class="py-3 px-4 font-bold">股票代號 / 名稱</th>
-                                <th class="py-3 px-4 font-bold text-right">持有股數</th>
-                                <th class="py-3 px-4 font-bold text-right">成本價</th>
-                                <th class="py-3 px-4 font-bold text-right">現價 (可修改)</th>
-                                <th class="py-3 px-4 font-bold text-right">投資成本</th>
-                                <th class="py-3 px-4 font-bold text-right">帳面現值</th>
-                                <th class="py-3 px-4 font-bold text-right">未實現損益</th>
-                                <th class="py-3 px-4 font-bold text-right">損益率</th>
-                                <th class="py-3 px-4 font-bold text-right">市值佔比</th>
+                                <th class="py-3 px-4 font-bold whitespace-nowrap">股票代號 / 名稱</th>
+                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">持有股數</th>
+                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">成本價</th>
+                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">現價 (可修改)</th>
+                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">投資成本</th>
+                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">帳面現值</th>
+                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">未實現損益</th>
+                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">損益率</th>
+                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">市值佔比</th>
                             </tr>
                         </thead>
                         <tbody id="stockTableBody" class="divide-y divide-slate-100 text-sm text-slate-700">
@@ -335,7 +335,7 @@
                         <i data-lucide="history" class="text-rose-500 w-4.5 h-4.5"></i> 股票交易流水歷史紀錄
                     </h3>
                     
-                    <div class="text-xs text-slate-400 font-bold flex items-center gap-1.5">
+                    <div class="text-xs text-slate-400 font-bold flex items-center gap-1.5 whitespace-nowrap">
                         <i data-lucide="filter" class="w-3.5 h-3.5 text-rose-400"></i>
                         <span>已同步套用上方年度篩選</span>
                     </div>
@@ -345,14 +345,14 @@
                     <table class="w-full text-left border-collapse">
                         <thead>
                             <tr class="border-b border-slate-200 text-xs text-slate-400 uppercase tracking-wider">
-                                <th class="py-3 px-4 font-semibold">日期</th>
-                                <th class="py-3 px-4 font-semibold">股票</th>
-                                <th class="py-3 px-4 font-semibold text-center">交易類型</th>
-                                <th class="py-3 px-4 font-semibold text-right">股數</th>
-                                <th class="py-3 px-4 font-semibold text-right">成交單價</th>
-                                <th class="py-3 px-4 font-semibold text-right">實際收支</th>
-                                <th class="py-3 px-4 font-semibold">備註</th>
-                                <th class="py-3 px-4 font-semibold text-center">操作</th>
+                                <th class="py-3 px-4 font-semibold whitespace-nowrap">日期</th>
+                                <th class="py-3 px-4 font-semibold whitespace-nowrap text-left">股票</th>
+                                <th class="py-3 px-4 font-semibold text-center whitespace-nowrap">交易類型</th>
+                                <th class="py-3 px-4 font-semibold text-right whitespace-nowrap">股數</th>
+                                <th class="py-3 px-4 font-semibold text-right whitespace-nowrap">成交單價</th>
+                                <th class="py-3 px-4 font-semibold text-right whitespace-nowrap">實際收支</th>
+                                <th class="py-3 px-4 font-semibold whitespace-nowrap">備註</th>
+                                <th class="py-3 px-4 font-semibold text-center whitespace-nowrap">操作</th>
                             </tr>
                         </thead>
                         <tbody id="txHistoryTableBody" class="divide-y divide-slate-100 text-sm text-slate-700">
@@ -616,14 +616,14 @@
         const demoTransactions = [
             { id: 't1', date: '2026-03-02', stock: '2330 台積電', type: 'buy', qty: 1000, price: 820, rawTotal: 820000, actualAmount: 821168, note: '建倉台積電' },
             { id: 't2', date: '2026-03-15', stock: '0050 元大台灣50', type: 'buy', qty: 2000, price: 155, rawTotal: 310000, actualAmount: 310441, note: '定期定額大盤' },
-            { id: 't3', date: '2026-05-20', stock: 'AAPL', type: 'buy', qty: 50, price: 180, rawTotal: 9000, actualAmount: 9000, note: '美股建倉 AAPL' },
+            { id: 't3', date: '2026-05-20', stock: 'AAPL Apple', type: 'buy', qty: 50, price: 180, rawTotal: 9000, actualAmount: 9000, note: '美股建倉 AAPL' },
             { id: 't4', date: '2026-06-02', stock: '2330 台積電', type: 'sell', qty: 300, price: 880, rawTotal: 264000, actualAmount: 262816, note: '波段停利一部分' }
         ];
 
         const demoPrices = {
             '2330 台積電': 890,
             '0050 元大台灣50': 162,
-            'AAPL': 188
+            'AAPL Apple': 188
         };
 
         // 升級版 Google Apps Script 原始碼 (與雲端資料庫保持 100% 同步)
@@ -986,8 +986,19 @@ function formatDate(dateVal) {
             safeCreateIcons();
         }
 
-        // ==================== 統計計算邏輯 🐷 ====================
+        // ==================== 統計計算與格式化輔助 🐷 ====================
         
+        // 股票代號與名稱智慧美化換行器 (第一排大字代碼，第二排微縮小字名稱)
+        function formatStockName(stockStr) {
+            if (!stockStr) return '';
+            const parts = stockStr.trim().split(/\s+/);
+            if (parts.length > 1) {
+                return `<div class="font-extrabold text-slate-900 font-mono text-xs sm:text-sm leading-tight">${escapeHtml(parts[0])}</div>
+                        <div class="text-[10px] sm:text-xs text-slate-400 font-medium mt-1 leading-tight">${escapeHtml(parts.slice(1).join(' '))}</div>`;
+            }
+            return `<div class="font-extrabold text-slate-900 font-mono text-xs sm:text-sm leading-tight">${escapeHtml(stockStr)}</div>`;
+        }
+
         // 1. 股票庫存與損益計算 (選填參數 forceYear，若強設定為 'All' 則不受頂部篩選影響，方便總資產連動)
         function calculateStockPortfolio(forceYear = null) {
             let portfolioMap = {};
@@ -1223,25 +1234,25 @@ function formatDate(dateVal) {
                     
                     stockTableBody.innerHTML += `
                         <tr class="hover:bg-slate-50 border-b border-slate-100 transition">
-                            <td class="py-3.5 px-4 font-bold text-slate-800">${escapeHtml(pos.name)}</td>
-                            <td class="py-3.5 px-4 text-right font-mono">${pos.holdingQty.toLocaleString()}</td>
-                            <td class="py-3.5 px-4 text-right font-mono text-slate-400">${formatMoney(pos.avgCost)}</td>
-                            <td class="py-3.5 px-4 text-right">
+                            <td class="py-3.5 px-4 whitespace-nowrap">${formatStockName(pos.name)}</td>
+                            <td class="py-3.5 px-4 text-right font-mono whitespace-nowrap">${pos.holdingQty.toLocaleString()}</td>
+                            <td class="py-3.5 px-4 text-right font-mono text-slate-400 whitespace-nowrap">${formatMoney(pos.avgCost)}</td>
+                            <td class="py-3.5 px-4 text-right whitespace-nowrap">
                                 <input type="number" 
                                        step="0.01" 
                                        value="${pos.marketPrice}" 
                                        onchange="updateMarketPrice('${escapeHtml(pos.name)}', this.value)"
                                        class="bg-slate-50 border border-slate-200 rounded px-2 py-1 w-20 text-right font-mono text-xs text-slate-800 focus:outline-none focus:border-rose-300 focus:bg-white transition">
                             </td>
-                            <td class="py-3.5 px-4 text-right font-mono text-slate-500">${formatMoney(pos.investmentCost)}</td>
-                            <td class="py-3.5 px-4 text-right font-mono text-slate-800 font-semibold">${formatMoney(pos.marketValue)}</td>
-                            <td class="py-3.5 px-4 text-right font-mono ${rowProfitColor} font-semibold">
+                            <td class="py-3.5 px-4 text-right font-mono text-slate-500 whitespace-nowrap">${formatMoney(pos.investmentCost)}</td>
+                            <td class="py-3.5 px-4 text-right font-mono text-slate-800 font-semibold whitespace-nowrap">${formatMoney(pos.marketValue)}</td>
+                            <td class="py-3.5 px-4 text-right font-mono ${rowProfitColor} font-semibold whitespace-nowrap">
                                 ${pos.unrealizedProfit >= 0 ? '+' : ''}${formatMoney(pos.unrealizedProfit)}
                             </td>
-                            <td class="py-3.5 px-4 text-right font-mono ${rowProfitColor}">
+                            <td class="py-3.5 px-4 text-right font-mono ${rowProfitColor} whitespace-nowrap">
                                 ${pos.unrealizedProfit >= 0 ? '+' : ''}${pos.profitPercent.toFixed(2)}%
                             </td>
-                            <td class="py-3.5 px-4 text-right">
+                            <td class="py-3.5 px-4 text-right whitespace-nowrap">
                                 <div class="flex items-center justify-end space-x-1.5">
                                     <span class="text-xs font-mono font-medium text-slate-600">${allocation.toFixed(1)}%</span>
                                     <div class="w-12 bg-slate-100 rounded-full h-1 overflow-hidden">
@@ -1277,30 +1288,32 @@ function formatDate(dateVal) {
             } else {
                 displayTx.forEach(tx => {
                     let typeBadge = '';
-                    let typeClass = '';
+                    let typeColor = '';
                     if (tx.type === 'buy') {
                         typeBadge = '買進';
-                        typeClass = 'bg-rose-50 text-rose-700 border border-rose-200';
+                        typeColor = 'bg-rose-50 text-rose-700 border border-rose-200/60';
                     } else if (tx.type === 'sell') {
                         typeBadge = '賣出';
-                        typeClass = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+                        typeColor = 'bg-emerald-50 text-emerald-700 border border-emerald-200/60';
                     } else {
                         typeBadge = '配息';
-                        typeClass = 'bg-blue-50 text-blue-700 border border-blue-200';
+                        typeColor = 'bg-blue-50 text-blue-700 border border-blue-200/60';
                     }
 
                     txHistoryTableBody.innerHTML += `
                         <tr class="hover:bg-slate-50 transition border-b border-slate-100 text-xs">
-                            <td class="py-3 px-4 font-mono text-slate-400">${tx.date}</td>
-                            <td class="py-3 px-4 font-bold text-slate-800">${escapeHtml(tx.stock)}</td>
-                            <td class="py-3 px-4 text-center">
-                                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${typeClass}">${typeBadge}</span>
+                            <td class="py-3 px-4 font-mono text-slate-400 whitespace-nowrap">${tx.date}</td>
+                            <td class="py-3 px-4 whitespace-nowrap">${formatStockName(tx.stock)}</td>
+                            <td class="py-3 px-4 text-center whitespace-nowrap">
+                                <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-[10px] font-extrabold tracking-wide whitespace-nowrap ${typeColor}">
+                                    ${typeBadge}
+                                </span>
                             </td>
-                            <td class="py-3 px-4 text-right font-mono">${tx.qty.toLocaleString()}</td>
-                            <td class="py-3 px-4 text-right font-mono">${formatMoney(tx.price)}</td>
-                            <td class="py-3 px-4 text-right font-mono font-bold text-slate-800">${formatMoney(tx.actualAmount)}</td>
-                            <td class="py-3 px-4 text-slate-500 max-w-xs truncate" title="${escapeHtml(tx.note || '')}">${escapeHtml(tx.note || '-')}</td>
-                            <td class="py-3 px-4 text-center">
+                            <td class="py-3 px-4 text-right font-mono whitespace-nowrap">${tx.qty.toLocaleString()}</td>
+                            <td class="py-3 px-4 text-right font-mono whitespace-nowrap">${formatMoney(tx.price)}</td>
+                            <td class="py-3 px-4 text-right font-mono font-bold text-slate-800 whitespace-nowrap">${formatMoney(tx.actualAmount)}</td>
+                            <td class="py-3 px-4 text-slate-500 max-w-xs truncate whitespace-nowrap" title="${escapeHtml(tx.note || '')}">${escapeHtml(tx.note || '-')}</td>
+                            <td class="py-3 px-4 text-center whitespace-nowrap">
                                 <button onclick="deleteTransaction('${tx.id}')" class="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition" title="刪除本筆">
                                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                 </button>
