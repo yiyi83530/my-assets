@@ -1,0 +1,20 @@
+/* 自定義動畫與細節 */
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.animate-spin-hover:hover {
+    animation: spin-slow 2s linear infinite;
+}
+
+/* 移除捲軸但保留功能 */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
