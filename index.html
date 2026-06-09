@@ -319,16 +319,16 @@
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr class="border-b border-slate-200 text-xs text-slate-400 uppercase tracking-wider">
-                                <th class="py-3 px-4 font-bold whitespace-nowrap">股票代號 / 名稱</th>
-                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">持有股數</th>
-                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">成本價</th>
-                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">現價 (可修改)</th>
-                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">投資成本</th>
-                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">帳面現值</th>
-                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">未實現損益</th>
-                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">損益率</th>
-                                <th class="py-3 px-4 font-bold text-right whitespace-nowrap">市值佔比</th>
+                            <tr class="border-b border-slate-200 text-xs text-slate-400 uppercase tracking-wider text-center">
+                                <th class="py-3 px-4 font-bold text-center whitespace-nowrap">股票代號 / 名稱</th>
+                                <th class="py-3 px-4 font-bold text-center whitespace-nowrap">持有股數</th>
+                                <th class="py-3 px-4 font-bold text-center whitespace-nowrap">成本價</th>
+                                <th class="py-3 px-4 font-bold text-center whitespace-nowrap">現價 (可修改)</th>
+                                <th class="py-3 px-4 font-bold text-center whitespace-nowrap">投資成本</th>
+                                <th class="py-3 px-4 font-bold text-center whitespace-nowrap">帳面現值</th>
+                                <th class="py-3 px-4 font-bold text-center whitespace-nowrap">未實現損益</th>
+                                <th class="py-3 px-4 font-bold text-center whitespace-nowrap">損益率</th>
+                                <th class="py-3 px-4 font-bold text-center whitespace-nowrap">市值佔比</th>
                             </tr>
                         </thead>
                         <tbody id="stockTableBody" class="divide-y divide-slate-100 text-sm text-slate-700">
@@ -354,15 +354,15 @@
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr class="border-b border-slate-200 text-xs text-slate-400 uppercase tracking-wider">
-                                <!-- 日期與交易類型 px-0 無間距，其他欄位 px-4 原有間距 -->
-                                <th class="py-3 px-0 font-semibold whitespace-nowrap text-left">日期</th>
-                                <th class="py-3 px-4 font-semibold whitespace-nowrap text-left">股票</th>
+                            <tr class="border-b border-slate-200 text-xs text-slate-400 uppercase tracking-wider text-center">
+                                <!-- 所有表頭一律置中 -->
+                                <th class="py-3 px-0 font-semibold text-center whitespace-nowrap">日期</th>
+                                <th class="py-3 px-4 font-semibold text-center whitespace-nowrap">股票</th>
                                 <th class="py-3 px-0 font-semibold text-center whitespace-nowrap">交易類型</th>
-                                <th class="py-3 px-4 font-semibold text-right whitespace-nowrap">股數</th>
-                                <th class="py-3 px-4 font-semibold text-right whitespace-nowrap">成交單價</th>
-                                <th class="py-3 px-4 font-semibold text-right whitespace-nowrap">實際收支</th>
-                                <th class="py-3 px-4 font-semibold whitespace-nowrap">備註</th>
+                                <th class="py-3 px-4 font-semibold text-center whitespace-nowrap">股數</th>
+                                <th class="py-3 px-4 font-semibold text-center whitespace-nowrap">成交單價</th>
+                                <th class="py-3 px-4 font-semibold text-center whitespace-nowrap">實際收支</th>
+                                <th class="py-3 px-4 font-semibold text-center whitespace-nowrap">備註</th>
                                 <th class="py-3 px-4 font-semibold text-center whitespace-nowrap">操作</th>
                             </tr>
                         </thead>
@@ -494,7 +494,7 @@
             
             <div class="p-6 overflow-y-auto space-y-4 flex-1">
                 <p class="text-xs text-slate-400">
-                    您可以在此手動輸入或更新各大銀行、信託、借貸或信用卡的名稱與目前金額。更新後點選「全部儲存」將即時同步至 Google Sheets。
+                    您可以在此手動輸入或更新各大銀行、信託、借貸 or 信用卡的名稱與目前金額。更新後點選「全部儲存」將即時同步至 Google Sheets。
                 </p>
 
                 <!-- 編輯表單 -->
@@ -875,6 +875,7 @@ function formatDate(dateVal) {
             modal.classList.remove('hidden');
         }
 
+        // 關閉自訂對話框
         function closeCustomDialog() {
             document.getElementById('customDialogModal').classList.add('hidden');
         }
@@ -1323,26 +1324,28 @@ function formatDate(dateVal) {
                     
                     stockTableBody.innerHTML += `
                         <tr class="hover:bg-slate-50 border-b border-slate-100 transition">
-                            <td class="py-3.5 px-4 whitespace-nowrap">${formatStockName(pos.name)}</td>
-                            <td class="py-3.5 px-4 text-right font-mono whitespace-nowrap">${pos.holdingQty.toLocaleString()}</td>
-                            <td class="py-3.5 px-4 text-right font-mono text-slate-400 whitespace-nowrap">${formatMoney(pos.avgCost)}</td>
-                            <td class="py-3.5 px-4 text-right whitespace-nowrap">
+                            <!-- 股票代碼名稱 靠左 -->
+                            <td class="py-3.5 px-4 text-left whitespace-nowrap">${formatStockName(pos.name)}</td>
+                            <!-- 其餘資料一律置中 -->
+                            <td class="py-3.5 px-4 text-center font-mono whitespace-nowrap">${pos.holdingQty.toLocaleString()}</td>
+                            <td class="py-3.5 px-4 text-center font-mono text-slate-400 whitespace-nowrap">${formatMoney(pos.avgCost)}</td>
+                            <td class="py-3.5 px-4 text-center whitespace-nowrap">
                                 <input type="number" 
                                        step="0.01" 
                                        value="${pos.marketPrice}" 
                                        onchange="updateMarketPrice('${escapeHtml(pos.name)}', this.value)"
-                                       class="bg-slate-50 border border-slate-200 rounded px-2 py-1 w-20 text-right font-mono text-xs text-slate-800 focus:outline-none focus:border-rose-300 focus:bg-white transition">
+                                       class="bg-slate-50 border border-slate-200 rounded px-2 py-1 w-20 text-center font-mono text-xs text-slate-800 focus:outline-none focus:border-rose-300 focus:bg-white transition">
                             </td>
-                            <td class="py-3.5 px-4 text-right font-mono text-slate-500 whitespace-nowrap">${formatMoney(pos.investmentCost)}</td>
-                            <td class="py-3.5 px-4 text-right font-mono text-slate-800 font-semibold whitespace-nowrap">${formatMoney(pos.marketValue)}</td>
-                            <td class="py-3.5 px-4 text-right font-mono ${rowProfitColor} font-semibold whitespace-nowrap">
+                            <td class="py-3.5 px-4 text-center font-mono text-slate-500 whitespace-nowrap">${formatMoney(pos.investmentCost)}</td>
+                            <td class="py-3.5 px-4 text-center font-mono text-slate-800 font-semibold whitespace-nowrap">${formatMoney(pos.marketValue)}</td>
+                            <td class="py-3.5 px-4 text-center font-mono ${rowProfitColor} font-semibold whitespace-nowrap">
                                 ${pos.unrealizedProfit >= 0 ? '+' : ''}${formatMoney(pos.unrealizedProfit)}
                             </td>
-                            <td class="py-3.5 px-4 text-right font-mono ${rowProfitColor} whitespace-nowrap">
+                            <td class="py-3.5 px-4 text-center font-mono ${rowProfitColor} whitespace-nowrap">
                                 ${pos.unrealizedProfit >= 0 ? '+' : ''}${pos.profitPercent.toFixed(2)}%
                             </td>
-                            <td class="py-3.5 px-4 text-right whitespace-nowrap">
-                                <div class="flex items-center justify-end space-x-1.5">
+                            <td class="py-3.5 px-4 text-center whitespace-nowrap">
+                                <div class="flex items-center justify-center space-x-1.5">
                                     <span class="text-xs font-mono font-medium text-slate-600">${allocation.toFixed(1)}%</span>
                                     <div class="w-12 bg-slate-100 rounded-full h-1 overflow-hidden">
                                         <div class="bg-rose-400 h-1" style="width: ${allocation}%"></div>
@@ -1391,19 +1394,22 @@ function formatDate(dateVal) {
 
                     txHistoryTableBody.innerHTML += `
                         <tr class="hover:bg-slate-50 transition border-b border-slate-100 text-xs">
-                            <!-- 日期 px-0 -->
-                            <td class="py-3 px-0 font-mono text-slate-400 whitespace-nowrap">${tx.date}</td>
-                            <td class="py-3 px-4 whitespace-nowrap">${formatStockName(tx.stock)}</td>
-                            <!-- 交易類型 px-0 -->
+                            <!-- 日期 px-0、小字體、置中 -->
+                            <td class="py-3 px-0 font-mono text-[10px] text-slate-400/85 whitespace-nowrap text-center">${tx.date}</td>
+                            <!-- 股票代號名稱 靠左 -->
+                            <td class="py-3 px-4 text-left whitespace-nowrap">${formatStockName(tx.stock)}</td>
+                            <!-- 交易類型 px-0、置中 -->
                             <td class="py-3 px-0 text-center whitespace-nowrap">
                                 <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-[10px] font-extrabold tracking-wide whitespace-nowrap ${typeColor}">
                                     ${typeBadge}
                                 </span>
                             </td>
-                            <td class="py-3 px-4 text-right font-mono whitespace-nowrap">${tx.qty.toLocaleString()}</td>
-                            <td class="py-3 px-4 text-right font-mono whitespace-nowrap">${formatMoney(tx.price)}</td>
-                            <td class="py-3 px-4 text-right font-mono font-bold text-slate-800 whitespace-nowrap">${formatMoney(tx.actualAmount)}</td>
-                            <td class="py-3 px-4 text-slate-500 max-w-xs truncate whitespace-nowrap" title="${escapeHtml(tx.note || '')}">${escapeHtml(tx.note || '-')}</td>
+                            <!-- 數據一律置中 -->
+                            <td class="py-3 px-4 text-center font-mono whitespace-nowrap">${tx.qty.toLocaleString()}</td>
+                            <td class="py-3 px-4 text-center font-mono whitespace-nowrap">${formatMoney(tx.price)}</td>
+                            <td class="py-3 px-4 text-center font-mono font-bold text-slate-800 whitespace-nowrap">${formatMoney(tx.actualAmount)}</td>
+                            <!-- 備註 靠左 -->
+                            <td class="py-3 px-4 text-left text-slate-500 max-w-xs truncate whitespace-nowrap" title="${escapeHtml(tx.note || '')}">${escapeHtml(tx.note || '-')}</td>
                             <td class="py-3 px-4 text-center whitespace-nowrap">
                                 <button onclick="deleteTransaction('${tx.id}')" class="p-1 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded transition" title="刪除本筆">
                                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
@@ -1480,7 +1486,7 @@ function formatDate(dateVal) {
                 labelQty.innerText = "賣出股數";
                 labelPrice.innerText = "成交單價 (元/美金)";
                 labelFinalTotal.innerText = "實際預估實得金額 (扣摩擦成本)：";
-                feeSection.classList.remove('hidden');
+                feeSection.classList.add('hidden'); // 交易手續費明細列
 
                 const brokerFee = Math.max(20, Math.floor(rawTotal * 0.001425));
                 const tax = Math.floor(rawTotal * 0.003);
