@@ -1,8 +1,98 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew, onRemove, onUpdate }) {
+  const [activeIndex, setActiveIndex] = useState(null);
+  const [suggestionsByIndex, setSuggestionsByIndex] = useState({});
+  const [isSearchingByIndex, setIsSearchingByIndex] = useState({});
+  const [highlightedByIndex, setHighlightedByIndex] = useState({});
+
+  const pickSuggestion = (index, item) => {
+    onUpdate(index, { ...assets[index], name: item });
+    setActiveIndex(null);
+    setHighlightedByIndex((prev) => ({ ...prev, [index]: -1 }));
+  };
+
+  const handleNameKeyDown = (event, index) => {
+    const list = suggestionsByIndex[index] || [];
+    if (list.length === 0) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActiveIndex(index);
+      setHighlightedByIndex((prev) => ({
+        ...prev,
+        [index]: ((prev[index] ?? -1) + 1) % list.length,
+      }));
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex(index);
+      setHighlightedByIndex((prev) => {
+        const current = prev[index] ?? -1;
+        return {
+          ...prev,
+          [index]: current <= 0 ? list.length - 1 : current - 1,
+        };
+      });
+      return;
+    }
+
+    if (event.key === 'Enter' && activeIndex === index) {
+      const highlighted = highlightedByIndex[index] ?? -1;
+      if (highlighted >= 0 && highlighted < list.length) {
+        event.preventDefault();
+        pickSuggestion(index, list[highlighted]);
+      }
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setActiveIndex(null);
+      setHighlightedByIndex((prev) => ({ ...prev, [index]: -1 }));
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen || activeIndex === null) return;
+    const keyword = (assets[activeIndex]?.name || '').trim();
+    if (!keyword) {
+      setSuggestionsByIndex((prev) => ({ ...prev, [activeIndex]: [] }));
+      setIsSearchingByIndex((prev) => ({ ...prev, [activeIndex]: false }));
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingByIndex((prev) => ({ ...prev, [activeIndex]: true }));
+        const res = await fetch(`/api/banks/search?q=${encodeURIComponent(keyword)}&limit=8`, {
+          signal: controller.signal,
+        });
+        const json = await res.json();
+        const items = Array.isArray(json.items) ? json.items : [];
+        setSuggestionsByIndex((prev) => ({ ...prev, [activeIndex]: items }));
+        setHighlightedByIndex((prev) => ({ ...prev, [activeIndex]: items.length > 0 ? 0 : -1 }));
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          setSuggestionsByIndex((prev) => ({ ...prev, [activeIndex]: [] }));
+          setHighlightedByIndex((prev) => ({ ...prev, [activeIndex]: -1 }));
+        }
+      } finally {
+        setIsSearchingByIndex((prev) => ({ ...prev, [activeIndex]: false }));
+      }
+    }, 220);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [isOpen, activeIndex, assets]);
+
   if (!isOpen) return null;
 
   return (
@@ -40,13 +130,56 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
                 </div>
                 <div className="w-1/3">
                   <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">名稱</label>
-                  <input
-                    type="text"
-                    value={item.name}
-                    onChange={(e) => onUpdate(index, { ...item, name: e.target.value })}
-                    placeholder="例如：Richart"
-                    className="w-full rounded-lg border border-slate-200 bg-white p-1.5 text-xs text-slate-800"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={item.name}
+                      onChange={(e) => {
+                        onUpdate(index, { ...item, name: e.target.value });
+                        setActiveIndex(index);
+                        setHighlightedByIndex((prev) => ({ ...prev, [index]: 0 }));
+                      }}
+                      onKeyDown={(e) => handleNameKeyDown(e, index)}
+                      onFocus={() => {
+                        setActiveIndex(index);
+                        if ((suggestionsByIndex[index] || []).length > 0) {
+                          setHighlightedByIndex((prev) => ({ ...prev, [index]: 0 }));
+                        }
+                      }}
+                      onBlur={() => {
+                        setTimeout(() => {
+                          setActiveIndex((prev) => (prev === index ? null : prev));
+                          setHighlightedByIndex((prev) => ({ ...prev, [index]: -1 }));
+                        }, 120);
+                      }}
+                      placeholder="例如：台新、國泰、玉山"
+                      className="w-full rounded-lg border border-slate-200 bg-white p-1.5 text-xs text-slate-800"
+                    />
+                    {activeIndex === index && ((suggestionsByIndex[index] || []).length > 0 || isSearchingByIndex[index]) && (
+                      <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                        {isSearchingByIndex[index] && (
+                          <div className="px-2 py-1.5 text-[11px] text-slate-400">搜尋中...</div>
+                        )}
+                        {!isSearchingByIndex[index] &&
+                          (suggestionsByIndex[index] || []).map((name, suggestionIndex) => (
+                            <button
+                              key={name}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onMouseEnter={() => setHighlightedByIndex((prev) => ({ ...prev, [index]: suggestionIndex }))}
+                              onClick={() => pickSuggestion(index, name)}
+                              className={`block w-full px-2 py-1.5 text-left text-[11px] text-slate-700 transition ${
+                                (highlightedByIndex[index] ?? -1) === suggestionIndex
+                                  ? 'bg-rose-50'
+                                  : 'hover:bg-rose-50'
+                              }`}
+                            >
+                              {name}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="w-1/4">
                   <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">金額 (TWD)</label>

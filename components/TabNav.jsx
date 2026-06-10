@@ -30,7 +30,7 @@ export default function TabNav({ activeTab }) {
           title="雲端設定"
           aria-label="雲端設定"
         >
-          ⚙️
+          ☁️
         </button>
       </div>
 

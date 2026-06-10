@@ -15,6 +15,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedSuggestionIndex, setHighlightedSuggestionIndex] = useState(-1);
 
   const rawTotal = Number(qty) * Number(price) || 0;
   let fee = 0;
@@ -50,6 +51,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
     setIsPriceManual(false);
     setSuggestions([]);
     setShowSuggestions(false);
+    setHighlightedSuggestionIndex(-1);
   };
 
   useEffect(() => {
@@ -70,10 +72,13 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
           signal: controller.signal,
         });
         const json = await res.json();
-        setSuggestions(Array.isArray(json.items) ? json.items : []);
+        const items = Array.isArray(json.items) ? json.items : [];
+        setSuggestions(items);
+        setHighlightedSuggestionIndex(items.length > 0 ? 0 : -1);
       } catch (error) {
         if (error.name !== 'AbortError') {
           setSuggestions([]);
+          setHighlightedSuggestionIndex(-1);
         }
       } finally {
         setIsSearching(false);
@@ -94,6 +99,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
     setStock(nextStockText);
     setSelectedSymbol(item.symbol);
     setShowSuggestions(false);
+    setHighlightedSuggestionIndex(-1);
 
     if (shouldKeepManualPrice) {
       return;
@@ -119,6 +125,37 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
     if (nextPrice !== null && nextPrice !== undefined) {
       setPrice(String(nextPrice));
       setIsPriceManual(false);
+    }
+  };
+
+  const handleStockInputKeyDown = (event) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setHighlightedSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setHighlightedSuggestionIndex((prev) => {
+        if (prev <= 0) return suggestions.length - 1;
+        return prev - 1;
+      });
+      return;
+    }
+
+    if (event.key === 'Enter' && highlightedSuggestionIndex >= 0) {
+      event.preventDefault();
+      handleSelectSuggestion(suggestions[highlightedSuggestionIndex]);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setShowSuggestions(false);
+      setHighlightedSuggestionIndex(-1);
     }
   };
 
@@ -167,25 +204,37 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-500">市場</label>
-              <select
-                value={market}
-                onChange={(e) => {
-                  const nextMarket = e.target.value;
-                  setMarket(nextMarket);
-                  setStock('');
-                  setSelectedSymbol('');
-                  setSuggestions([]);
-                  setShowSuggestions(false);
-                  // 切換市場時不重置手動輸入狀態，等待選股規則判斷。
-                }}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
-              >
-                <option value="TWSE">台股</option>
-                <option value="US">美股</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={market}
+                  onChange={(e) => {
+                    const nextMarket = e.target.value;
+                    setMarket(nextMarket);
+                    setStock('');
+                    setSelectedSymbol('');
+                    setSuggestions([]);
+                    setShowSuggestions(false);
+                    setHighlightedSuggestionIndex(-1);
+                    // 切換市場時不重置手動輸入狀態，等待選股規則判斷。
+                  }}
+                  className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+                >
+                  <option value="TWSE">台股</option>
+                  <option value="US">美股</option>
+                </select>
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </span>
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-500">交易日期</label>
@@ -196,59 +245,68 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
               />
             </div>
-            <div className="relative col-span-3 md:col-span-1">
-              <label className="mb-1 block text-xs font-semibold text-slate-500">股票名稱或代碼</label>
-              <input
-                type="text"
-                value={stock}
-                onChange={(e) => {
-                  setStock(e.target.value);
-                  setSelectedSymbol('');
-                  setShowSuggestions(true);
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                onBlur={() => {
-                  // Delay closing so click events on suggestion items can fire first.
-                  setTimeout(() => setShowSuggestions(false), 120);
-                }}
-                placeholder="2330 台積電"
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
-                required
-              />
-              {showSuggestions && (stock.trim() || isSearching) && (
-                <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                  {isSearching && (
-                    <div className="px-3 py-2 text-xs text-slate-400">搜尋中...</div>
-                  )}
-                  {!isSearching && suggestions.length === 0 && (
-                    <div className="px-3 py-2 text-xs text-slate-400">找不到符合的股票</div>
-                  )}
-                  {!isSearching &&
-                    suggestions.map((item) => (
-                      <button
-                        key={`${item.market}_${item.symbol}`}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => handleSelectSuggestion(item)}
-                        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs transition hover:bg-rose-50"
-                      >
-                        <span className="font-semibold text-slate-700">{item.symbol} {item.name}</span>
-                        <span className="text-slate-400">
-                          {item.market}
-                          {item.closePrice !== null && item.closePrice !== undefined
-                            ? ` · ${item.closePrice}`
-                            : ''}
-                        </span>
-                      </button>
-                    ))}
-                </div>
-              )}
-              <p className="mt-1 text-[11px] text-slate-400">
-                {market === 'TWSE'
-                  ? '台股可輸入代碼或名稱，例如「2330」或「台積電」。'
-                  : '美股可輸入代碼或名稱，例如「AAPL」或「Apple」。'}
-              </p>
-            </div>
+          </div>
+
+          <div className="relative">
+            <label className="mb-1 block text-xs font-semibold text-slate-500">股票名稱或代碼</label>
+            <input
+              type="text"
+              value={stock}
+              onChange={(e) => {
+                setStock(e.target.value);
+                setSelectedSymbol('');
+                setShowSuggestions(true);
+                setHighlightedSuggestionIndex(0);
+              }}
+              onKeyDown={handleStockInputKeyDown}
+              onFocus={() => {
+                setShowSuggestions(true);
+                if (suggestions.length > 0) setHighlightedSuggestionIndex(0);
+              }}
+              onBlur={() => {
+                // Delay closing so click events on suggestion items can fire first.
+                setTimeout(() => setShowSuggestions(false), 120);
+              }}
+              placeholder="2330 台積電"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+              required
+            />
+            {showSuggestions && (stock.trim() || isSearching) && (
+              <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                {isSearching && (
+                  <div className="px-3 py-2 text-xs text-slate-400">搜尋中...</div>
+                )}
+                {!isSearching && suggestions.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-slate-400">找不到符合的股票</div>
+                )}
+                {!isSearching &&
+                  suggestions.map((item, index) => (
+                    <button
+                      key={`${item.market}_${item.symbol}`}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onMouseEnter={() => setHighlightedSuggestionIndex(index)}
+                      onClick={() => handleSelectSuggestion(item)}
+                      className={`flex w-full items-center justify-between px-3 py-2 text-left text-xs transition ${
+                        highlightedSuggestionIndex === index ? 'bg-rose-50' : 'hover:bg-rose-50'
+                      }`}
+                    >
+                      <span className="font-semibold text-slate-700">{item.symbol} {item.name}</span>
+                      <span className="text-slate-400">
+                        {item.market}
+                        {item.closePrice !== null && item.closePrice !== undefined
+                          ? ` · ${item.closePrice}`
+                          : ''}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+            )}
+            <p className="mt-1 text-[11px] text-slate-400">
+              {market === 'TWSE'
+                ? '台股可輸入代碼或名稱，例如「2330」或「台積電」。可用方向鍵選擇，Enter 確認。'
+                : '美股可輸入代碼或名稱，例如「AAPL」或「Apple」。可用方向鍵選擇，Enter 確認。'}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
