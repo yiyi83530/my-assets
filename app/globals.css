@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', 'Noto Sans TC', sans-serif;
+  background-color: #fcf8f8;
+  color: #1e293b;
+}
+
+.card {
+  @apply rounded-2xl border border-slate-200/60 bg-white shadow-sm;
+}
+
