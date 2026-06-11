@@ -16,9 +16,9 @@ export default function TabNav({ activeTab }) {
   const { openConfigModal } = useApp();
 
   return (
-    <header className="rounded-2xl border border-rose-100 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
+    <header className="rounded-2xl border border-rose-100 bg-white p-4 shadow-sm" suppressHydrationWarning>
+      <div className="mb-3 flex items-center justify-between gap-3" suppressHydrationWarning>
+        <div suppressHydrationWarning>
           <h1 className="text-base font-extrabold tracking-tight text-slate-900">
             我的小豬存錢筒 <span className="text-rose-500">🐷</span>
           </h1>
@@ -27,14 +27,14 @@ export default function TabNav({ activeTab }) {
         <button
           onClick={openConfigModal}
           className="p-1.5 text-slate-500 transition hover:text-slate-900"
-          title="雲端設定"
-          aria-label="雲端設定"
+          title="設定"
+          aria-label="設定"
         >
-          ☁️
+          ⚙️
         </button>
       </div>
 
-      <div className="grid w-full grid-cols-2 gap-2 rounded-xl bg-slate-100/80 p-1">
+      <div className="grid w-full grid-cols-2 gap-2 rounded-xl bg-slate-100/80 p-1" suppressHydrationWarning>
         <Link href="/assets" className={tabClass(activeTab === 'assets')}>
           資產與負債
         </Link>

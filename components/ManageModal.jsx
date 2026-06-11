@@ -2,16 +2,80 @@
 
 import { useEffect, useState } from 'react';
 
+const CATEGORIES = ['台幣活存', '外幣活存', '員工持股信託', '負債項目'];
+
 export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew, onRemove, onUpdate }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const [suggestionsByIndex, setSuggestionsByIndex] = useState({});
   const [isSearchingByIndex, setIsSearchingByIndex] = useState({});
   const [highlightedByIndex, setHighlightedByIndex] = useState({});
+  const [openCategoryIndex, setOpenCategoryIndex] = useState(null);
+  const [highlightedCategoryByIndex, setHighlightedCategoryByIndex] = useState({});
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
 
   const pickSuggestion = (index, item) => {
     onUpdate(index, { ...assets[index], name: item });
     setActiveIndex(null);
     setHighlightedByIndex((prev) => ({ ...prev, [index]: -1 }));
+  };
+
+  const handleCategoryKeyDown = (event, index) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setOpenCategoryIndex(index);
+      setHighlightedCategoryByIndex((prev) => ({
+        ...prev,
+        [index]: ((prev[index] ?? -1) + 1) % CATEGORIES.length,
+      }));
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setOpenCategoryIndex(index);
+      setHighlightedCategoryByIndex((prev) => {
+        const cur = prev[index] ?? 0;
+        return { ...prev, [index]: cur <= 0 ? CATEGORIES.length - 1 : cur - 1 };
+      });
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (openCategoryIndex === index) {
+        const hi = highlightedCategoryByIndex[index] ?? -1;
+        if (hi >= 0) {
+          const cat = CATEGORIES[hi];
+          onUpdate(index, { ...assets[index], category: cat, isLiability: cat === '負債項目' });
+        }
+        setOpenCategoryIndex(null);
+      } else {
+        setOpenCategoryIndex(index);
+        setHighlightedCategoryByIndex((prev) => ({
+          ...prev,
+          [index]: CATEGORIES.indexOf(assets[index].category),
+        }));
+      }
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setOpenCategoryIndex(null);
+    }
+  };
+
+  const pickCategory = (index, cat) => {
+    onUpdate(index, { ...assets[index], category: cat, isLiability: cat === '負債項目' });
+    setOpenCategoryIndex(null);
+    setHighlightedCategoryByIndex((prev) => ({ ...prev, [index]: -1 }));
   };
 
   const handleNameKeyDown = (event, index) => {
@@ -109,91 +173,138 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
 
         <div className="p-6 overflow-y-auto space-y-4 flex-1">
           <p className="text-xs text-slate-400">
-            您可以在此手動輸入或更新各大銀行、信託、借貸 or 信用卡的名稱與目前金額。更新後點選「全部儲存」將即時同步至 Google Sheets。
+            手動輸入或更新各大銀行、信託、借貸 or 信用卡的名稱與目前金額。更新後點選「全部儲存」將即時同步至 Google Sheets。
           </p>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {assets.map((item, index) => (
-              <div key={item.id} className="flex items-center gap-3 rounded-xl border border-slate-200/60 bg-slate-50 p-3.5">
-                <div className="w-1/3">
-                  <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">分類</label>
-                  <select
-                    value={item.category}
-                    onChange={(e) => onUpdate(index, { ...item, category: e.target.value, isLiability: e.target.value === '負債項目' })}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-1.5 text-xs text-slate-800"
-                  >
-                    <option value="台幣活存">台幣活存</option>
-                    <option value="外幣活存">外幣活存</option>
-                    <option value="員工持股信託">員工持股信託</option>
-                    <option value="負債項目">負債項目</option>
-                  </select>
-                </div>
-                <div className="w-1/3">
-                  <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">名稱</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={item.name}
-                      onChange={(e) => {
-                        onUpdate(index, { ...item, name: e.target.value });
-                        setActiveIndex(index);
-                        setHighlightedByIndex((prev) => ({ ...prev, [index]: 0 }));
-                      }}
-                      onKeyDown={(e) => handleNameKeyDown(e, index)}
-                      onFocus={() => {
-                        setActiveIndex(index);
-                        if ((suggestionsByIndex[index] || []).length > 0) {
-                          setHighlightedByIndex((prev) => ({ ...prev, [index]: 0 }));
-                        }
-                      }}
-                      onBlur={() => {
-                        setTimeout(() => {
-                          setActiveIndex((prev) => (prev === index ? null : prev));
-                          setHighlightedByIndex((prev) => ({ ...prev, [index]: -1 }));
-                        }, 120);
-                      }}
-                      placeholder="例如：台新、國泰、玉山"
-                      className="w-full rounded-lg border border-slate-200 bg-white p-1.5 text-xs text-slate-800"
-                    />
-                    {activeIndex === index && ((suggestionsByIndex[index] || []).length > 0 || isSearchingByIndex[index]) && (
-                      <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
-                        {isSearchingByIndex[index] && (
-                          <div className="px-2 py-1.5 text-[11px] text-slate-400">搜尋中...</div>
+              <div key={item.id} className="rounded-xl border border-slate-200/60 bg-slate-50 p-3.5">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 space-y-3">
+                    {/* 第一行：名稱 */}
+                    <div>
+                      <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">名稱</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={item.name}
+                          onChange={(e) => {
+                            onUpdate(index, { ...item, name: e.target.value });
+                            setActiveIndex(index);
+                            setHighlightedByIndex((prev) => ({ ...prev, [index]: 0 }));
+                          }}
+                          onKeyDown={(e) => handleNameKeyDown(e, index)}
+                          onFocus={() => {
+                            setActiveIndex(index);
+                            if ((suggestionsByIndex[index] || []).length > 0) {
+                              setHighlightedByIndex((prev) => ({ ...prev, [index]: 0 }));
+                            }
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => {
+                              setActiveIndex((prev) => (prev === index ? null : prev));
+                              setHighlightedByIndex((prev) => ({ ...prev, [index]: -1 }));
+                            }, 120);
+                          }}
+                          placeholder="例如：台新、國泰、玉山"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 transition focus:border-rose-300 focus:outline-none"
+                        />
+                        {activeIndex === index && ((suggestionsByIndex[index] || []).length > 0 || isSearchingByIndex[index]) && (
+                          <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                            {isSearchingByIndex[index] && (
+                              <div className="px-2 py-1.5 text-[11px] text-slate-400">搜尋中...</div>
+                            )}
+                            {!isSearchingByIndex[index] &&
+                              (suggestionsByIndex[index] || []).map((name, suggestionIndex) => (
+                                <button
+                                  key={name}
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onMouseEnter={() => setHighlightedByIndex((prev) => ({ ...prev, [index]: suggestionIndex }))}
+                                  onClick={() => pickSuggestion(index, name)}
+                                  className={`block w-full px-2 py-1.5 text-left text-[11px] text-slate-700 transition ${
+                                    (highlightedByIndex[index] ?? -1) === suggestionIndex
+                                      ? 'bg-rose-50'
+                                      : 'hover:bg-rose-50'
+                                  }`}
+                                >
+                                  {name}
+                                </button>
+                              ))}
+                          </div>
                         )}
-                        {!isSearchingByIndex[index] &&
-                          (suggestionsByIndex[index] || []).map((name, suggestionIndex) => (
-                            <button
-                              key={name}
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onMouseEnter={() => setHighlightedByIndex((prev) => ({ ...prev, [index]: suggestionIndex }))}
-                              onClick={() => pickSuggestion(index, name)}
-                              className={`block w-full px-2 py-1.5 text-left text-[11px] text-slate-700 transition ${
-                                (highlightedByIndex[index] ?? -1) === suggestionIndex
-                                  ? 'bg-rose-50'
-                                  : 'hover:bg-rose-50'
-                              }`}
-                            >
-                              {name}
-                            </button>
-                          ))}
                       </div>
-                    )}
+                    </div>
+
+                    {/* 第二行：分類 + 金額 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* 分類自訂下拉 */}
+                      <div>
+                        <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">分類</label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (openCategoryIndex === index) {
+                                setOpenCategoryIndex(null);
+                              } else {
+                                setOpenCategoryIndex(index);
+                                setHighlightedCategoryByIndex((prev) => ({
+                                  ...prev,
+                                  [index]: CATEGORIES.indexOf(item.category),
+                                }));
+                              }
+                            }}
+                            onKeyDown={(e) => handleCategoryKeyDown(e, index)}
+                            onBlur={() => setTimeout(() => setOpenCategoryIndex((prev) => (prev === index ? null : prev)), 120)}
+                            className="w-full flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-50 focus:border-rose-300 focus:outline-none"
+                          >
+                            <span>{item.category}</span>
+                            <svg viewBox="0 0 20 20" fill="currentColor"
+                              className={`h-3.5 w-3.5 text-slate-400 transition-transform ${openCategoryIndex === index ? 'rotate-180' : ''}`}>
+                              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                          {openCategoryIndex === index && (
+                            <div className="absolute z-30 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                              {CATEGORIES.map((cat, ci) => (
+                                <button
+                                  key={cat}
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onMouseEnter={() => setHighlightedCategoryByIndex((prev) => ({ ...prev, [index]: ci }))}
+                                  onClick={() => pickCategory(index, cat)}
+                                  className={`w-full px-3 py-2 text-left text-xs font-semibold transition flex items-center gap-2 ${ci > 0 ? 'border-t border-slate-100' : ''} ${
+                                    (highlightedCategoryByIndex[index] ?? -1) === ci
+                                      ? 'bg-rose-50 text-rose-700'
+                                      : 'text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {cat}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 金額 */}
+                      <div>
+                        <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">金額 (TWD)</label>
+                        <input
+                          type="number"
+                          value={item.balance}
+                          onChange={(e) => onUpdate(index, { ...item, balance: Number(e.target.value) || 0 })}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-right font-mono text-xs text-slate-800 transition focus:border-rose-300 focus:outline-none"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="w-1/4">
-                  <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">金額 (TWD)</label>
-                  <input
-                    type="number"
-                    value={item.balance}
-                    onChange={(e) => onUpdate(index, { ...item, balance: Number(e.target.value) || 0 })}
-                    className="w-full rounded-lg border border-slate-200 bg-white p-1.5 text-right font-mono text-xs text-slate-800"
-                  />
-                </div>
-                <div className="pt-4">
+
+                  {/* 刪除按鈕 - 垂直置中 */}
                   <button
                     onClick={() => onRemove(index)}
-                    className="rounded-lg p-1.5 text-slate-400 transition hover:text-rose-500"
+                    className="self-center rounded-lg p-1.5 text-slate-400 transition hover:text-rose-500"
                     title="移除本項"
                   >
                     ✕
@@ -205,9 +316,9 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
 
           <button
             onClick={onAddNew}
-            className="w-full flex items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-slate-50 py-2 text-xs font-bold text-slate-500 transition hover:bg-slate-100"
+            className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-dashed border-rose-200 bg-rose-50/50 py-2.5 text-xs font-bold text-rose-400 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-500"
           >
-            ➕ 新增一個帳戶/負債項目
+            ＋ 新增帳戶 / 負債項目
           </button>
         </div>
 
@@ -233,6 +344,17 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
 }
 
 export function CustomDialog({ isOpen, onClose, title, message, buttons = [] }) {
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (

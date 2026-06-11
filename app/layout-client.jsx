@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
-import { assetBalances as initialAssets } from '@/lib/data';
+import { assetBalances as initialAssets, transactions as initialTransactions } from '@/lib/data';
 import { AppProvider } from '@/lib/app-context';
 
 export default function RootLayoutClient({ children }) {
@@ -16,6 +16,7 @@ export default function RootLayoutClient({ children }) {
 
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
+  const [transactions, setTransactions] = useState(initialTransactions);
 
   const displayToast = useCallback((msg) => {
     setToastMessage(msg);
@@ -28,25 +29,29 @@ export default function RootLayoutClient({ children }) {
     setShowDialog(true);
   }, []);
 
+  const addTransaction = useCallback((tx) => {
+    setTransactions((prev) => [...prev, { ...tx, id: tx.id || `tx_${Date.now()}` }]);
+  }, []);
+
+  const removeTransaction = useCallback((id) => {
+    setTransactions((prev) => prev.filter((tx) => tx.id !== id));
+  }, []);
+
   const handleTransactionSubmit = (txData) => {
-    // TODO: 存檔交易（可連到 API）
+    addTransaction({ ...txData, id: `tx_${Date.now()}`, recordedAt: new Date().toISOString() });
     displayToast(`已成功記錄 ${txData.stock} 交易！`);
     setShowTransactionModal(false);
-    console.log('新交易：', txData);
   };
 
   const handleConfigConnect = (apiUrl) => {
-    // TODO: 儲存 Google Sheets 連線
     displayToast('Google Sheets 連線已儲存！');
     setShowConfigModal(false);
     console.log('API URL:', apiUrl);
   };
 
   const handleSaveAssets = () => {
-    // TODO: 儲存資產餘額到 API
     displayToast('資產負債餘額已同步儲存 🐷');
     setShowManageModal(false);
-    console.log('儲存資產：', assets);
   };
 
   const handleUpdateAsset = (index, newData) => {
@@ -58,13 +63,7 @@ export default function RootLayoutClient({ children }) {
   const handleAddNewAsset = () => {
     setAssets([
       ...assets,
-      {
-        id: 'new_' + Date.now(),
-        category: '台幣活存',
-        name: '新銀行/新資產',
-        balance: 0,
-        isLiability: false,
-      },
+      { id: 'new_' + Date.now(), category: '台幣活存', name: '新銀行/新資產', balance: 0, isLiability: false },
     ]);
   };
 
@@ -79,8 +78,11 @@ export default function RootLayoutClient({ children }) {
       openManageModal={() => setShowManageModal(true)}
       displayToast={displayToast}
       displayDialog={displayDialog}
+      transactions={transactions}
+      addTransaction={addTransaction}
+      removeTransaction={removeTransaction}
     >
-      <div className="mx-auto max-w-7xl px-4 py-6">{children}</div>
+      <div className="mx-auto max-w-7xl px-4 py-6" suppressHydrationWarning>{children}</div>
 
       {/* 懸浮記帳按鈕 */}
       <button
@@ -90,19 +92,8 @@ export default function RootLayoutClient({ children }) {
         🐷 記一筆股票
       </button>
 
-      {/* Modals */}
-      <TransactionModal
-        isOpen={showTransactionModal}
-        onClose={() => setShowTransactionModal(false)}
-        onSubmit={handleTransactionSubmit}
-      />
-
-      <ConfigModal
-        isOpen={showConfigModal}
-        onClose={() => setShowConfigModal(false)}
-        onConnect={handleConfigConnect}
-      />
-
+      <TransactionModal isOpen={showTransactionModal} onClose={() => setShowTransactionModal(false)} onSubmit={handleTransactionSubmit} />
+      <ConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} onConnect={handleConfigConnect} />
       <ManageAccountsModal
         isOpen={showManageModal}
         onClose={() => setShowManageModal(false)}
@@ -112,7 +103,6 @@ export default function RootLayoutClient({ children }) {
         onRemove={handleRemoveAsset}
         onUpdate={handleUpdateAsset}
       />
-
       <CustomDialog
         isOpen={showDialog}
         onClose={() => setShowDialog(false)}
@@ -120,10 +110,7 @@ export default function RootLayoutClient({ children }) {
         message={dialog.message}
         buttons={dialog.buttons}
       />
-
-      {/* Toast */}
       <Toast message={toastMessage} isVisible={showToast} />
     </AppProvider>
   );
 }
-

@@ -16,6 +16,8 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
   const [isSearching, setIsSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightedSuggestionIndex, setHighlightedSuggestionIndex] = useState(-1);
+  const [showMarketDropdown, setShowMarketDropdown] = useState(false);
+  const [marketHighlightedIndex, setMarketHighlightedIndex] = useState(-1);
 
   const rawTotal = Number(qty) * Number(price) || 0;
   let fee = 0;
@@ -53,6 +55,17 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
     setShowSuggestions(false);
     setHighlightedSuggestionIndex(-1);
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -159,6 +172,45 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
     }
   };
 
+  const handleMarketDropdownKeyDown = (event) => {
+    const markets = ['TWSE', 'US'];
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setMarketHighlightedIndex((prev) => (prev + 1) % markets.length);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setMarketHighlightedIndex((prev) => {
+        if (prev <= 0) return markets.length - 1;
+        return prev - 1;
+      });
+      return;
+    }
+
+    if (event.key === 'Enter' && marketHighlightedIndex >= 0) {
+      event.preventDefault();
+      const nextMarket = markets[marketHighlightedIndex];
+      setMarket(nextMarket);
+      setStock('');
+      setSelectedSymbol('');
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setHighlightedSuggestionIndex(-1);
+      setShowMarketDropdown(false);
+      setMarketHighlightedIndex(-1);
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setShowMarketDropdown(false);
+      setMarketHighlightedIndex(-1);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -204,38 +256,82 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-500">市場</label>
-              <div className="relative">
-                <select
-                  value={market}
-                  onChange={(e) => {
-                    const nextMarket = e.target.value;
-                    setMarket(nextMarket);
-                    setStock('');
-                    setSelectedSymbol('');
-                    setSuggestions([]);
-                    setShowSuggestions(false);
-                    setHighlightedSuggestionIndex(-1);
-                    // 切換市場時不重置手動輸入狀態，等待選股規則判斷。
-                  }}
-                  className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
-                >
-                  <option value="TWSE">台股</option>
-                  <option value="US">美股</option>
-                </select>
-                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4" aria-hidden="true">
-                    <path
-                      fillRule="evenodd"
-                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </span>
-              </div>
-            </div>
+           <div className="grid grid-cols-2 gap-4">
+             <div>
+               <label className="mb-1 block text-xs font-semibold text-slate-500">市場</label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMarketDropdown(!showMarketDropdown);
+                      if (!showMarketDropdown) setMarketHighlightedIndex(market === 'TWSE' ? 0 : 1);
+                    }}
+                    onKeyDown={handleMarketDropdownKeyDown}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none flex items-center justify-between hover:bg-white"
+                  >
+                    <span>{market === 'TWSE' ? '📈 台股' : '🇺🇸 美股'}</span>
+                    <svg
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      className={`h-4 w-4 text-slate-400 transition-transform ${showMarketDropdown ? 'rotate-180' : ''}`}
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                  {showMarketDropdown && (
+                    <div className="absolute z-30 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                      <button
+                        type="button"
+                        onMouseEnter={() => setMarketHighlightedIndex(0)}
+                        onClick={() => {
+                          const nextMarket = 'TWSE';
+                          setMarket(nextMarket);
+                          setStock('');
+                          setSelectedSymbol('');
+                          setSuggestions([]);
+                          setShowSuggestions(false);
+                          setHighlightedSuggestionIndex(-1);
+                          setShowMarketDropdown(false);
+                          setMarketHighlightedIndex(-1);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-sm font-semibold transition flex items-center gap-2 ${
+                          marketHighlightedIndex === 0
+                            ? 'bg-rose-50 text-rose-700'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        📈 台股
+                      </button>
+                      <button
+                        type="button"
+                        onMouseEnter={() => setMarketHighlightedIndex(1)}
+                        onClick={() => {
+                          const nextMarket = 'US';
+                          setMarket(nextMarket);
+                          setStock('');
+                          setSelectedSymbol('');
+                          setSuggestions([]);
+                          setShowSuggestions(false);
+                          setHighlightedSuggestionIndex(-1);
+                          setShowMarketDropdown(false);
+                          setMarketHighlightedIndex(-1);
+                        }}
+                        className={`w-full px-3 py-2 text-left text-sm font-semibold transition flex items-center gap-2 border-t border-slate-100 ${
+                          marketHighlightedIndex === 1
+                            ? 'bg-rose-50 text-rose-700'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        🇺🇸 美股
+                      </button>
+                    </div>
+                  )}
+                </div>
+             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-500">交易日期</label>
               <input
@@ -267,7 +363,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
                 // Delay closing so click events on suggestion items can fire first.
                 setTimeout(() => setShowSuggestions(false), 120);
               }}
-              placeholder="2330 台積電"
+              placeholder={market === 'TWSE' ? '2330 台積電' : 'AAPL Apple'}
               className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
               required
             />
@@ -304,8 +400,8 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
             )}
             <p className="mt-1 text-[11px] text-slate-400">
               {market === 'TWSE'
-                ? '台股可輸入代碼或名稱，例如「2330」或「台積電」。可用方向鍵選擇，Enter 確認。'
-                : '美股可輸入代碼或名稱，例如「AAPL」或「Apple」。可用方向鍵選擇，Enter 確認。'}
+                ? '台股可輸入代碼或名稱，例如「2330」或「台積電」。'
+                : '美股可輸入代碼或名稱，例如「AAPL」或「Apple」。'}
             </p>
           </div>
 
@@ -389,6 +485,17 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
 
 export function ConfigModal({ isOpen, onClose, onConnect }) {
   const [apiUrl, setApiUrl] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isOpen]);
 
   const handleConnect = () => {
     if (apiUrl.trim()) {
