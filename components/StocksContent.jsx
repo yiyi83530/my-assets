@@ -215,7 +215,7 @@ export function StocksContent({ initialPrices = {} }) {
               </button>
             </div>
           </div>
-          <div className="mt-1 flex items-center">
+          <div className="mt-2 flex items-center">
             <button
               onClick={handleManualRefresh}
               disabled={isFetchingPrices}
