@@ -353,9 +353,25 @@ export function StocksContent({ initialPrices = {} }) {
                   data={industryData}
                   cx="50%"
                   cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
-                  outerRadius={70}
+                  labelLine={true}
+                  label={({ cx, cy, midAngle, outerRadius, percent, name }) => {
+                    const radius = outerRadius + 12;
+                    const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
+                    const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
+                    return (
+                      <text
+                        x={x}
+                        y={y}
+                        fill="#64748b"
+                        textAnchor={x > cx ? "start" : "end"}
+                        dominantBaseline="central"
+                        className="text-[10px] font-bold"
+                      >
+                        {`${name} ${(percent * 100).toFixed(0)}%`}
+                      </text>
+                    );
+                  }}
+                  outerRadius={60}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -377,11 +393,12 @@ export function StocksContent({ initialPrices = {} }) {
           </div>
         )}
 
-        {activePositions.length === 0 ? (
-          <div className="px-5 py-12 text-center text-sm text-slate-400">
-            目前沒有 {posTab === 'TWSE' ? '台股' : '美股'} 持股紀錄
-          </div>
-        ) : (
+        <div key={posTab} className="animate-in fade-in duration-500">
+          {activePositions.length === 0 ? (
+            <div className="px-5 py-12 text-center text-sm text-slate-400">
+              目前沒有 {posTab === 'TWSE' ? '台股' : '美股'} 持股紀錄
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[960px] text-center">
               <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400">
@@ -476,7 +493,8 @@ export function StocksContent({ initialPrices = {} }) {
               </tbody>
             </table>
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ── Transaction History ── */}
@@ -493,11 +511,12 @@ export function StocksContent({ initialPrices = {} }) {
           </div>
         </div>
 
-        {activeTx.length === 0 ? (
-          <div className="px-5 py-12 text-center text-sm text-slate-400">
-            目前沒有 {histTab === 'TWSE' ? '台股' : '美股'} 交易紀錄
-          </div>
-        ) : (
+        <div key={histTab} className="animate-in fade-in duration-500">
+          {activeTx.length === 0 ? (
+            <div className="px-5 py-12 text-center text-sm text-slate-400">
+              目前沒有 {histTab === 'TWSE' ? '台股' : '美股'} 交易紀錄
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-center">
               <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400">
@@ -564,7 +583,8 @@ export function StocksContent({ initialPrices = {} }) {
               </tbody>
             </table>
           </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ── 刪除確認 Modal ── */}
