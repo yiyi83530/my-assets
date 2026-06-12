@@ -1,4 +1,5 @@
 const TWSE_STOCK_ALL_URL = 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL';
+const TPEX_ESB_STATS_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics';
 const SEC_TICKER_URL = 'https://www.sec.gov/files/company_tickers.json';
 
 let stockCache = {
@@ -31,6 +32,19 @@ function normalizeItem(raw) {
   };
 }
 
+function normalizeEsbItem(raw) {
+  const symbol = String(raw.SecuritiesCompanyCode || raw.Code || '').trim();
+  const name = String(raw.CompanyName || raw.Name || '').trim();
+  if (!symbol || !name) return null;
+
+  return {
+    symbol,
+    name,
+    market: 'ESB',
+    closePrice: toNumberMaybe(raw.ClosingPrice || raw.Close || raw.PreviousAveragePrice),
+  }
+}
+
 async function loadStockList() {
   const now = Date.now();
   const oneDayMs = 24 * 60 * 60 * 1000;
@@ -48,16 +62,42 @@ async function loadStockList() {
   }
 
   const json = await res.json();
-  const items = Array.isArray(json)
+  const twseItems = Array.isArray(json)
     ? json.map(normalizeItem).filter(Boolean)
     : [];
 
+  // 興櫃清單與前日均價
+  let esbItems = [];
+  try {
+    const esbRes = await fetch(TPEX_ESB_STATS_URL, {
+      next: { revalidate: 3600 },
+    });
+    if (esbRes.ok) {
+      const esbJson = await esbRes.json();
+      esbItems = Array.isArray(esbJson)
+        ? esbJson.map(normalizeEsbItem).filter(Boolean)
+        : [];
+    }
+  } catch (error) {
+    // ESB source is best-effort; keep TWSE results available.
+  }
+
+  // 同代號優先保留上市/上櫃，再補興櫃
+  const merged = [...twseItems];
+  const seen = new Set(twseItems.map((item) => item.symbol));
+  for (const item of esbItems) {
+    if (!seen.has(item.symbol)) {
+      merged.push(item);
+      seen.add(item.symbol);
+    }
+  }
+
   stockCache = {
     updatedAt: now,
-    items,
+    items: merged,
   };
 
-  return items;
+  return merged;
 }
 
 async function loadUsStockList() {
@@ -107,9 +147,11 @@ async function loadUsStockList() {
 function filterStocks(items, query, limit) {
   const q = query.trim().toLowerCase();
   if (!q) return [];
+  const tokens = q.split(/\s+/).filter(Boolean);
 
   const exactCode = [];
   const codePrefix = [];
+  const tokenMatch = [];
   const nameIncludes = [];
 
   for (const item of items) {
@@ -120,6 +162,10 @@ function filterStocks(items, query, limit) {
       exactCode.push(item);
     } else if (code.startsWith(q)) {
       codePrefix.push(item);
+    } else if (tokens.length > 1) {
+      const haystack = `${code} ${name}`;
+      const hitAll = tokens.every((token) => haystack.includes(token));
+      if (hitAll) tokenMatch.push(item);
     } else if (name.includes(q)) {
       nameIncludes.push(item);
     }
@@ -130,7 +176,7 @@ function filterStocks(items, query, limit) {
     }
   }
 
-  return [...exactCode, ...codePrefix, ...nameIncludes].slice(0, limit);
+  return [...exactCode, ...codePrefix, ...tokenMatch, ...nameIncludes].slice(0, limit);
 }
 
 export async function GET(request) {

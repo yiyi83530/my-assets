@@ -5,6 +5,8 @@ function toNumberMaybe(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+const TPEX_ESB_STATS_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics';
+
 async function fetchTwseQuote(symbol) {
   const code = String(symbol || '').trim();
   if (!code) return null;
@@ -22,6 +24,30 @@ async function fetchTwseQuote(symbol) {
 
   // z=當盤成交價，若為 '-' 則退回昨收 y
   return toNumberMaybe(row.z) ?? toNumberMaybe(row.y);
+}
+
+async function fetchEsbQuote(symbol) {
+  const code = String(symbol || '').trim();
+  if (!code) return null;
+
+  const res = await fetch(TPEX_ESB_STATS_URL, {
+    next: { revalidate: 30 },
+  });
+  if (!res.ok) return null;
+
+  const json = await res.json();
+  if (!Array.isArray(json)) return null;
+
+  const row = json.find((item) => String(item.SecuritiesCompanyCode || '').trim() === code);
+  if (!row) return null;
+
+  // 興櫃先取買賣中價，取不到則退回前日均價
+  return (
+    toNumberMaybe(row.LatestPrice) ??
+    toNumberMaybe(row.BuyingPrice) ??
+    toNumberMaybe(row.SellingPrice) ??
+    toNumberMaybe(row.PreviousAveragePrice)
+  );
 }
 
 async function fetchUsQuote(symbol) {
@@ -72,9 +98,15 @@ export async function GET(request) {
   }
 
   try {
-    const price = market === 'US'
-      ? await fetchUsQuote(symbol)
-      : await fetchTwseQuote(symbol);
+    let price;
+    if (market === 'US') {
+      price = await fetchUsQuote(symbol);
+    } else {
+      price = await fetchTwseQuote(symbol);
+      if (price === null) {
+        price = await fetchEsbQuote(symbol);
+      }
+    }
 
     return Response.json({ price });
   } catch (error) {

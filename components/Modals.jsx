@@ -400,7 +400,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
             )}
             <p className="mt-1 text-[11px] text-slate-400">
               {market === 'TWSE'
-                ? '台股可輸入代碼或名稱，例如「2330」或「台積電」。'
+                ? '台股可輸入代碼或名稱（含興櫃），例如「2330」、「台積電」或「宏偉 4565」。'
                 : '美股可輸入代碼或名稱，例如「AAPL」或「Apple」。'}
             </p>
           </div>

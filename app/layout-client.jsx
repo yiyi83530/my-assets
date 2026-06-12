@@ -60,10 +60,20 @@ export default function RootLayoutClient({ children }) {
     setAssets(updated);
   };
 
-  const handleAddNewAsset = () => {
+  const handleAddNewAsset = (category = '台幣活存') => {
+    const isForeign = category === '外幣活存';
+    const isLiability = category === '負債項目';
+
     setAssets([
       ...assets,
-      { id: 'new_' + Date.now(), category: '台幣活存', name: '新銀行/新資產', balance: 0, isLiability: false },
+      {
+        id: 'new_' + Date.now(),
+        category,
+        name: isLiability ? '新負債項目' : '新銀行/新資產',
+        balance: 0,
+        isLiability,
+        ...(isForeign ? { currency: 'USD', amount: 0 } : {}),
+      },
     ]);
   };
 
