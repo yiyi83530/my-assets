@@ -2,28 +2,14 @@
 
 import { useEffect, useState } from 'react';
 
-const CATEGORIES = ['台幣活存', '外幣活存', '員工持股信託', '負債項目'];
+const CATEGORIES = ['台幣活存', '外幣活存', '持股信託', '負債項目'];
 const FOREIGN_CURRENCIES = ['USD', 'JPY', 'EUR', 'HKD', 'CNY', 'SGD'];
-
-function applyCategoryChange(item, category) {
-  const next = { ...item, category, isLiability: category === '負債項目' };
-
-  if (category === '外幣活存') {
-    next.currency = next.currency || 'USD';
-    next.amount = Number(next.amount ?? next.balance) || 0;
-    next.balance = Number(next.amount) || 0;
-  }
-
-  return next;
-}
 
 export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew, onRemove, onUpdate }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const [suggestionsByIndex, setSuggestionsByIndex] = useState({});
   const [isSearchingByIndex, setIsSearchingByIndex] = useState({});
   const [highlightedByIndex, setHighlightedByIndex] = useState({});
-  const [openCategoryIndex, setOpenCategoryIndex] = useState(null);
-  const [highlightedCategoryByIndex, setHighlightedCategoryByIndex] = useState({});
   const [itemToDelete, setItemToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState(CATEGORIES[0]);
@@ -58,55 +44,6 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
     onUpdate(index, { ...assets[index], name: item });
     setActiveIndex(null);
     setHighlightedByIndex((prev) => ({ ...prev, [index]: -1 }));
-  };
-
-  const handleCategoryKeyDown = (event, index) => {
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setOpenCategoryIndex(index);
-      setHighlightedCategoryByIndex((prev) => ({
-        ...prev,
-        [index]: ((prev[index] ?? -1) + 1) % CATEGORIES.length,
-      }));
-      return;
-    }
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setOpenCategoryIndex(index);
-      setHighlightedCategoryByIndex((prev) => {
-        const cur = prev[index] ?? 0;
-        return { ...prev, [index]: cur <= 0 ? CATEGORIES.length - 1 : cur - 1 };
-      });
-      return;
-    }
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      if (openCategoryIndex === index) {
-        const hi = highlightedCategoryByIndex[index] ?? -1;
-        if (hi >= 0) {
-          const cat = CATEGORIES[hi];
-          onUpdate(index, applyCategoryChange(assets[index], cat));
-        }
-        setOpenCategoryIndex(null);
-      } else {
-        setOpenCategoryIndex(index);
-        setHighlightedCategoryByIndex((prev) => ({
-          ...prev,
-          [index]: CATEGORIES.indexOf(assets[index].category),
-        }));
-      }
-      return;
-    }
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      setOpenCategoryIndex(null);
-    }
-  };
-
-  const pickCategory = (index, cat) => {
-    onUpdate(index, applyCategoryChange(assets[index], cat));
-    setOpenCategoryIndex(null);
-    setHighlightedCategoryByIndex((prev) => ({ ...prev, [index]: -1 }));
   };
 
   const handleNameKeyDown = (event, index) => {
@@ -242,10 +179,15 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
           </div>
 
           <div className="space-y-3">
+            {activeTab === '外幣活存' && (
+              <p className="text-[11px] text-slate-500">
+                會依當下匯率自動換算成台幣估值；請直接輸入原幣金額。
+              </p>
+            )}
             {tabbedAssets.map(({ item, index: assetIndex }) => (
               <div key={item.id} className="rounded-xl border border-slate-200/60 bg-slate-50 p-3.5">
                 <div className="flex items-start gap-2">
-                  <div className="flex-1 space-y-3">
+                  <div className={`flex-1 ${item.category === '外幣活存' ? 'space-y-3' : 'grid grid-cols-2 gap-3 items-start'}`}>
                     {/* 第一行：名稱 */}
                     <div>
                       <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">名稱</label>
@@ -301,84 +243,31 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
                       </div>
                     </div>
 
-                    {/* 第二行：分類 + 金額 */}
-                    <div className="grid grid-cols-2 gap-3">
-                      {/* 分類自訂下拉 */}
-                      <div>
-                        <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">分類</label>
-                        <div className={item.category === '外幣活存' ? 'rounded-lg border border-rose-100 bg-rose-50/40 p-2' : ''}>
-                          <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (openCategoryIndex === assetIndex) {
-                                  setOpenCategoryIndex(null);
-                                } else {
-                                  setOpenCategoryIndex(assetIndex);
-                                  setHighlightedCategoryByIndex((prev) => ({
-                                    ...prev,
-                                    [assetIndex]: CATEGORIES.indexOf(item.category),
-                                  }));
-                                }
-                              }}
-                              onKeyDown={(e) => handleCategoryKeyDown(e, assetIndex)}
-                              onBlur={() => setTimeout(() => setOpenCategoryIndex((prev) => (prev === assetIndex ? null : prev)), 120)}
-                              className="w-full flex items-center justify-between rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-50 focus:border-rose-300 focus:outline-none"
-                            >
-                              <span>{item.category}</span>
-                              <svg viewBox="0 0 20 20" fill="currentColor"
-                                className={`h-3.5 w-3.5 text-slate-400 transition-transform ${openCategoryIndex === assetIndex ? 'rotate-180' : ''}`}>
-                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                            {openCategoryIndex === assetIndex && (
-                              <div className="absolute z-30 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-                                {CATEGORIES.map((cat, ci) => (
-                                  <button
-                                    key={cat}
-                                    type="button"
-                                    onMouseDown={(e) => e.preventDefault()}
-                                    onMouseEnter={() => setHighlightedCategoryByIndex((prev) => ({ ...prev, [assetIndex]: ci }))}
-                                    onClick={() => pickCategory(assetIndex, cat)}
-                                    className={`w-full px-3 py-2 text-left text-xs font-semibold transition flex items-center gap-2 ${ci > 0 ? 'border-t border-slate-100' : ''} ${
-                                      (highlightedCategoryByIndex[assetIndex] ?? -1) === ci
-                                        ? 'bg-rose-50 text-rose-700'
-                                        : 'text-slate-700 hover:bg-slate-50'
-                                    }`}
-                                  >
-                                    {cat}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-
-                          {item.category === '外幣活存' && (
-                            <div className="mt-2">
-                              <label className="mb-0.5 block text-[10px] font-bold uppercase text-rose-500">幣別</label>
-                              <select
-                                value={item.currency || 'USD'}
-                                onChange={(e) =>
-                                  onUpdate(assetIndex, {
-                                    ...item,
-                                    currency: e.target.value,
-                                    amount: Number(item.amount ?? item.balance) || 0,
-                                  })
-                                }
-                                className="w-full rounded-lg border border-rose-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 transition focus:border-rose-300 focus:outline-none"
-                              >
-                                {FOREIGN_CURRENCIES.map((currency) => (
-                                  <option key={currency} value={currency}>
-                                    {currency}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+                    {/* 第二行：幣別 (外幣) + 金額 */}
+                    <div className={`grid gap-3 ${item.category === '外幣活存' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      {item.category === '外幣活存' && (
+                        <div>
+                          <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">幣別</label>
+                          <select
+                            value={item.currency || 'USD'}
+                            onChange={(e) =>
+                              onUpdate(assetIndex, {
+                                ...item,
+                                currency: e.target.value,
+                                amount: Number(item.amount ?? item.balance) || 0,
+                              })
+                            }
+                            className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 transition focus:border-rose-300 focus:outline-none"
+                          >
+                            {FOREIGN_CURRENCIES.map((currency) => (
+                              <option key={currency} value={currency}>
+                                {currency}
+                              </option>
+                            ))}
+                          </select>
                         </div>
-                      </div>
+                      )}
 
-                      {/* 金額 */}
                       <div>
                         <label className="mb-0.5 block text-[10px] font-bold uppercase text-slate-400">
                           金額 {item.category === '外幣活存' ? `(${item.currency || 'USD'})` : '(TWD)'}
@@ -397,11 +286,6 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
                           }}
                           className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-right font-mono text-xs text-slate-800 transition focus:border-rose-300 focus:outline-none"
                         />
-                        {item.category === '外幣活存' && (
-                          <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                            會依當下匯率自動換算成台幣估值；此欄請輸入原幣金額。
-                          </p>
-                        )}
                       </div>
                     </div>
                   </div>
