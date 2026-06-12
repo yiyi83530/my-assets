@@ -9,7 +9,7 @@ import {
   fetchForeignExchangeRates,
 } from '@/lib/calculations';
 
-export const dynamic = 'force-dynamic';
+export const dynamic = 'auto';
 
 
 export default async function AssetsPage() {
