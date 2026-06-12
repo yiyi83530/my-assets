@@ -1,9 +1,86 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useApp } from '@/lib/app-context';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
+
+// 股票代號 → 產業分類映射 (可擴展)
+const INDUSTRY_MAP = {
+  // 台股
+  2330: '半導體',
+  2454: '半導體',
+  3034: '半導體',
+  2308: '半導體',
+  2317: '半導體',
+  2382: '半導體',
+  3231: '半導體',
+  1301: '水泥',
+  1402: '鋼鐵',
+  2353: '晶圓代工',
+  2379: '晶圓代工',
+  2880: '金融保險',
+  2881: '金融保險',
+  2886: '金融保險',
+  2890: '金融保險',
+  1590: '纖維',
+  4938: '光磊',
+  2409: '光磊',
+  6488: '光磊',
+  2882: '金融保險',
+  2883: '金融保險',
+  2884: '金融保險',
+  2885: '金融保險',
+  2887: '金融保險',
+  3044: '消費電子',
+  2481: '光磊',
+  2347: '光磊',
+  3016: '消費電子',
+  TSMC: '半導體',
+  MediaTek: '半導體',
+  // 美股
+  AAPL: '消費電子',
+  MSFT: '軟體/雲計算',
+  GOOGL: '網路/軟體',
+  AMZN: '電子商務',
+  NVDA: 'AI/晶片',
+  META: '社群媒體',
+  TSLA: '電動車',
+  JPM: '金融',
+  BAC: '金融',
+  WMT: '零售',
+  MCD: '餐飲',
+  KO: '飲料食品',
+};
+
+// 依產業分類預設顏色
+const INDUSTRY_COLORS = {
+  '半導體': '#ef4444',
+  '晶圓代工': '#f97316',
+  '金融保險': '#eab308',
+  '消費電子': '#22c55e',
+  '軟體/雲計算': '#06b6d4',
+  '網路/軟體': '#3b82f6',
+  '電子商務': '#6366f1',
+  'AI/晶片': '#d946ef',
+  '光磊': '#ec4899',
+  '電動車': '#8b5cf6',
+  '社群媒體': '#14b8a6',
+  '水泥': '#f59e0b',
+  '鋼鐵': '#78716c',
+  '纖維': '#0ea5e9',
+  '消費': '#green',
+  '餐飲': '#hsl(210, 40%, 80%)',
+  '飲料食品': '#hsl(30, 80%, 60%)',
+  '零售': '#hsl(280, 80%, 60%)',
+  '金融': '#hsl(200, 80%, 60%)',
+  'default': '#a78bfa',
+};
+
+function getIndustry(symbol) {
+  return INDUSTRY_MAP[symbol] || '其他';
+}
 
 function buildBasePositions(txList) {
   const map = {};
@@ -72,6 +149,7 @@ export function StocksContent({ initialPrices = {} }) {
   const [priceMap, setPriceMap] = useState(initialPrices);
   const [deleteId, setDeleteId] = useState(null); // 儲存準備刪除的 ID
   const [isDeleting, setIsDeleting] = useState(false); // 刪除中的 loading 狀態
+  const [showChart, setShowChart] = useState(false); // 圓餅圖顯示/隱藏
 
   const [isFetchingPrices, setIsFetchingPrices] = useState(false);
   const [posTab, setPosTab] = useState('TWSE');
@@ -146,6 +224,25 @@ export function StocksContent({ initialPrices = {} }) {
   const usPositions = allPositions.filter((p) => p.market === 'US');
   const activePositions = posTab === 'TWSE' ? twsePositions : usPositions;
 
+  // ── 按產業聚合 ────────────────────────────────────────────────────────
+  const industryData = (() => {
+    const industryMap = {};
+    activePositions.forEach((pos) => {
+      const industry = getIndustry(pos.symbol);
+      if (!industryMap[industry]) {
+        industryMap[industry] = 0;
+      }
+      industryMap[industry] += pos.marketValue;
+    });
+
+    return Object.entries(industryMap)
+      .map(([name, value]) => ({
+        name,
+        value: Math.round(value),
+      }))
+      .sort((a, b) => b.value - a.value);
+  })();
+
   const handlePriceChange = (name, value) => {
     const num = parseFloat(value);
     setPriceMap((prev) => ({ ...prev, [name]: isNaN(num) ? 0 : num }));
@@ -215,7 +312,7 @@ export function StocksContent({ initialPrices = {} }) {
               </button>
             </div>
           </div>
-          <div className="mt-2 flex items-center">
+          <div className="mt-2 flex items-center justify-between">
             <button
               onClick={handleManualRefresh}
               disabled={isFetchingPrices}
@@ -230,8 +327,55 @@ export function StocksContent({ initialPrices = {} }) {
               )}
               更新現價
             </button>
+            <button
+              onClick={() => setShowChart(!showChart)}
+              className={`inline-flex items-center gap-1 pb-0.5 text-xs font-bold transition border-b-2 ${
+                showChart
+                  ? 'text-slate-400 border-slate-400 hover:text-slate-500'
+                  : 'text-rose-300 border-rose-300 hover:text-rose-500'
+              }`}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
+                <path d="M10 2.5a.75.75 0 01.75.75v6.25H17a.75.75 0 01.75.75A8.75 8.75 0 1110 1.25a.75.75 0 010 1.5z" />
+                <path d="M12.5 2.08a8.02 8.02 0 014.92 4.92h-4.17a.75.75 0 01-.75-.75V2.08z" />
+              </svg>
+              {showChart ? '隱藏' : '顯示'}產業分佈
+            </button>
           </div>
         </div>
+
+        {showChart && industryData.length > 0 && (
+          <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-4">
+            <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">持股產業分佈</h3>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={industryData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(1)}%`}
+                  outerRadius={70}
+                  fill="#8884d8"
+                  dataKey="value"
+                >
+                  {industryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={INDUSTRY_COLORS[entry.name] || INDUSTRY_COLORS.default} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value) => `$${value.toLocaleString('zh-TW')}`}
+                  contentStyle={{
+                    backgroundColor: '#fff',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.5rem',
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {activePositions.length === 0 ? (
           <div className="px-5 py-12 text-center text-sm text-slate-400">
@@ -262,7 +406,7 @@ export function StocksContent({ initialPrices = {} }) {
 
                   return (
                     <tr key={pos.name} className="border-t border-slate-100 hover:bg-slate-50/60 transition">
-                      {/* 股票代號 / 名稱 */}
+                      {/* 股票 */}
                       <td className="px-4 py-3 align-middle text-left">
                         <div className="text-xs font-bold text-slate-400">{pos.symbol}</div>
                         <div className="text-sm text-slate-800">{displayName}</div>

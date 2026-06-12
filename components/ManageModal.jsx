@@ -11,6 +11,8 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
   const [highlightedByIndex, setHighlightedByIndex] = useState({});
   const [openCategoryIndex, setOpenCategoryIndex] = useState(null);
   const [highlightedCategoryByIndex, setHighlightedCategoryByIndex] = useState({});
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -303,11 +305,13 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
 
                   {/* 刪除按鈕 - 垂直置中 */}
                   <button
-                    onClick={() => onRemove(index)}
+                    onClick={() => setItemToDelete(index)}
                     className="self-center rounded-lg p-1.5 text-slate-400 transition hover:text-rose-500"
                     title="移除本項"
                   >
-                    ✕
+                    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                    </svg>
                   </button>
                 </div>
               </div>
@@ -339,11 +343,45 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
           </button>
         </div>
       </div>
+
+      {/* 刪除確認對話框 */}
+      <CustomDialog
+        isOpen={itemToDelete !== null}
+        onClose={() => !isDeleting && setItemToDelete(null)}
+        title="確定要移除嗎？"
+        message={`確定要移除「${assets[itemToDelete]?.name || '此項目'}」嗎？\n這將從列表中移除該項，需點擊「全部儲存」才會正式生效。`}
+        iconType="warning"
+        isConfirmLoading={isDeleting}
+        buttons={[
+          { label: '取消', onClick: () => setItemToDelete(null) },
+          {
+            label: '確認移除',
+            isPrimary: true,
+            onClick: async () => {
+              setIsDeleting(true);
+              // 模擬一點點延遲讓使用者感覺到有在處理同步
+              await new Promise(resolve => setTimeout(resolve, 500));
+              onRemove(itemToDelete);
+              setItemToDelete(null);
+              setIsDeleting(false);
+            },
+          },
+        ]}
+      />
     </div>
   );
 }
 
-export function CustomDialog({ isOpen, onClose, title, message, buttons = [] }) {
+export function CustomDialog({ 
+  isOpen, 
+  onClose, 
+  title, 
+  message, 
+  buttons = [], 
+  iconType = 'info', 
+  isConfirmLoading = false, 
+  confirmLoadingText = '處理中' 
+}) {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -358,31 +396,51 @@ export function CustomDialog({ isOpen, onClose, title, message, buttons = [] }) 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
-        <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-rose-50 p-2 text-rose-600">
-            ℹ️
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-            <p className="mt-1.5 whitespace-pre-line text-xs leading-relaxed text-slate-500" style={{ wordBreak: 'break-all' }}>
-              {message}
-            </p>
-          </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* 背景遮罩 */}
+      <div 
+        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
+        onClick={() => !isConfirmLoading && onClose()} 
+      />
+
+      {/* Modal 內容 */}
+      <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+        <div className="flex flex-col items-center text-center">
+          {iconType === 'warning' ? (
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-rose-500">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+          ) : (
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-500 text-xl">
+              ℹ️
+            </div>
+          )}
+          <h3 className="text-lg font-bold text-slate-900">{title}</h3>
+          <p className="mt-2 whitespace-pre-line text-sm text-slate-500" style={{ wordBreak: 'break-all' }}>
+            {message}
+          </p>
         </div>
-        <div className="flex justify-end gap-3 pt-4">
+
+        <div className="mt-6 flex gap-3">
           {buttons.map((btn, idx) => (
             <button
               key={idx}
-              onClick={btn.onClick}
-              className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
+              disabled={isConfirmLoading}
+              onClick={() => !isConfirmLoading && btn.onClick()}
+              className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition flex items-center justify-center gap-2 ${
                 btn.isPrimary
-                  ? 'bg-rose-500 text-white shadow-sm shadow-rose-100 hover:bg-rose-600'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
+                  ? 'bg-rose-500 text-white shadow-sm shadow-rose-200 hover:bg-rose-600 disabled:opacity-50'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50'
+              } ${isConfirmLoading && btn.isPrimary ? 'cursor-not-allowed' : ''}`}
             >
-              {btn.label}
+              {btn.isPrimary && isConfirmLoading ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  {confirmLoadingText}
+                </>
+              ) : btn.label}
             </button>
           ))}
         </div>
@@ -390,4 +448,3 @@ export function CustomDialog({ isOpen, onClose, title, message, buttons = [] }) 
     </div>
   );
 }
-

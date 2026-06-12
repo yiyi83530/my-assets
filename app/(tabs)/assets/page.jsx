@@ -3,7 +3,6 @@ import { AssetsContent } from '@/components/AssetsContent';
 import { assetBalances, lastMonthNetWorth, stockMarketPrices, transactions } from '@/lib/data';
 import { calculateAssetsSummary, calculateStockPortfolio } from '@/lib/calculations';
 
-export const dynamic = 'force-dynamic';
 
 export default async function AssetsPage() {
   const portfolio = calculateStockPortfolio(transactions, stockMarketPrices);

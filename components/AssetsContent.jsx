@@ -51,15 +51,7 @@ export function AssetsContent({ summary, portfolio, ntd, foreign, trust, liabili
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="card p-6 md:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">個人淨資產</p>
-            <button
-              onClick={openManageModal}
-              className="flex items-center gap-1 rounded-xl bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600 transition hover:bg-rose-100 hover:text-rose-700"
-            >
-              ➕ 管理帳戶 / 餘額
-            </button>
-          </div>
+          <p className="mb-4 text-xs font-bold uppercase tracking-wide text-slate-400">個人淨資產</p>
           <p className="text-4xl font-black text-slate-900">${summary.netWorth.toLocaleString()}</p>
           <p className={`mt-3 text-xs font-bold ${summary.netGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
             月增減 {summary.netGrowth >= 0 ? '+' : ''} ${summary.netGrowth.toLocaleString()} ({summary.growthRate.toFixed(2)}%)
@@ -67,10 +59,40 @@ export function AssetsContent({ summary, portfolio, ntd, foreign, trust, liabili
         </div>
 
         <div className="card p-6">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">證券資產市值</p>
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">證券資產市值（即時計算）</p>
           <p className="mt-2 text-2xl font-black text-slate-900">${portfolio.currentPortfolioValue.toLocaleString()}</p>
-          <p className="mt-2 text-xs text-slate-400">即時計算</p>
         </div>
+      </div>
+
+      {/* ─── 管理操作入口 (橫跨橫條) ─── */}
+      <div className="my-2 flex justify-center">
+        <button
+          onClick={openManageModal}
+          className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-dashed border-slate-200 bg-white/50 px-4 py-4 transition-all hover:border-rose-200 hover:bg-white hover:shadow-xl hover:shadow-rose-100/50"
+        >
+          {/* 動態小豬圖標 */}
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-50 text-2xl shadow-sm transition-transform group-hover:rotate-12 group-hover:scale-110">
+            🐷
+          </div>
+
+          {/* 文字內容 */}
+          <div className="text-left">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-slate-700 transition-colors group-hover:text-rose-500">管理帳戶 / 餘額</span>
+              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-500 opacity-0 transition-opacity group-hover:opacity-100">
+                QUICK EDIT
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400">更新銀行存款、負債並同步至個人 Google Sheets</p>
+          </div>
+
+          {/* 右側引導箭頭 */}
+          <div className="ml-auto translate-x-0 opacity-0 transition-all group-hover:translate-x-1 group-hover:opacity-100">
+            <svg className="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </div>
+        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
