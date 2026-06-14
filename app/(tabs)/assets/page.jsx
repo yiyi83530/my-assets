@@ -15,7 +15,6 @@ const AssetsContent = dynamic(
   { ssr: false, loading: () => <div className="p-20 text-center text-slate-400">圖表載入中...</div> }
 );
 
-export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default async function AssetsPage() {
