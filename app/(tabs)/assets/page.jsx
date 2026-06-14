@@ -1,5 +1,5 @@
+import dynamic from 'next/dynamic';
 import TabNav from '@/components/TabNav';
-import { AssetsContent } from '@/components/AssetsContent';
 import { assetBalances, lastMonthNetWorth, stockMarketPrices, transactions } from '@/lib/data';
 import {
   calculateAssetsSummary,
@@ -9,8 +9,13 @@ import {
   fetchForeignExchangeRates,
 } from '@/lib/calculations';
 
-export const dynamic = 'auto';
+// 使用動態匯入並停用 SSR，解決 Recharts 在編譯階段因找不到瀏覽器容器寬高而導致的 width(-1) 錯誤
+const AssetsContent = dynamic(
+  () => import('@/components/AssetsContent').then((mod) => mod.AssetsContent),
+  { ssr: false, loading: () => <div className="p-20 text-center text-slate-400">圖表載入中...</div> }
+);
 
+export const dynamic = 'auto';
 
 export default async function AssetsPage() {
   const foreignCurrencies = [...new Set(
