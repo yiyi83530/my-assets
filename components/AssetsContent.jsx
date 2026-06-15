@@ -16,6 +16,29 @@ import {
 import { useApp } from '@/lib/app-context';
 import { formatMoney } from '@/lib/format';
 
+function MonthTick({ x, y, payload, currentMonth }) {
+  const month = String(payload?.value ?? '');
+  const isCurrent = month === currentMonth;
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      {isCurrent && (
+        <rect x={-16} y={4} width={32} height={16} rx={8} fill="#fee2e2" />
+      )}
+      <text
+        x={0}
+        y={16}
+        textAnchor="middle"
+        fontSize={11}
+        fontWeight={isCurrent ? 700 : 500}
+        fill={isCurrent ? '#e11d48' : '#64748b'}
+      >
+        {month}
+      </text>
+    </g>
+  );
+}
+
 function ListBlock({
   title,
   subtitle,
@@ -78,46 +101,48 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
   // ──────────────────
 
   // 使用傳入的真實月份資料，如果沒有就用空陣列
-  const chartData = monthlyNetWorthData && monthlyNetWorthData.length > 0 ? monthlyNetWorthData : [];
+  const fullChartData = monthlyNetWorthData && monthlyNetWorthData.length > 0 ? monthlyNetWorthData : [];
+  const currentMonthNum = new Date().getMonth() + 1;
+  const visibleEndMonth = Math.max(6, currentMonthNum);
+  const chartData = fullChartData.filter((item) => Number(item.month) <= visibleEndMonth);
+  const currentMonth = String(currentMonthNum);
 
   return (
     <>
-      <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${isSheetsConnected ? 'border-emerald-100 bg-emerald-50/70' : 'border-rose-100 bg-rose-50/70'}`}>
+      {!isSheetsConnected && (
+      <div className={`mb-4 rounded-2xl border p-4 shadow-sm border-rose-100 bg-rose-50/70`}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div className="flex items-start gap-3">
-            <div className={`mt-0.5 rounded-lg border bg-white p-1 ${isSheetsConnected ? 'border-emerald-100 text-emerald-500' : 'border-rose-100 text-rose-500'}`}>
-              {isSheetsConnected ? '✅' : '☁️'}
+            <div className="mt-0.5 rounded-lg border bg-white p-1 border-rose-100 text-rose-500">
+              ☁️
             </div>
             <div>
-              {isSheetsConnected ? (
-                <>
-                  <h4 className="text-sm font-semibold text-emerald-950">已連線 Google Sheets（資料為即時同步）</h4>
-                  <p className="mt-0.5 text-xs text-emerald-700/80">
-                    交易與資產更新會同步寫入您的 Google Sheets，重新整理後會讀取最新資料。
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h4 className="text-sm font-semibold text-rose-950">目前為單機演示模式（重新整理將重置）</h4>
-                  <p className="mt-0.5 text-xs text-rose-700/80">
-                    此模式未串接後端，方便您體驗小豬存錢筒。請點擊右方按鈕設定 Google Sheets 來實現永久自動連線！
-                  </p>
-                </>
-              )}
+              <h4 className="text-sm font-semibold text-rose-950">目前為單機演示模式（重新整理將重置）</h4>
+              <p className="mt-0.5 text-xs text-rose-700/80">
+                小提醒！此模式尚未串接後端，如果要完整體驗小豬存錢筒，請點擊右方按鈕設定 Google Sheets 來實現永久自動連線！
+              </p>
             </div>
           </div>
           <button
             onClick={openConfigModal}
-            className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition ${isSheetsConnected ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'}`}
+            className="shrink-0 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition bg-rose-500 hover:bg-rose-600"
           >
-            {isSheetsConnected ? '更新連線設定' : '串接 Google 試算表'}
+            串接 Google 試算表
           </button>
         </div>
       </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="card p-6 md:col-span-2">
-          <p className="mb-4 text-xs font-bold uppercase tracking-wide text-slate-400">個人淨資產</p>
+          <div className="mb-4 flex items-center gap-2">
+            <span className="hidden rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600 md:inline-flex">
+              淨值總覽
+            </span>
+            <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">
+              個人淨資產
+            </p>
+          </div>
           <p className="text-4xl font-black text-slate-900">${summary.netWorth.toLocaleString()}</p>
           <p className={`mt-3 flex items-center text-xs font-bold ${summary.netGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
             較上月 <span className="mx-1 text-[10px]">{summary.netGrowth >= 0 ? '▲' : '▼'}</span> ${summary.netGrowth.toLocaleString()} ({summary.growthRate.toFixed(2)}%)
@@ -126,7 +151,7 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
           <button
             type="button"
             onClick={() => setIsTrendOpen((prev) => !prev)}
-            className="mt-3 flex w-full justify-center"
+            className="mt-3 flex w-full justify-center md:hidden"
           >
             <svg
               viewBox="0 0 20 20"
@@ -138,7 +163,7 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
             </svg>
           </button>
 
-           {isTrendOpen && (
+           <div className={`${isTrendOpen ? 'block' : 'hidden'} md:block`}>
              <div className="mt-3 h-64 rounded-xl border border-rose-100 bg-rose-50/40 p-4">
                <div className="mb-4 flex items-center justify-between">
                  <h4 className="text-s font-bold uppercase tracking-wider text-slate-500">
@@ -150,7 +175,12 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
                  <ResponsiveContainer width="100%" height="100%">
                  <LineChart data={chartData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                   <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                    <XAxis
+                      dataKey="month"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={(props) => <MonthTick {...props} currentMonth={currentMonth} />}
+                    />
                    <YAxis
                      tick={{ fontSize: 11, fill: '#64748b' }}
                      axisLine={false}
@@ -178,11 +208,19 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
                  </ResponsiveContainer>
                </div>
             </div>
-          )}
+          </div>
         </div>
 
-        <div className="card flex flex-col p-6">
-          <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">資產配置比例</h3>
+        <div className="card flex flex-col justify-center p-6">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="hidden rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-600 md:inline-flex">
+              配置分析
+            </span>
+            <h3 className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">資產配置比例</h3>
+          </div>
+          <p className="mt-3 mb-3 hidden text-left text-[11px] text-slate-400 md:block">
+            將滑鼠移動到圓餅圖上，就可以顯示該資產名稱及餘額哦！
+          </p>
 
           <div className="h-40 w-full">
             <ResponsiveContainer width="100%" height="100%">
