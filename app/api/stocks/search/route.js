@@ -180,6 +180,10 @@ function filterStocks(items, query, limit) {
 }
 
 export async function GET(request) {
+  if (process.env.GITHUB_PAGES === 'true') {
+    return Response.json({ items: [] });
+  }
+
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get('q') || '').trim();
   const marketRaw = (searchParams.get('market') || 'TWSE').trim().toUpperCase();

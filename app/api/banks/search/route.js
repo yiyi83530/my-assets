@@ -54,6 +54,10 @@ function searchBanks(keyword, limit) {
 }
 
 export async function GET(request) {
+  if (process.env.GITHUB_PAGES === 'true') {
+    return Response.json({ items: [] });
+  }
+
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get('q') || '').trim();
   const limitParam = Number(searchParams.get('limit') || '8');
