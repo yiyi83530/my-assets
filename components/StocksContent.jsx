@@ -166,14 +166,13 @@ export function StocksContent({ initialPrices = {} }) {
   )].sort((a, b) => b - a);
 
   const yearOptions = ['ALL', ...availableYears.map((year) => String(year))];
-  const yearOptionsKey = yearOptions.join('|');
   const yearLabel = selectedYear === 'ALL' ? '全部年份' : `${selectedYear} 年`;
 
   useEffect(() => {
     if (selectedYear !== 'ALL' && !yearOptions.includes(selectedYear)) {
       setSelectedYear('ALL');
     }
-  }, [selectedYear, yearOptionsKey]);
+  }, [selectedYear, yearOptions]);
 
   const filteredTransactions = selectedYear === 'ALL'
     ? transactions
@@ -422,9 +421,9 @@ export function StocksContent({ initialPrices = {} }) {
               目前沒有 {posTab === 'TWSE' ? '台股' : '美股'} 持股紀錄
             </div>
           ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
             <table className="w-full min-w-[960px] text-center">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 sticky top-0 z-10 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 align-middle text-left whitespace-nowrap">股票</th>
                   <th className="px-4 py-3 align-middle whitespace-nowrap">持有股數</th>
@@ -520,85 +519,80 @@ export function StocksContent({ initialPrices = {} }) {
         </div>
       </div>
 
-      {/* ── Year Filter (History Only) ── */}
-      <div className="my-3 card border border-slate-200/80 px-5 py-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">歷史交易篩選</p>
-            <p className="text-xs text-slate-500">僅影響下方「股票交易歷史紀錄」</p>
-          </div>
-
-          <div className="relative w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setShowYearDropdown((prev) => !prev);
-                if (!showYearDropdown) {
-                  setYearHighlightedIndex(Math.max(yearOptions.indexOf(selectedYear), 0));
-                }
-              }}
-              onBlur={() => setTimeout(() => setShowYearDropdown(false), 120)}
-              className="flex w-full min-w-[136px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none sm:w-auto"
-            >
-              <span>{yearLabel}</span>
-              <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showYearDropdown ? 'rotate-180' : ''}`}>
-                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-              </svg>
-            </button>
-            {showYearDropdown && (
-              <div className="absolute right-0 z-30 mt-1 w-full min-w-[136px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                {yearOptions.map((year, index) => {
-                  const active = selectedYear === year;
-                  const highlighted = yearHighlightedIndex === index;
-                  return (
-                    <button
-                      key={year}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onMouseEnter={() => setYearHighlightedIndex(index)}
-                      onClick={() => {
-                        setSelectedYear(year);
-                        setShowYearDropdown(false);
-                      }}
-                      className={`block w-full px-3 py-2 text-left text-xs font-semibold transition ${
-                        active || highlighted
-                          ? 'bg-rose-50 text-rose-700'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {year === 'ALL' ? '全部年份' : `${year} 年`}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* ── Transaction History ── */}
       <div className="card overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-bold text-slate-800">股票交易歷史紀錄</h2>
-          <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5">
-            <button onClick={() => setHistTab('TWSE')} className={tabBtnClass(histTab === 'TWSE')}>
-              📈 台股
-            </button>
-            <button onClick={() => setHistTab('US')} className={tabBtnClass(histTab === 'US')}>
-              🇺🇸 美股
-            </button>
+        <div className="border-b border-slate-100 px-5 py-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-800">股票交易歷史紀錄</h2>
+            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5">
+              <button onClick={() => setHistTab('TWSE')} className={tabBtnClass(histTab === 'TWSE')}>
+                📈 台股
+              </button>
+              <button onClick={() => setHistTab('US')} className={tabBtnClass(histTab === 'US')}>
+                🇺🇸 美股
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center gap-3">
+            <span className="text-xs font-semibold text-slate-500">篩選年度</span>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowYearDropdown((prev) => !prev);
+                  if (!showYearDropdown) {
+                    setYearHighlightedIndex(Math.max(yearOptions.indexOf(selectedYear), 0));
+                  }
+                }}
+                onBlur={() => setTimeout(() => setShowYearDropdown(false), 120)}
+                className="flex min-w-[126px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none"
+              >
+                <span>{yearLabel}</span>
+                <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showYearDropdown ? 'rotate-180' : ''}`}>
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {showYearDropdown && (
+                <div className="absolute left-0 z-30 mt-1 w-full min-w-[126px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                  {yearOptions.map((year, index) => {
+                    const active = selectedYear === year;
+                    const highlighted = yearHighlightedIndex === index;
+                    return (
+                      <button
+                        key={year}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={() => setYearHighlightedIndex(index)}
+                        onClick={() => {
+                          setSelectedYear(year);
+                          setShowYearDropdown(false);
+                        }}
+                        className={`block w-full px-3 py-2 text-left text-xs font-semibold transition ${
+                          active || highlighted
+                            ? 'bg-rose-50 text-rose-700'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {year === 'ALL' ? '全部年份' : `${year} 年`}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        <div key={histTab} className="animate-in fade-in duration-500">
+        <div key={histTab} className="animate-in fade-in duration-500 max-h-[520px] overflow-y-auto overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
           {activeTx.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
               目前沒有 {histTab === 'TWSE' ? '台股' : '美股'} 交易紀錄
             </div>
           ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-center">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+          <div className="">
+            <table className="w-full min-w-[760px] text-center border-separate border-spacing-0 relative">
+              <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 shadow-sm">
                 <tr>
                   <th className="px-4 py-3 align-middle text-left">日期 / 時間</th>
                   <th className="px-4 py-3 align-middle text-left">股票</th>
@@ -606,7 +600,7 @@ export function StocksContent({ initialPrices = {} }) {
                   <th className="px-4 py-3 align-middle">股數</th>
                   <th className="px-4 py-3 align-middle">成交單價</th>
                   <th className="px-4 py-3 align-middle">實際收支</th>
-                  <th className="px-4 py-3 align-middle text-left">備註</th>
+                  <th className="px-4 py-3 align-middle">備註</th>
                   <th className="px-4 py-3 align-middle">操作</th>
                 </tr>
               </thead>

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import nextDynamic from 'next/dynamic';
-import TabNav from '@/components/TabNav';
 import { assetBalances as initialAssets, lastMonthNetWorth, stockMarketPrices } from '@/lib/data';
 import {
   calculateAssetsSummary,
@@ -68,7 +67,6 @@ export default function AssetsPage() {
 
   return (
     <>
-      <TabNav activeTab="assets" />
       <AssetsContent
         summary={summary}
         portfolio={portfolio}

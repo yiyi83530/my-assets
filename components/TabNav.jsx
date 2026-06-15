@@ -5,10 +5,10 @@ import { useApp } from '@/lib/app-context';
 
 function tabClass(isActive) {
   return [
-    'w-full rounded-lg px-4 py-2 text-center text-xs font-bold transition-all duration-200',
+    'w-full rounded-lg px-4 py-2.5 text-center text-xs font-bold transition-all duration-200 md:px-6 md:py-3 md:text-sm',
     isActive
-      ? 'bg-white text-slate-800 shadow-sm'
-      : 'text-slate-500 hover:text-slate-800',
+      ? 'bg-white text-slate-700 shadow-sm ring-0'
+      : 'text-slate-500 hover:bg-white/70 hover:text-slate-800',
   ].join(' ');
 }
 
@@ -45,7 +45,7 @@ export default function TabNav({ activeTab }) {
         </button>
       </div>
 
-      <div className="grid w-full grid-cols-2 gap-2 rounded-xl bg-slate-100/80 p-1" suppressHydrationWarning>
+      <div className="grid w-full grid-cols-2 gap-2 rounded-xl bg-slate-100/90 p-1.5 md:gap-2.5 md:p-2" suppressHydrationWarning>
         <Link href="/assets" className={tabClass(activeTab === 'assets')}>
           資產與負債
         </Link>
