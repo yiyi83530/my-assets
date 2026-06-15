@@ -311,10 +311,6 @@ export function StocksContent({ initialPrices = {} }) {
     setCurrentTxPage(1);
   }, [histTab, selectedYear]);
 
-  // 交易紀錄容器高度：表頭 + 最多 10 列（改用分頁，不用滾動）
-  const TX_HEADER_HEIGHT = 48;
-  const TX_ROW_HEIGHT = 64;
-  const txContainerMaxHeight = TX_HEADER_HEIGHT + TX_ROW_HEIGHT * TX_PER_PAGE;
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -609,7 +605,7 @@ export function StocksContent({ initialPrices = {} }) {
           </div>
         </div>
 
-        <div key={histTab} className="animate-in fade-in duration-500 overflow-x-auto" style={{ maxHeight: `${txContainerMaxHeight}px` }}>
+        <div key={histTab} className="animate-in fade-in duration-500 overflow-x-auto">
           {activeTx.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
               目前沒有 {histTab === 'TWSE' ? '台股' : '美股'} 交易紀錄
@@ -617,10 +613,10 @@ export function StocksContent({ initialPrices = {} }) {
           ) : (
           <div className="">
             <table className="w-full min-w-[760px] text-center border-separate border-spacing-0 relative">
-              <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 shadow-sm">
+              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 shadow-sm">
                 <tr className="h-12">
                   <th className="px-4 py-3 align-middle text-left">日期 / 時間</th>
-                  <th className="px-4 py-3 align-middle text-left">股票</th>
+                  <th className="px-0 py-3 align-middle text-left">股票</th>
                   <th className="px-4 py-3 align-middle">類型</th>
                   <th className="px-4 py-3 align-middle">股數</th>
                   <th className="px-4 py-3 align-middle">成交單價</th>
@@ -642,7 +638,7 @@ export function StocksContent({ initialPrices = {} }) {
                         {txTime && <div className="font-mono text-xs text-slate-400">{txTime}</div>}
                       </td>
                       {/* 股票 */}
-                      <td className="px-4 py-3 align-middle text-left">
+                      <td className="px-0 py-3 align-middle text-left">
                         <div className="text-xs font-bold text-slate-400">{txSymbol}</div>
                         {txName && <div className="text-sm text-slate-800">{txName}</div>}
                       </td>
@@ -684,13 +680,7 @@ export function StocksContent({ initialPrices = {} }) {
             {/* Pagination UI */}
             {totalTxPages > 1 && (
               <div className="border-t border-slate-100 bg-slate-50/30 px-5 py-4">
-                <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-                  {/* 顯示目前頁數資訊 */}
-                  <div className="text-xs text-slate-500">
-                    第 <span className="font-bold text-slate-700">{currentTxPage}</span> 頁，共 <span className="font-bold text-slate-700">{totalTxPages}</span> 頁
-                    <span className="ml-2 text-slate-400">（共 {activeTx.length} 筆交易）</span>
-                  </div>
-
+                <div className="flex flex-col items-center justify-center gap-3">
                   {/* 分頁按鈕 */}
                   <div className="flex items-center gap-1">
                     {/* 上一頁 */}
@@ -750,6 +740,12 @@ export function StocksContent({ initialPrices = {} }) {
                         <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
                       </svg>
                     </button>
+                  </div>
+
+                  {/* 顯示目前頁數資訊 */}
+                  <div className="text-xs text-slate-500">
+                    第 <span className="font-bold text-slate-700">{currentTxPage}</span> 頁，共 <span className="font-bold text-slate-700">{totalTxPages}</span> 頁
+                    <span className="ml-2 text-slate-400">（共 {activeTx.length} 筆交易）</span>
                   </div>
                 </div>
               </div>
