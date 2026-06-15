@@ -1,10 +1,19 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
 import { assetBalances as initialAssets, transactions as initialTransactions } from '@/lib/data';
 import { AppProvider } from '@/lib/app-context';
+import {
+  appendTransactionToSheets,
+  fetchSheetsData,
+  removeTransactionFromSheets,
+  testSheetsConnection,
+  upsertAssetsToSheets,
+} from '@/lib/sheets-client';
+
+const SHEETS_URL_STORAGE_KEY = 'my_assets_google_sheets_api_url';
 
 export default function RootLayoutClient({ children }) {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
@@ -17,6 +26,8 @@ export default function RootLayoutClient({ children }) {
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
   const [transactions, setTransactions] = useState(initialTransactions);
+  const [sheetsApiUrl, setSheetsApiUrl] = useState('');
+  const [isSheetsConnected, setIsSheetsConnected] = useState(false);
 
   const displayToast = useCallback((msg) => {
     setToastMessage(msg);
@@ -29,29 +40,109 @@ export default function RootLayoutClient({ children }) {
     setShowDialog(true);
   }, []);
 
-  const addTransaction = useCallback((tx) => {
-    setTransactions((prev) => [...prev, { ...tx, id: tx.id || `tx_${Date.now()}` }]);
-  }, []);
+  const syncFromSheets = useCallback(async (apiUrl, { silent = false } = {}) => {
+    if (!apiUrl) return;
+    const data = await fetchSheetsData(apiUrl);
+    if (Array.isArray(data.assets)) {
+      setAssets(data.assets);
+    }
+    if (Array.isArray(data.transactions)) {
+      setTransactions(data.transactions);
+    }
+    if (!silent) {
+      displayToast('已從 Google Sheets 讀取最新資料');
+    }
+  }, [displayToast]);
 
-  const removeTransaction = useCallback((id) => {
-    setTransactions((prev) => prev.filter((tx) => tx.id !== id));
-  }, []);
+  useEffect(() => {
+    const stored = window.localStorage.getItem(SHEETS_URL_STORAGE_KEY) || '';
+    if (!stored) return;
 
-  const handleTransactionSubmit = (txData) => {
-    addTransaction({ ...txData, id: `tx_${Date.now()}`, recordedAt: new Date().toISOString() });
-    displayToast(`已成功記錄 ${txData.stock} 交易！`);
-    setShowTransactionModal(false);
+    setSheetsApiUrl(stored);
+    testSheetsConnection(stored)
+      .then(async () => {
+        setIsSheetsConnected(true);
+        await syncFromSheets(stored, { silent: true });
+      })
+      .catch(() => {
+        setIsSheetsConnected(false);
+      });
+  }, [syncFromSheets]);
+
+  const connectSheets = useCallback(async (apiUrl) => {
+    const nextUrl = String(apiUrl || '').trim();
+    await testSheetsConnection(nextUrl);
+    window.localStorage.setItem(SHEETS_URL_STORAGE_KEY, nextUrl);
+    setSheetsApiUrl(nextUrl);
+    setIsSheetsConnected(true);
+    await syncFromSheets(nextUrl, { silent: true });
+    return true;
+  }, [syncFromSheets]);
+
+  const saveAssetsToSheets = useCallback(async (nextAssets) => {
+    if (!sheetsApiUrl) {
+      throw new Error('尚未設定 Google Sheets Web App URL');
+    }
+    await upsertAssetsToSheets(sheetsApiUrl, nextAssets);
+  }, [sheetsApiUrl]);
+
+  const addTransaction = useCallback(async (tx) => {
+    const newTx = { ...tx, id: tx.id || `tx_${Date.now()}`, recordedAt: tx.recordedAt || new Date().toISOString() };
+    setTransactions((prev) => [...prev, newTx]);
+    if (isSheetsConnected && sheetsApiUrl) {
+      await appendTransactionToSheets(sheetsApiUrl, newTx);
+    }
+    return newTx;
+  }, [isSheetsConnected, sheetsApiUrl]);
+
+  const removeTransaction = useCallback(async (id) => {
+    let snapshot = [];
+    setTransactions((prev) => {
+      snapshot = prev;
+      return prev.filter((tx) => tx.id !== id);
+    });
+    try {
+      if (isSheetsConnected && sheetsApiUrl) {
+        await removeTransactionFromSheets(sheetsApiUrl, id);
+      }
+    } catch (error) {
+      setTransactions(snapshot);
+      throw error;
+    }
+  }, [isSheetsConnected, sheetsApiUrl]);
+
+  const handleTransactionSubmit = async (txData) => {
+    try {
+      await addTransaction(txData);
+      displayToast(`已成功記錄 ${txData.stock} 交易！`);
+      setShowTransactionModal(false);
+    } catch (error) {
+      displayToast(`交易儲存失敗：${error.message || '請稍後再試'}`);
+    }
   };
 
-  const handleConfigConnect = (apiUrl) => {
-    displayToast('Google Sheets 連線已儲存！');
-    setShowConfigModal(false);
-    console.log('API URL:', apiUrl);
+  const handleConfigConnect = async (apiUrl) => {
+    try {
+      await connectSheets(apiUrl);
+      displayToast('Google Sheets 連線成功，已同步資料！');
+      setShowConfigModal(false);
+    } catch (error) {
+      setIsSheetsConnected(false);
+      displayToast(`連線失敗：${error.message || '請檢查 URL 與部署權限'}`);
+      throw error;
+    }
   };
 
-  const handleSaveAssets = () => {
-    displayToast('資產負債餘額已同步儲存 🐷');
-    setShowManageModal(false);
+  const handleSaveAssets = async () => {
+    try {
+      if (isSheetsConnected) {
+        await saveAssetsToSheets(assets);
+      }
+      displayToast(isSheetsConnected ? '資產負債餘額已同步儲存 🐷' : '已更新本機資料（尚未連線 Google Sheets）');
+      setShowManageModal(false);
+    } catch (error) {
+      displayToast(`資產同步失敗：${error.message || '請稍後再試'}`);
+    }
   };
 
   const handleUpdateAsset = (index, newData) => {
@@ -88,11 +179,17 @@ export default function RootLayoutClient({ children }) {
       openManageModal={() => setShowManageModal(true)}
       displayToast={displayToast}
       displayDialog={displayDialog}
+      isSheetsConnected={isSheetsConnected}
+      sheetsApiUrl={sheetsApiUrl}
+      assets={assets}
       transactions={transactions}
+      connectSheets={connectSheets}
+      syncFromSheets={() => syncFromSheets(sheetsApiUrl)}
+      saveAssetsToSheets={saveAssetsToSheets}
       addTransaction={addTransaction}
       removeTransaction={removeTransaction}
     >
-      <div className="mx-auto max-w-7xl px-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-6" suppressHydrationWarning>{children}</div>
+      <div className="mx-auto max-w-7xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-6" suppressHydrationWarning>{children}</div>
 
       {/* 懸浮記帳按鈕 */}
       <button
@@ -103,7 +200,12 @@ export default function RootLayoutClient({ children }) {
       </button>
 
       <TransactionModal isOpen={showTransactionModal} onClose={() => setShowTransactionModal(false)} onSubmit={handleTransactionSubmit} />
-      <ConfigModal isOpen={showConfigModal} onClose={() => setShowConfigModal(false)} onConnect={handleConfigConnect} />
+      <ConfigModal
+        isOpen={showConfigModal}
+        onClose={() => setShowConfigModal(false)}
+        onConnect={handleConfigConnect}
+        initialApiUrl={sheetsApiUrl}
+      />
       <ManageAccountsModal
         isOpen={showManageModal}
         onClose={() => setShowManageModal(false)}

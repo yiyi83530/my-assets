@@ -58,7 +58,7 @@ function ListBlock({
 }
 
 export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, foreign, trust, liabilities }) {
-  const { openManageModal, openConfigModal } = useApp();
+  const { openManageModal, openConfigModal, isSheetsConnected } = useApp();
   const [isTrendOpen, setIsTrendOpen] = useState(false);
 
   // ─── 資產配置計算 ───
@@ -82,24 +82,35 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
 
   return (
     <>
-      <div className="mb-4 rounded-2xl border border-rose-100 bg-rose-50/70 p-4 shadow-sm">
+      <div className={`mb-4 rounded-2xl border p-4 shadow-sm ${isSheetsConnected ? 'border-emerald-100 bg-emerald-50/70' : 'border-rose-100 bg-rose-50/70'}`}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div className="flex items-start gap-3">
-            <div className="mt-0.5 rounded-lg border border-rose-100 bg-white p-1 text-rose-500">
-              ☁️
+            <div className={`mt-0.5 rounded-lg border bg-white p-1 ${isSheetsConnected ? 'border-emerald-100 text-emerald-500' : 'border-rose-100 text-rose-500'}`}>
+              {isSheetsConnected ? '✅' : '☁️'}
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-rose-950">目前為單機演示模式（重新整理將重置）</h4>
-              <p className="mt-0.5 text-xs text-rose-700/80">
-                此模式未串接後端，方便您體驗小豬存錢筒。請點擊右方按鈕設定 Google Sheets 來實現永久自動連線！
-              </p>
+              {isSheetsConnected ? (
+                <>
+                  <h4 className="text-sm font-semibold text-emerald-950">已連線 Google Sheets（資料為即時同步）</h4>
+                  <p className="mt-0.5 text-xs text-emerald-700/80">
+                    交易與資產更新會同步寫入您的 Google Sheets，重新整理後會讀取最新資料。
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h4 className="text-sm font-semibold text-rose-950">目前為單機演示模式（重新整理將重置）</h4>
+                  <p className="mt-0.5 text-xs text-rose-700/80">
+                    此模式未串接後端，方便您體驗小豬存錢筒。請點擊右方按鈕設定 Google Sheets 來實現永久自動連線！
+                  </p>
+                </>
+              )}
             </div>
           </div>
           <button
             onClick={openConfigModal}
-            className="shrink-0 rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-rose-600"
+            className={`shrink-0 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition ${isSheetsConnected ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'}`}
           >
-            串接 Google 試算表
+            {isSheetsConnected ? '更新連線設定' : '串接 Google 試算表'}
           </button>
         </div>
       </div>

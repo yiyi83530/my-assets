@@ -483,24 +483,29 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
   );
 }
 
-export function ConfigModal({ isOpen, onClose, onConnect }) {
+export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) {
   const [apiUrl, setApiUrl] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      setApiUrl(initialApiUrl || '');
     } else {
       document.body.style.overflow = 'auto';
     }
     return () => {
       document.body.style.overflow = 'auto';
     };
-  }, [isOpen]);
+  }, [isOpen, initialApiUrl]);
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (apiUrl.trim()) {
-      onConnect(apiUrl);
-      setApiUrl('');
+      try {
+        await onConnect(apiUrl);
+        setApiUrl('');
+      } catch (error) {
+        // Error message is surfaced by caller toast.
+      }
     }
   };
 

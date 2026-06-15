@@ -84,6 +84,35 @@ npm run start
 - [ ] 交易流水歷史列表
 - [ ] 資料編輯與刪除功能
 
+## Google Sheets API 契約（Web App）
+
+前端已改為可真正呼叫 Apps Script Web App，同步時會以 `POST` JSON 傳送：
+
+- `action: "health"`：連線檢查（可選）
+- `action: "getAll"`：讀取全部資料，回傳 `{ assets, transactions }`
+- `action: "upsertAssets"`：寫入資產列表，payload `{ assets: Asset[] }`
+- `action: "appendTransaction"`：新增交易，payload `{ transaction: Transaction }`
+- `action: "removeTransaction"`：刪除交易，payload `{ id: string }`
+
+欄位對齊：
+
+- `Asset`: `id`, `category`, `name`, `balance`, `isLiability`, `currency?`, `amount?`
+- `Transaction`: `id`, `date`, `recordedAt`, `market`, `symbol`, `stock`, `type`, `qty`, `price`, `actualAmount`, `note`
+
+可直接使用 `docs/google-apps-script.gs` 當後端模板，部署為 Web App（執行身分：自己、存取權限：任何知道網址的人）。
+
+### 本地驗證（模擬後端）
+
+```bash
+npm run test:sheets
+```
+
+此測試會驗證：
+
+- 可以連線（health/getAll）
+- 資產可寫入並正確讀回（含外幣欄位 normalization）
+- 交易可新增與刪除，並正確讀回
+
 ## 技術棧
 
 - **Framework**: Next.js 14.2.35 (React 18 + SSR)

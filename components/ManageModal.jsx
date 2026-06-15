@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-const CATEGORIES = ['台幣活存', '外幣活存', '持股信託', '負債項目'];
+const CATEGORIES = ['台幣活存', '外幣活存', '員工持股信託', '負債項目'];
 const FOREIGN_CURRENCIES = ['USD', 'JPY', 'EUR', 'HKD', 'CNY', 'SGD'];
 
 export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew, onRemove, onUpdate }) {
