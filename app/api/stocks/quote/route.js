@@ -88,6 +88,10 @@ async function fetchUsQuote(symbol) {
 }
 
 export async function GET(request) {
+  if (process.env.GITHUB_PAGES === 'true') {
+    return Response.json({ price: null });
+  }
+
   const { searchParams } = new URL(request.url);
   const symbol = (searchParams.get('symbol') || '').trim();
   const marketRaw = (searchParams.get('market') || 'TWSE').trim().toUpperCase();
