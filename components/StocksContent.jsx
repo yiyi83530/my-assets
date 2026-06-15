@@ -157,6 +157,7 @@ export function StocksContent({ initialPrices = {} }) {
   const [selectedYear, setSelectedYear] = useState('ALL');
   const [showYearDropdown, setShowYearDropdown] = useState(false);
   const [yearHighlightedIndex, setYearHighlightedIndex] = useState(-1);
+  const [currentTxPage, setCurrentTxPage] = useState(1); // 交易紀錄分頁
   const fetchedRef = useRef(new Set());
 
   const availableYears = [...new Set(
@@ -300,10 +301,20 @@ export function StocksContent({ initialPrices = {} }) {
     (a, b) => new Date(b.date) - new Date(a.date)
   );
 
-  // 交易紀錄容器高度：表頭 + 最多 20 列
+  // 交易紀錄分頁設定（每頁 10 筆）
+  const TX_PER_PAGE = 10;
+  const totalTxPages = Math.max(1, Math.ceil(activeTx.length / TX_PER_PAGE));
+  const paginatedTx = activeTx.slice((currentTxPage - 1) * TX_PER_PAGE, currentTxPage * TX_PER_PAGE);
+
+  // 當切換 tab 或年份時，重置到第 1 頁
+  useEffect(() => {
+    setCurrentTxPage(1);
+  }, [histTab, selectedYear]);
+
+  // 交易紀錄容器高度：表頭 + 最多 10 列（改用分頁，不用滾動）
   const TX_HEADER_HEIGHT = 48;
   const TX_ROW_HEIGHT = 64;
-  const txContainerMaxHeight = TX_HEADER_HEIGHT + TX_ROW_HEIGHT * MAX_VISIBLE;
+  const txContainerMaxHeight = TX_HEADER_HEIGHT + TX_ROW_HEIGHT * TX_PER_PAGE;
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -598,7 +609,7 @@ export function StocksContent({ initialPrices = {} }) {
           </div>
         </div>
 
-        <div key={histTab} className="animate-in fade-in duration-500 overflow-y-auto overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200" style={{ maxHeight: `${txContainerMaxHeight}px` }}>
+        <div key={histTab} className="animate-in fade-in duration-500 overflow-x-auto" style={{ maxHeight: `${txContainerMaxHeight}px` }}>
           {activeTx.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
               目前沒有 {histTab === 'TWSE' ? '台股' : '美股'} 交易紀錄
@@ -619,7 +630,7 @@ export function StocksContent({ initialPrices = {} }) {
                 </tr>
               </thead>
               <tbody>
-                {activeTx.map((tx) => {
+                {paginatedTx.map((tx) => {
                   const txSymbol = tx.stock.split(' ')[0];
                   const txName = tx.stock.split(' ').slice(1).join(' ');
                   const txTime = fmtTime(tx.recordedAt);
@@ -669,6 +680,80 @@ export function StocksContent({ initialPrices = {} }) {
                 })}
               </tbody>
             </table>
+
+            {/* Pagination UI */}
+            {totalTxPages > 1 && (
+              <div className="border-t border-slate-100 bg-slate-50/30 px-5 py-4">
+                <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+                  {/* 顯示目前頁數資訊 */}
+                  <div className="text-xs text-slate-500">
+                    第 <span className="font-bold text-slate-700">{currentTxPage}</span> 頁，共 <span className="font-bold text-slate-700">{totalTxPages}</span> 頁
+                    <span className="ml-2 text-slate-400">（共 {activeTx.length} 筆交易）</span>
+                  </div>
+
+                  {/* 分頁按鈕 */}
+                  <div className="flex items-center gap-1">
+                    {/* 上一頁 */}
+                    <button
+                      onClick={() => setCurrentTxPage((p) => Math.max(1, p - 1))}
+                      disabled={currentTxPage === 1}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                      title="上一頁"
+                    >
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                        <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+
+                    {/* 頁碼按鈕 */}
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalTxPages }, (_, i) => i + 1).map((page) => {
+                        // 智慧顯示：只顯示前後2頁 + 當前頁，其他用 ... 省略
+                        const showPage = page === 1 || page === totalTxPages || Math.abs(page - currentTxPage) <= 1;
+                        const showEllipsisBefore = page === currentTxPage - 2 && currentTxPage > 3;
+                        const showEllipsisAfter = page === currentTxPage + 2 && currentTxPage < totalTxPages - 2;
+
+                        if (!showPage && !showEllipsisBefore && !showEllipsisAfter) return null;
+
+                        if (showEllipsisBefore || showEllipsisAfter) {
+                          return (
+                            <span key={`ellipsis-${page}`} className="px-2 text-slate-400">
+                              ...
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={page}
+                            onClick={() => setCurrentTxPage(page)}
+                            className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg border px-2 text-xs font-bold transition ${
+                              currentTxPage === page
+                                ? 'border-rose-200 bg-rose-500 text-white shadow-sm'
+                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* 下一頁 */}
+                    <button
+                      onClick={() => setCurrentTxPage((p) => Math.min(totalTxPages, p + 1))}
+                      disabled={currentTxPage === totalTxPages}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                      title="下一頁"
+                    >
+                      <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                        <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           )}
         </div>
