@@ -12,7 +12,7 @@
 - ✅ **懸浮記帳按鈕** 🐷 - 記錄新交易
 - ✅ **記一筆股票 Modal** - 買進/賣出/配息，含費用計算
 - ✅ **管理帳戶 Modal** - 新增/編輯/刪除資產與負債項目
-- ✅ **設定 Modal** - Google Sheets 連線設定（預備接入）
+- ✅ **設定 Modal** - Google Sheets Web App URL 連線設定
 - ✅ **自訂對話框 & Toast** - Alert/Confirm 對話框和通知提示
 - ✅ **Tab 導覽** - Assets/Stocks 分頁切換，頂部設定按鈕
 
@@ -23,6 +23,7 @@
 - ✅ 費用估算（買進手續費 0.1425%、賣出 0.1425% + 0.3% 稅）
 - ✅ 資產分類管理（台幣活存、外幣活存、信託、負債）
 - ✅ 外幣活存會依即時匯率換算成新台幣淨值
+- ✅ 可串接 Google Sheets（讀取、資產覆寫、交易新增/刪除）
 
 ## 檔案結構
 
@@ -42,9 +43,15 @@ components/
   Modals.jsx             # TransactionModal、ConfigModal、Toast
   ManageModal.jsx        # ManageAccountsModal、CustomDialog
 lib/
-  data.js                # 假資料
+  data.js                # 預設資料（未連線時使用）
   calculations.js        # 計算邏輯
+  format.js              # 金額格式化
+  sheets-client.js       # Google Sheets Web App 同步 client
   app-context.js         # React Context（Modal 全域狀態）
+docs/
+  google-apps-script.gs  # 可直接部署的 Apps Script 後端模板
+scripts/
+  sheets-smoke-test.mjs  # Sheets 同步 smoke test
 ```
 
 ## 快速開始
@@ -67,18 +74,18 @@ npm run start
 
 ## 主要變更
 
-| 功能 | 舊版 | 新版 |
-|------|------|------|
-| 記一筆股票 | `js/transactions.js` | `components/Modals.jsx` (React Client Component) |
-| 管理帳戶 | `js/accounts.js` | `components/ManageModal.jsx` |
-| 設定連線 | `js/app.js` | `components/Modals.jsx` + `layout-client.jsx` |
-| 自訂對話 | `js/ui.js` | `components/ManageModal.jsx` (CustomDialog) |
-| Modal 狀態 | 全局 JavaScript | React Context + useState |
-| Toast 通知 | DOM 操作 | React 元件 + setState |
+| 功能 | 新版 |
+|------|------|
+| 記一筆股票 | `components/Modals.jsx` (React Client Component) |
+| 管理帳戶 | `components/ManageModal.jsx` |
+| 設定連線 | `components/Modals.jsx` + `app/layout-client.jsx` |
+| 自訂對話 | `components/ManageModal.jsx` (CustomDialog) |
+| Modal 狀態 | React Context + useState |
+| Toast 通知 | React 元件 + `setState` |
+| Google Sheets 同步 | `lib/sheets-client.js` + `docs/google-apps-script.gs` |
 
 ## 下一步（預留骨架）
 
-- [ ] 接入 Google Sheets API (`/api/sheets`)
 - [ ] 新增交易到資料庫
 - [ ] 實時股價更新（Yahoo Finance）
 - [ ] 交易流水歷史列表
