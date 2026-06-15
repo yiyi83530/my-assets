@@ -215,8 +215,8 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-rose-100 px-6 py-4">
+      <div className="flex h-[78vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl max-h-[78vh]">
+        <div className="flex shrink-0 items-center justify-between border-b border-rose-100 px-6 py-4">
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
             ➕ 記錄股票交易
           </h3>
@@ -225,7 +225,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 p-6">
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto p-6">
           <div>
             <label className="mb-2 block text-xs font-semibold text-slate-500">選擇交易類型</label>
             <div className="grid grid-cols-2 gap-3">
@@ -256,7 +256,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
             </div>
           </div>
 
-           <div className="grid grid-cols-[minmax(0,1fr)_10.5rem] gap-3 sm:grid-cols-2 sm:gap-4">
+           <div className="grid grid-cols-[minmax(0,1fr)_9.5rem] gap-3 sm:grid-cols-2 sm:gap-4">
              <div className="min-w-0">
                <label className="mb-1 block text-xs font-semibold text-slate-500">市場</label>
                 <div className="relative">
@@ -267,7 +267,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
                       if (!showMarketDropdown) setMarketHighlightedIndex(market === 'TWSE' ? 0 : 1);
                     }}
                     onKeyDown={handleMarketDropdownKeyDown}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none flex items-center justify-between hover:bg-white"
+                    className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 transition hover:bg-white focus:border-rose-300 focus:bg-white focus:outline-none"
                   >
                     <span>{market === 'TWSE' ? '📈 台股' : '🇺🇸 美股'}</span>
                     <svg
@@ -338,7 +338,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+                className="h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
               />
             </div>
           </div>
