@@ -19,7 +19,7 @@ const AssetsContent = nextDynamic(
 );
 
 export default function AssetsPage() {
-  const { assets = initialAssets, transactions = [] } = useApp();
+  const { assets = initialAssets, transactions = [], monthlyNetWorth = [] } = useApp();
   const [fxRates, setFxRates] = useState({});
 
   useEffect(() => {
@@ -55,11 +55,6 @@ export default function AssetsPage() {
     [assetsWithFx, portfolio.currentPortfolioValue, fxRates]
   );
 
-  const monthlyNetWorthData = useMemo(
-    () => calculateMonthlyNetWorth(assetsWithFx, transactions || [], stockMarketPrices, lastMonthNetWorth),
-    [assetsWithFx, transactions]
-  );
-
   const ntd = assetsWithFx.filter((a) => a.category === '台幣活存');
   const foreign = assetsWithFx.filter((a) => a.category === '外幣活存');
   const trust = assetsWithFx.filter((a) => a.category === '員工持股信託');
@@ -70,7 +65,7 @@ export default function AssetsPage() {
       <AssetsContent
         summary={summary}
         portfolio={portfolio}
-        monthlyNetWorthData={monthlyNetWorthData}
+        monthlyNetWorthData={monthlyNetWorth}
         ntd={ntd}
         foreign={foreign}
         trust={trust}

@@ -83,7 +83,7 @@ function ListBlock({
 }
 
 export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, foreign, trust, liabilities }) {
-  const { openManageModal, openConfigModal, isSheetsConnected } = useApp();
+  const { openManageModal, openConfigModal, openMonthlySnapshotModal, isSheetsConnected } = useApp();
   const [isTrendOpen, setIsTrendOpen] = useState(false);
 
   // ─── 資產配置計算 ───
@@ -274,7 +274,40 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
       </div>
 
       {/* ─── 管理操作入口 (橫跨橫條) ─── */}
-      <div className="my-2 flex justify-center">
+      <div className="my-2 grid grid-cols-1 gap-3 md:grid-cols-2">
+        {/* 月結記帳按鈕 */}
+        <button
+          onClick={openMonthlySnapshotModal}
+          className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-blue-200 bg-white px-5 py-4 text-left shadow-sm ring-1 ring-blue-100/70 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-100/60"
+        >
+          {/* 圖標 */}
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-2xl shadow-md shadow-blue-100 transition-transform group-hover:rotate-12 group-hover:scale-110">
+            📊
+          </div>
+
+          {/* 文字內容 */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-base font-black tracking-tight text-slate-800 transition-colors group-hover:text-blue-600">
+                月結記帳
+              </span>
+            </div>
+            <p className="mt-0.5 text-[12px] text-slate-500">
+              記錄本月資產負債快照，更新折線圖趨勢
+            </p>
+          </div>
+
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden rounded-lg bg-blue-500 px-2.5 py-1 text-[11px] font-bold text-white sm:inline-flex">
+              立即記錄
+            </span>
+            <svg className="h-5 w-5 text-blue-500 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </div>
+        </button>
+
+        {/* 管理帳戶按鈕 */}
         <button
           onClick={openManageModal}
           className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-rose-200 bg-white px-5 py-4 text-left shadow-sm ring-1 ring-rose-100/70 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-100/60"

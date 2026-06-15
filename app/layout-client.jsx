@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
+import { TransactionModal, ConfigModal, Toast, MonthlySnapshotModal } from '@/components/Modals';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
-import { assetBalances as initialAssets, transactions as initialTransactions } from '@/lib/data';
+import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData } from '@/lib/data';
 import { AppProvider } from '@/lib/app-context';
 import {
   appendTransactionToSheets,
@@ -19,6 +19,7 @@ export default function RootLayoutClient({ children }) {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
+  const [showMonthlySnapshotModal, setShowMonthlySnapshotModal] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -26,6 +27,7 @@ export default function RootLayoutClient({ children }) {
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
   const [transactions, setTransactions] = useState(initialTransactions);
+  const [monthlyNetWorth, setMonthlyNetWorth] = useState(initialMonthlyData);
   const [sheetsApiUrl, setSheetsApiUrl] = useState('');
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
 
@@ -172,22 +174,47 @@ export default function RootLayoutClient({ children }) {
     setAssets(assets.filter((_, i) => i !== index));
   };
 
+  const saveMonthlySnapshot = useCallback(async (month, netWorth) => {
+    const updated = [...monthlyNetWorth];
+    const existingIndex = updated.findIndex((item) => item.month === String(month));
+
+    if (existingIndex >= 0) {
+      updated[existingIndex] = { month: String(month), netWorth };
+    } else {
+      updated.push({ month: String(month), netWorth });
+      updated.sort((a, b) => Number(a.month) - Number(b.month));
+    }
+
+    setMonthlyNetWorth(updated);
+
+    // TODO: 同步到 Google Sheets（需要在 sheets-client.js 加上對應 API）
+    if (isSheetsConnected && sheetsApiUrl) {
+      // await saveMonthlyDataToSheets(sheetsApiUrl, updated);
+    }
+
+    displayToast(`✅ 已儲存 ${month} 月淨值記錄：$${netWorth.toLocaleString()}`);
+    setShowMonthlySnapshotModal(false);
+  }, [monthlyNetWorth, isSheetsConnected, sheetsApiUrl, displayToast]);
+
   return (
     <AppProvider
       openTransactionModal={() => setShowTransactionModal(true)}
       openConfigModal={() => setShowConfigModal(true)}
       openManageModal={() => setShowManageModal(true)}
+      openMonthlySnapshotModal={() => setShowMonthlySnapshotModal(true)}
       displayToast={displayToast}
       displayDialog={displayDialog}
       isSheetsConnected={isSheetsConnected}
       sheetsApiUrl={sheetsApiUrl}
       assets={assets}
       transactions={transactions}
+      monthlyNetWorth={monthlyNetWorth}
       connectSheets={connectSheets}
       syncFromSheets={() => syncFromSheets(sheetsApiUrl)}
       saveAssetsToSheets={saveAssetsToSheets}
       addTransaction={addTransaction}
       removeTransaction={removeTransaction}
+      saveMonthlySnapshot={saveMonthlySnapshot}
     >
       <div className="mx-auto max-w-7xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-6" suppressHydrationWarning>{children}</div>
 
@@ -214,6 +241,17 @@ export default function RootLayoutClient({ children }) {
         onAddNew={handleAddNewAsset}
         onRemove={handleRemoveAsset}
         onUpdate={handleUpdateAsset}
+      />
+      <MonthlySnapshotModal
+        isOpen={showMonthlySnapshotModal}
+        onClose={() => setShowMonthlySnapshotModal(false)}
+        onSave={saveMonthlySnapshot}
+        currentNetWorth={
+          assets.reduce((sum, a) => {
+            return sum + (a.isLiability ? -Number(a.balance || 0) : Number(a.balance || 0));
+          }, 0)
+        }
+        assets={assets}
       />
       <CustomDialog
         isOpen={showDialog}
