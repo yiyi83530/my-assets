@@ -246,6 +246,15 @@ export function StocksContent({ initialPrices = {} }) {
   const usPositions = allPositions.filter((p) => p.market === 'US');
   const activePositions = posTab === 'TWSE' ? twsePositions : usPositions;
 
+  // 顯示限制：一開始最多顯示 20 筆（第 21 筆起透過滾動查看）
+  const MAX_VISIBLE = 20;
+  // 固定表頭/列高，讓可視高度精準對齊到 20 筆
+  const POS_HEADER_HEIGHT = 48;
+  const POS_ROW_HEIGHT = 56;
+  const posContainerMaxHeight = POS_HEADER_HEIGHT + POS_ROW_HEIGHT * MAX_VISIBLE;
+  // 交易紀錄容器的高度計算（初始顯示上限一樣為 20 筆）
+  // (txContainerMaxHeight 會在 activeTx 宣告之後計算)
+
   // ── 按產業聚合 ────────────────────────────────────────────────────────
   const industryData = (() => {
     const industryMap = {};
@@ -290,6 +299,11 @@ export function StocksContent({ initialPrices = {} }) {
   const activeTx = [...(histTab === 'TWSE' ? twseTx : usTx)].sort(
     (a, b) => new Date(b.date) - new Date(a.date)
   );
+
+  // 交易紀錄容器高度：表頭 + 最多 20 列
+  const TX_HEADER_HEIGHT = 48;
+  const TX_ROW_HEIGHT = 64;
+  const txContainerMaxHeight = TX_HEADER_HEIGHT + TX_ROW_HEIGHT * MAX_VISIBLE;
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -421,10 +435,10 @@ export function StocksContent({ initialPrices = {} }) {
               目前沒有 {posTab === 'TWSE' ? '台股' : '美股'} 持股紀錄
             </div>
           ) : (
-          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+          <div className="overflow-x-auto" style={{ maxHeight: `${posContainerMaxHeight}px`, overflowY: 'auto' }}>
             <table className="w-full min-w-[960px] text-center">
               <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 sticky top-0 z-10 shadow-sm">
-                <tr>
+                <tr className="h-12">
                   <th className="px-4 py-3 align-middle text-left whitespace-nowrap">股票</th>
                   <th className="px-4 py-3 align-middle whitespace-nowrap">持有股數</th>
                   <th className="px-4 py-3 align-middle whitespace-nowrap">成本價</th>
@@ -444,11 +458,11 @@ export function StocksContent({ initialPrices = {} }) {
                   const displayName = nameParts.slice(1).join(' ') || nameParts[0];
 
                   return (
-                    <tr key={pos.name} className="border-t border-slate-100 hover:bg-slate-50/60 transition">
+                    <tr key={pos.name} className="h-14 border-t border-slate-100 hover:bg-slate-50/60 transition">
                       {/* 股票 */}
                       <td className="px-4 py-3 align-middle text-left">
                         <div className="text-xs font-bold text-slate-400">{pos.symbol}</div>
-                        <div className="text-sm text-slate-800">{displayName}</div>
+                        <div className="max-w-[180px] truncate text-sm text-slate-800">{displayName}</div>
                       </td>
 
                       {/* 持有股數 */}
@@ -584,7 +598,7 @@ export function StocksContent({ initialPrices = {} }) {
           </div>
         </div>
 
-        <div key={histTab} className="animate-in fade-in duration-500 max-h-[520px] overflow-y-auto overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
+        <div key={histTab} className="animate-in fade-in duration-500 overflow-y-auto overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200" style={{ maxHeight: `${txContainerMaxHeight}px` }}>
           {activeTx.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
               目前沒有 {histTab === 'TWSE' ? '台股' : '美股'} 交易紀錄
@@ -593,7 +607,7 @@ export function StocksContent({ initialPrices = {} }) {
           <div className="">
             <table className="w-full min-w-[760px] text-center border-separate border-spacing-0 relative">
               <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 shadow-sm">
-                <tr>
+                <tr className="h-12">
                   <th className="px-4 py-3 align-middle text-left">日期 / 時間</th>
                   <th className="px-4 py-3 align-middle text-left">股票</th>
                   <th className="px-4 py-3 align-middle">類型</th>
@@ -610,7 +624,7 @@ export function StocksContent({ initialPrices = {} }) {
                   const txName = tx.stock.split(' ').slice(1).join(' ');
                   const txTime = fmtTime(tx.recordedAt);
                   return (
-                    <tr key={tx.id} className="border-t border-slate-100 hover:bg-slate-50/60 transition">
+                    <tr key={tx.id} className="h-16 border-t border-slate-100 hover:bg-slate-50/60 transition">
                       {/* 日期 / 時間 */}
                       <td className="px-4 py-3 align-middle text-left">
                         <div className="font-mono text-xs text-slate-700">{fmtDate(tx.date)}</div>
@@ -623,7 +637,7 @@ export function StocksContent({ initialPrices = {} }) {
                       </td>
                       {/* 類型 */}
                       <td className="px-4 py-3 align-middle">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${tx.type === 'buy' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap ${tx.type === 'buy' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
                           {tx.type === 'buy' ? '買進' : '賣出'}
                         </span>
                       </td>
@@ -636,7 +650,7 @@ export function StocksContent({ initialPrices = {} }) {
                       <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${tx.type === 'buy' ? 'text-rose-600' : 'text-emerald-600'}`}>
                         {tx.type === 'buy' ? '-' : '+'}${Number(tx.actualAmount).toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 align-middle text-left text-xs text-slate-500">{tx.note || '—'}</td>
+                      <td className="max-w-[220px] truncate whitespace-nowrap px-4 py-3 align-middle text-left text-xs text-slate-500">{tx.note || '—'}</td>
                       <td className="px-4 py-3 align-middle">
                         <div className="flex justify-center">
                           <button
