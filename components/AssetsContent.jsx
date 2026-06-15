@@ -52,14 +52,16 @@ function ListBlock({
 }) {
   return (
     <div className="card p-5">
-      <div className="mb-3 flex items-start justify-between gap-3 border-b border-slate-100 pb-2">
-        <div>
-          <h3 className="text-sm font-bold text-slate-700">{title}</h3>
-          {subtitle && <p className="mt-0.5 text-[11px] text-slate-400">{subtitle}</p>}
+      <div className="mb-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-slate-100 pb-2">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold leading-5 text-slate-700">{title}</h3>
+          <p className={`mt-0.5 text-[11px] leading-4 text-slate-400 ${subtitle ? '' : 'invisible'}`}>
+            {subtitle || '占位'}
+          </p>
         </div>
         <div className="text-right">
-          <span className="text-xs text-slate-400">{items.length} 項</span>
-          <p className={`mt-0.5 font-mono text-[11px] font-bold ${totalClass}`}>{totalLabel} {formatMoney(totalValue)}</p>
+          <p className="text-xs leading-5 text-slate-400">{items.length} 項</p>
+          <p className={`mt-0.5 font-mono text-[11px] leading-4 font-bold ${totalClass}`}>{totalLabel} {formatMoney(totalValue)}</p>
         </div>
       </div>
       <div className="space-y-2">
@@ -275,27 +277,30 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
       <div className="my-2 flex justify-center">
         <button
           onClick={openManageModal}
-          className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-dashed border-slate-200 bg-white/50 px-4 py-4 transition-all hover:border-rose-200 hover:bg-white hover:shadow-xl hover:shadow-rose-100/50"
+          className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-rose-200 bg-white px-5 py-4 text-left shadow-sm ring-1 ring-rose-100/70 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-100/60"
         >
           {/* 動態小豬圖標 */}
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-50 text-2xl shadow-sm transition-transform group-hover:rotate-12 group-hover:scale-110">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-50 text-2xl shadow-md shadow-rose-100 transition-transform group-hover:rotate-12 group-hover:scale-110">
             🐷
           </div>
 
           {/* 文字內容 */}
-          <div className="text-left">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-700 transition-colors group-hover:text-rose-500">管理帳戶 / 餘額</span>
-              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-500 opacity-0 transition-opacity group-hover:opacity-100">
-                QUICK EDIT
+              <span className="text-base font-black tracking-tight text-slate-800 transition-colors group-hover:text-rose-600">
+                管理帳戶 / 餘額
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">更新銀行存款、負債並同步至個人 Google Sheets</p>
+            <p className="mt-0.5 text-[12px] text-slate-500">
+              更新銀行存款、外幣、信託與負債，並同步至個人 Google Sheets
+            </p>
           </div>
 
-          {/* 右側引導箭頭 */}
-          <div className="ml-auto translate-x-0 opacity-0 transition-all group-hover:translate-x-1 group-hover:opacity-100">
-            <svg className="h-5 w-5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden rounded-lg bg-rose-500 px-2.5 py-1 text-[11px] font-bold text-white sm:inline-flex">
+              立即管理
+            </span>
+            <svg className="h-5 w-5 text-rose-500 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
           </div>
@@ -330,23 +335,18 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
         <ListBlock title="員工持股信託" items={trust} totalValue={totalTrust} />
         <div>
           <div className="card p-5">
-            <div className="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
-              <div>
-                <h3 className="text-sm font-bold text-slate-700">負債項目</h3>
-                <p className="mt-0.5 font-mono text-[11px] font-bold text-rose-600">總計 -{formatMoney(totalLiabilities)}</p>
+            <div className="mb-3 flex items-start justify-between border-b border-slate-100 pb-2">
+              <h3 className="text-sm font-bold leading-5 text-slate-700">負債項目</h3>
+              <div className="text-right">
+                <p className="text-xs leading-5 text-slate-400">{liabilities.length} 項</p>
+                <p className="mt-0.5 font-mono text-[11px] leading-4 font-bold text-rose-600">總計 -{formatMoney(totalLiabilities)}</p>
               </div>
-              <button
-                onClick={openManageModal}
-                className="text-xs font-bold text-rose-600 hover:text-rose-700"
-              >
-                更新負債
-              </button>
             </div>
             <div className="space-y-2">
               {liabilities.map((item) => (
                 <div key={item.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
                   <span className="text-slate-600">{item.name}</span>
-                  <span className="font-mono font-bold text-rose-600">-{formatMoney(item.balance)}</span>
+                  <span className="font-mono font-bold text-slate-700">-{formatMoney(item.balance)}</span>
                 </div>
               ))}
               {liabilities.length === 0 && <p className="text-xs text-slate-400">目前沒有資料</p>}

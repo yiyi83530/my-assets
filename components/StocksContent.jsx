@@ -154,7 +154,30 @@ export function StocksContent({ initialPrices = {} }) {
   const [isFetchingPrices, setIsFetchingPrices] = useState(false);
   const [posTab, setPosTab] = useState('TWSE');
   const [histTab, setHistTab] = useState('TWSE');
+  const [selectedYear, setSelectedYear] = useState('ALL');
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
+  const [yearHighlightedIndex, setYearHighlightedIndex] = useState(-1);
   const fetchedRef = useRef(new Set());
+
+  const availableYears = [...new Set(
+    transactions
+      .map((tx) => Number(String(tx.date || '').slice(0, 4)))
+      .filter((year) => Number.isFinite(year) && year > 0)
+  )].sort((a, b) => b - a);
+
+  const yearOptions = ['ALL', ...availableYears.map((year) => String(year))];
+  const yearOptionsKey = yearOptions.join('|');
+  const yearLabel = selectedYear === 'ALL' ? '全部年份' : `${selectedYear} 年`;
+
+  useEffect(() => {
+    if (selectedYear !== 'ALL' && !yearOptions.includes(selectedYear)) {
+      setSelectedYear('ALL');
+    }
+  }, [selectedYear, yearOptionsKey]);
+
+  const filteredTransactions = selectedYear === 'ALL'
+    ? transactions
+    : transactions.filter((tx) => String(tx.date || '').slice(0, 4) === selectedYear);
 
   // ── derive positions (必須在報價抓取邏輯之前，因為報價邏輯依賴這些數據) ──────────────────────────────────────────────────────
   const basePositions = buildBasePositions(transactions);
@@ -263,8 +286,8 @@ export function StocksContent({ initialPrices = {} }) {
 
   // ── transaction history ───────────────────────────────────────────────────
 
-  const twseTx = transactions.filter((tx) => (tx.market || 'TWSE') === 'TWSE');
-  const usTx = transactions.filter((tx) => tx.market === 'US');
+  const twseTx = filteredTransactions.filter((tx) => (tx.market || 'TWSE') === 'TWSE');
+  const usTx = filteredTransactions.filter((tx) => tx.market === 'US');
   const activeTx = [...(histTab === 'TWSE' ? twseTx : usTx)].sort(
     (a, b) => new Date(b.date) - new Date(a.date)
   );
@@ -494,6 +517,62 @@ export function StocksContent({ initialPrices = {} }) {
             </table>
           </div>
           )}
+        </div>
+      </div>
+
+      {/* ── Year Filter (History Only) ── */}
+      <div className="my-3 card border border-slate-200/80 px-5 py-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">歷史交易篩選</p>
+            <p className="text-xs text-slate-500">僅影響下方「股票交易歷史紀錄」</p>
+          </div>
+
+          <div className="relative w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setShowYearDropdown((prev) => !prev);
+                if (!showYearDropdown) {
+                  setYearHighlightedIndex(Math.max(yearOptions.indexOf(selectedYear), 0));
+                }
+              }}
+              onBlur={() => setTimeout(() => setShowYearDropdown(false), 120)}
+              className="flex w-full min-w-[136px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none sm:w-auto"
+            >
+              <span>{yearLabel}</span>
+              <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showYearDropdown ? 'rotate-180' : ''}`}>
+                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {showYearDropdown && (
+              <div className="absolute right-0 z-30 mt-1 w-full min-w-[136px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+                {yearOptions.map((year, index) => {
+                  const active = selectedYear === year;
+                  const highlighted = yearHighlightedIndex === index;
+                  return (
+                    <button
+                      key={year}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onMouseEnter={() => setYearHighlightedIndex(index)}
+                      onClick={() => {
+                        setSelectedYear(year);
+                        setShowYearDropdown(false);
+                      }}
+                      className={`block w-full px-3 py-2 text-left text-xs font-semibold transition ${
+                        active || highlighted
+                          ? 'bg-rose-50 text-rose-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {year === 'ALL' ? '全部年份' : `${year} 年`}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
