@@ -92,7 +92,7 @@ export default function RootLayoutClient({ children }) {
       addTransaction={addTransaction}
       removeTransaction={removeTransaction}
     >
-      <div className="mx-auto max-w-7xl px-4 py-6" suppressHydrationWarning>{children}</div>
+      <div className="mx-auto max-w-7xl px-4 pb-[calc(7.5rem+env(safe-area-inset-bottom))] pt-6" suppressHydrationWarning>{children}</div>
 
       {/* 懸浮記帳按鈕 */}
       <button

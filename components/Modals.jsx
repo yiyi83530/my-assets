@@ -256,8 +256,8 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
             </div>
           </div>
 
-           <div className="grid grid-cols-2 gap-4">
-             <div>
+           <div className="grid grid-cols-[minmax(0,1fr)_10.5rem] gap-3 sm:grid-cols-2 sm:gap-4">
+             <div className="min-w-0">
                <label className="mb-1 block text-xs font-semibold text-slate-500">市場</label>
                 <div className="relative">
                   <button
@@ -332,13 +332,13 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
                   )}
                 </div>
              </div>
-            <div>
+            <div className="min-w-0">
               <label className="mb-1 block text-xs font-semibold text-slate-500">交易日期</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+                className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
               />
             </div>
           </div>
