@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   CartesianGrid,
   Line,
@@ -83,14 +83,103 @@ function ListBlock({
 }
 
 export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, foreign, trust, liabilities }) {
-  const { openManageModal, openConfigModal, openMonthlySnapshotModal, isSheetsConnected } = useApp();
+  const { openManageModal, openConfigModal, isSheetsConnected, monthlyAssets = {}, setMonthlyAssets } = useApp();
   const [isTrendOpen, setIsTrendOpen] = useState(false);
 
-  // ─── 資產配置計算 ───
-  const totalNtd = ntd.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
-  const totalForeign = foreign.reduce((sum, item) => sum + (Number(item.convertedBalance ?? item.balance) || 0), 0);
-  const totalTrust = trust.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
-  const totalLiabilities = liabilities.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
+  // 年月篩選狀態（預設當前年月）
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonthDefault = today.getMonth() + 1;
+
+  // 從 monthlyAssets 計算有資料的年份和月份
+  const availableYearMonths = useMemo(() => {
+    const yearMonthMap = {};
+    Object.keys(monthlyAssets || {}).forEach((key) => {
+      const [year, month] = key.split('-').map(Number);
+      if (!yearMonthMap[year]) {
+        yearMonthMap[year] = [];
+      }
+      yearMonthMap[year].push(month);
+    });
+    // 排序月份
+    Object.keys(yearMonthMap).forEach((year) => {
+      yearMonthMap[year].sort((a, b) => a - b);
+    });
+    return yearMonthMap;
+  }, [monthlyAssets]);
+
+  const availableYears = Object.keys(availableYearMonths).map(Number).sort((a, b) => b - a);
+
+  // 如果沒有任何資料，預設當前年月
+  const defaultYear = availableYears.length > 0 ? availableYears.find(y => y === currentYear) || availableYears[0] : currentYear;
+  const defaultMonth = availableYearMonths[defaultYear] ? availableYearMonths[defaultYear][0] : currentMonthDefault;
+
+  const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
+  const [showYearDropdown, setShowYearDropdown] = useState(false);
+  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
+  const [yearHighlightedIndex, setYearHighlightedIndex] = useState(-1);
+  const [monthHighlightedIndex, setMonthHighlightedIndex] = useState(-1);
+
+  // 當年份改變時，自動選擇該年第一個有資料的月份
+  useEffect(() => {
+    const monthsForYear = availableYearMonths[selectedYear] || [];
+    if (monthsForYear.length > 0 && !monthsForYear.includes(selectedMonth)) {
+      setSelectedMonth(monthsForYear[0]);
+    }
+  }, [selectedYear, availableYearMonths, selectedMonth]);
+
+  // 當前選中年份的可用月份
+  const availableMonths = availableYearMonths[selectedYear] || [];
+
+  // 根據選擇的年月取得資產（如果沒有就複製上月）
+  const selectedMonthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+
+  // 取得上個月的 key
+  const getPreviousMonthKey = (year, month) => {
+    if (month === 1) {
+      return `${year - 1}-12`;
+    }
+    return `${year}-${String(month - 1).padStart(2, '0')}`;
+  };
+
+  // 取得選中月份的資產，沒有就複製上月
+  const getAssetsForMonth = (yearMonth) => {
+    // 如果當月資料存在（包括空陣列），直接返回
+    if (monthlyAssets.hasOwnProperty(yearMonth)) {
+      return monthlyAssets[yearMonth];
+    }
+
+    // 沒有當月資料，嘗試複製上月
+    const [year, month] = yearMonth.split('-').map(Number);
+    const prevKey = getPreviousMonthKey(year, month);
+
+    if (monthlyAssets[prevKey]) {
+      // 複製上月資料到當月
+      const copied = JSON.parse(JSON.stringify(monthlyAssets[prevKey]));
+      const updated = { ...monthlyAssets, [yearMonth]: copied };
+      setMonthlyAssets(updated);
+      return copied;
+    }
+
+    // 上月也沒有，回傳空陣列
+    return [];
+  };
+
+  const displayAssets = getAssetsForMonth(selectedMonthKey);
+  const hasNoAssets = displayAssets.length === 0;
+
+  // 從 displayAssets 分類
+  const displayNtd = hasNoAssets ? [] : displayAssets.filter((a) => a.category === '台幣活存');
+  const displayForeign = hasNoAssets ? [] : displayAssets.filter((a) => a.category === '外幣活存');
+  const displayTrust = hasNoAssets ? [] : displayAssets.filter((a) => a.category === '員工持股信託');
+  const displayLiabilities = hasNoAssets ? [] : displayAssets.filter((a) => a.isLiability || a.category === '負債項目');
+
+  // ─── 資產配置計算（使用當前顯示的資產） ───
+  const totalNtd = displayNtd.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
+  const totalForeign = displayForeign.reduce((sum, item) => sum + (Number(item.convertedBalance ?? item.balance) || 0), 0);
+  const totalTrust = displayTrust.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
+  const totalLiabilities = displayLiabilities.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
   const totalStocks = portfolio.currentPortfolioValue;
   const totalAssets = totalNtd + totalForeign + totalTrust + totalStocks;
 
@@ -273,43 +362,119 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
           </div>
       </div>
 
-      {/* ─── 管理操作入口 (橫跨橫條) ─── */}
-      <div className="my-2 grid grid-cols-1 gap-3 md:grid-cols-2">
-        {/* 月結記帳按鈕 */}
-        <button
-          onClick={openMonthlySnapshotModal}
-          className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-blue-200 bg-white px-5 py-4 text-left shadow-sm ring-1 ring-blue-100/70 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-100/60"
-        >
-          {/* 圖標 */}
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-2xl shadow-md shadow-blue-100 transition-transform group-hover:rotate-12 group-hover:scale-110">
-            📊
+      {/* ─── 年月篩選器 ─── */}
+      <div className="my-4 card p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-700">查看月份：</span>
+            <span className="text-xs text-slate-500">選擇年月查看該月資產負債</span>
           </div>
 
-          {/* 文字內容 */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-black tracking-tight text-slate-800 transition-colors group-hover:text-blue-600">
-                月結記帳
-              </span>
+          <div className="flex items-center gap-2">
+            {/* 年份下拉 */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowYearDropdown((prev) => !prev);
+                  setShowMonthDropdown(false);
+                  if (!showYearDropdown) {
+                    setYearHighlightedIndex(availableYears.indexOf(selectedYear));
+                  }
+                }}
+                onBlur={() => setTimeout(() => setShowYearDropdown(false), 120)}
+                className="flex min-w-[90px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none"
+              >
+                <span>{selectedYear} 年</span>
+                <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showYearDropdown ? 'rotate-180' : ''}`}>
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {showYearDropdown && availableYears.length > 0 && (
+                <div className="absolute left-0 z-30 mt-1 w-full min-w-[90px] max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                  {availableYears.map((year, index) => {
+                    const active = selectedYear === year;
+                    const highlighted = yearHighlightedIndex === index;
+                    return (
+                      <button
+                        key={year}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={() => setYearHighlightedIndex(index)}
+                        onClick={() => {
+                          setSelectedYear(year);
+                          setShowYearDropdown(false);
+                        }}
+                        className={`block w-full px-3 py-2 text-left text-xs font-semibold transition ${
+                          active || highlighted
+                            ? 'bg-rose-50 text-rose-700'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {year} 年
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <p className="mt-0.5 text-[12px] text-slate-500">
-              記錄本月資產負債快照，更新折線圖趨勢
-            </p>
-          </div>
 
-          <div className="ml-auto flex items-center gap-2">
-            <span className="hidden rounded-lg bg-blue-500 px-2.5 py-1 text-[11px] font-bold text-white sm:inline-flex">
-              立即記錄
-            </span>
-            <svg className="h-5 w-5 text-blue-500 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
+            {/* 月份下拉 */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMonthDropdown((prev) => !prev);
+                  setShowYearDropdown(false);
+                  if (!showMonthDropdown) {
+                    setMonthHighlightedIndex(availableMonths.indexOf(selectedMonth));
+                  }
+                }}
+                onBlur={() => setTimeout(() => setShowMonthDropdown(false), 120)}
+                className="flex min-w-[80px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none"
+              >
+                <span>{selectedMonth} 月</span>
+                <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showMonthDropdown ? 'rotate-180' : ''}`}>
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {showMonthDropdown && availableMonths.length > 0 && (
+                <div className="absolute left-0 z-30 mt-1 max-h-60 w-full min-w-[80px] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                  {availableMonths.map((month, index) => {
+                    const active = selectedMonth === month;
+                    const highlighted = monthHighlightedIndex === index;
+                    return (
+                      <button
+                        key={month}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={() => setMonthHighlightedIndex(index)}
+                        onClick={() => {
+                          setSelectedMonth(month);
+                          setShowMonthDropdown(false);
+                        }}
+                        className={`block w-full px-3 py-2 text-left text-xs font-semibold transition ${
+                          active || highlighted
+                            ? 'bg-rose-50 text-rose-700'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {month} 月
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
-        </button>
+        </div>
+      </div>
 
+      {/* ─── 管理操作入口 ─── */}
+      <div className="my-2">
         {/* 管理帳戶按鈕 */}
         <button
-          onClick={openManageModal}
+          onClick={() => openManageModal({ year: selectedYear, month: selectedMonth })}
           className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-rose-200 bg-white px-5 py-4 text-left shadow-sm ring-1 ring-rose-100/70 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-100/60"
         >
           {/* 動態小豬圖標 */}
@@ -340,53 +505,67 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ListBlock title="台幣活存" items={ntd} totalValue={totalNtd} />
-        <ListBlock
-          title="外幣活存"
-          subtitle="依當下匯率換算成台幣"
-          items={foreign}
-          totalValue={totalForeign}
-          amountRenderer={(item) => {
-            const amount = Number(item.amount ?? item.balance) || 0;
-            const currency = item.currency || '外幣';
-            const converted = item.convertedBalance ?? item.balance;
-            return (
-              <>
-                <span className="text-slate-700">{amount.toLocaleString('zh-TW')} {currency}</span>
-                <span className="mx-1 text-slate-400">/</span>
-                <span className="text-rose-600">{formatMoney(converted)}</span>
-              </>
-            );
-          }}
-          detailRenderer={(item) => {
-            const currency = item.currency || '外幣';
-            const rate = Number(item.fxRate) || 1;
-            return `匯率 ${rate.toFixed(4)} / 1 ${currency}`;
-          }}
-        />
-        <ListBlock title="員工持股信託" items={trust} totalValue={totalTrust} />
-        <div>
-          <div className="card p-5">
-            <div className="mb-3 flex items-start justify-between border-b border-slate-100 pb-2">
-              <h3 className="text-sm font-bold leading-5 text-slate-700">負債項目</h3>
-              <div className="text-right">
-                <p className="text-xs leading-5 text-slate-400">{liabilities.length} 項</p>
-                <p className="mt-0.5 font-mono text-[11px] leading-4 font-bold text-rose-600">總計 -{formatMoney(totalLiabilities)}</p>
-              </div>
+      {hasNoAssets ? (
+        <div className="card p-8 text-center">
+          <div className="mb-4 flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-3xl">
+              📝
             </div>
-            <div className="space-y-2">
-              {liabilities.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
-                  <span className="text-slate-600">{item.name}</span>
-                  <span className="font-mono font-bold text-slate-700">-{formatMoney(item.balance)}</span>
+          </div>
+          <h3 className="text-lg font-bold text-slate-700">尚無資產負債資料</h3>
+          <p className="mt-2 text-sm text-slate-500">
+            此月份沒有記錄，請點擊「管理帳戶/餘額」新增資產與負債項目
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ListBlock title="台幣活存" items={displayNtd} totalValue={totalNtd} />
+          <ListBlock
+            title="外幣活存"
+            subtitle="依當下匯率換算成台幣"
+            items={displayForeign}
+            totalValue={totalForeign}
+            amountRenderer={(item) => {
+              const amount = Number(item.amount ?? item.balance) || 0;
+              const currency = item.currency || '外幣';
+              const converted = item.convertedBalance ?? item.balance;
+              return (
+                <>
+                  <span className="text-slate-700">{amount.toLocaleString('zh-TW')} {currency}</span>
+                  <span className="mx-1 text-slate-400">/</span>
+                  <span className="text-rose-600">{formatMoney(converted)}</span>
+                </>
+              );
+            }}
+            detailRenderer={(item) => {
+              const currency = item.currency || '外幣';
+              const rate = Number(item.fxRate) || 1;
+              return `匯率 ${rate.toFixed(4)} / 1 ${currency}`;
+            }}
+          />
+          <ListBlock title="員工持股信託" items={displayTrust} totalValue={totalTrust} />
+          <div>
+            <div className="card p-5">
+              <div className="mb-3 flex items-start justify-between border-b border-slate-100 pb-2">
+                <h3 className="text-sm font-bold leading-5 text-slate-700">負債項目</h3>
+                <div className="text-right">
+                  <p className="text-xs leading-5 text-slate-400">{displayLiabilities.length} 項</p>
+                  <p className="mt-0.5 font-mono text-[11px] leading-4 font-bold text-rose-600">總計 -{formatMoney(totalLiabilities)}</p>
                 </div>
-              ))}
-              {liabilities.length === 0 && <p className="text-xs text-slate-400">目前沒有資料</p>}
+              </div>
+              <div className="space-y-2">
+                {displayLiabilities.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                    <span className="text-slate-600">{item.name}</span>
+                    <span className="font-mono font-bold text-slate-700">-{formatMoney(item.balance)}</span>
+                  </div>
+                ))}
+                {displayLiabilities.length === 0 && <p className="text-xs text-slate-400">目前沒有資料</p>}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </>
   );
 }

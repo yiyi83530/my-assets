@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 const CATEGORIES = ['台幣活存', '外幣活存', '員工持股信託', '負債項目'];
 const FOREIGN_CURRENCIES = ['USD', 'JPY', 'EUR', 'HKD', 'CNY', 'SGD'];
 
-export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew, onRemove, onUpdate }) {
+export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew, onRemove, onUpdate, editingMonth }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const [suggestionsByIndex, setSuggestionsByIndex] = useState({});
   const [isSearchingByIndex, setIsSearchingByIndex] = useState({});
@@ -131,9 +131,16 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
     <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl flex h-[70vh] flex-col max-h-[70vh]">
         <div className="flex items-center justify-between border-b border-rose-100 px-6 py-4 shrink-0">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-            ✎ 管理活存與負債餘額
-          </h3>
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
+              ✎ 管理活存與負債餘額
+            </h3>
+            {editingMonth && (
+              <p className="mt-1 text-xs text-slate-500">
+                編輯月份：<span className="font-semibold text-rose-600">{editingMonth}</span>
+              </p>
+            )}
+          </div>
           <button onClick={onClose} className="text-slate-400 transition hover:text-slate-600">
             ✕
           </button>

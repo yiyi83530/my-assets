@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { TransactionModal, ConfigModal, Toast, MonthlySnapshotModal } from '@/components/Modals';
+import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
-import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData } from '@/lib/data';
+import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData, monthlyAssetsSnapshots as initialMonthlyAssets } from '@/lib/data';
 import { AppProvider } from '@/lib/app-context';
 import {
   appendTransactionToSheets,
@@ -19,7 +19,7 @@ export default function RootLayoutClient({ children }) {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
-  const [showMonthlySnapshotModal, setShowMonthlySnapshotModal] = useState(false);
+  const [manageModalContext, setManageModalContext] = useState({ year: null, month: null });
   const [showDialog, setShowDialog] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -28,6 +28,7 @@ export default function RootLayoutClient({ children }) {
   const [assets, setAssets] = useState(initialAssets);
   const [transactions, setTransactions] = useState(initialTransactions);
   const [monthlyNetWorth, setMonthlyNetWorth] = useState(initialMonthlyData);
+  const [monthlyAssets, setMonthlyAssets] = useState(initialMonthlyAssets);
   const [sheetsApiUrl, setSheetsApiUrl] = useState('');
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
 
@@ -137,10 +138,25 @@ export default function RootLayoutClient({ children }) {
 
   const handleSaveAssets = async () => {
     try {
-      if (isSheetsConnected) {
-        await saveAssetsToSheets(assets);
+      const { year, month } = manageModalContext;
+      if (year && month) {
+        // 儲存到對應月份
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        const updatedMonthlyAssets = { ...monthlyAssets, [monthKey]: assets };
+        setMonthlyAssets(updatedMonthlyAssets);
+
+        if (isSheetsConnected) {
+          // TODO: 同步月度資料到 Google Sheets
+          // await saveMonthlyAssetsToSheets(sheetsApiUrl, updatedMonthlyAssets);
+        }
+        displayToast(`✅ 已儲存 ${year}年${month}月 資產負債`);
+      } else {
+        // fallback: 儲存到全局 assets
+        if (isSheetsConnected) {
+          await saveAssetsToSheets(assets);
+        }
+        displayToast(isSheetsConnected ? '資產負債餘額已同步儲存 🐷' : '已更新本機資料（尚未連線 Google Sheets）');
       }
-      displayToast(isSheetsConnected ? '資產負債餘額已同步儲存 🐷' : '已更新本機資料（尚未連線 Google Sheets）');
       setShowManageModal(false);
     } catch (error) {
       displayToast(`資產同步失敗：${error.message || '請稍後再試'}`);
@@ -174,34 +190,20 @@ export default function RootLayoutClient({ children }) {
     setAssets(assets.filter((_, i) => i !== index));
   };
 
-  const saveMonthlySnapshot = useCallback(async (month, netWorth) => {
-    const updated = [...monthlyNetWorth];
-    const existingIndex = updated.findIndex((item) => item.month === String(month));
-
-    if (existingIndex >= 0) {
-      updated[existingIndex] = { month: String(month), netWorth };
-    } else {
-      updated.push({ month: String(month), netWorth });
-      updated.sort((a, b) => Number(a.month) - Number(b.month));
-    }
-
-    setMonthlyNetWorth(updated);
-
-    // TODO: 同步到 Google Sheets（需要在 sheets-client.js 加上對應 API）
-    if (isSheetsConnected && sheetsApiUrl) {
-      // await saveMonthlyDataToSheets(sheetsApiUrl, updated);
-    }
-
-    displayToast(`✅ 已儲存 ${month} 月淨值記錄：$${netWorth.toLocaleString()}`);
-    setShowMonthlySnapshotModal(false);
-  }, [monthlyNetWorth, isSheetsConnected, sheetsApiUrl, displayToast]);
-
   return (
     <AppProvider
       openTransactionModal={() => setShowTransactionModal(true)}
       openConfigModal={() => setShowConfigModal(true)}
-      openManageModal={() => setShowManageModal(true)}
-      openMonthlySnapshotModal={() => setShowMonthlySnapshotModal(true)}
+      openManageModal={(context) => {
+        if (context && context.year && context.month) {
+          setManageModalContext(context);
+          // 載入對應月份的資料到 assets state
+          const monthKey = `${context.year}-${String(context.month).padStart(2, '0')}`;
+          const monthAssets = monthlyAssets[monthKey] || [];
+          setAssets(monthAssets);
+        }
+        setShowManageModal(true);
+      }}
       displayToast={displayToast}
       displayDialog={displayDialog}
       isSheetsConnected={isSheetsConnected}
@@ -209,12 +211,13 @@ export default function RootLayoutClient({ children }) {
       assets={assets}
       transactions={transactions}
       monthlyNetWorth={monthlyNetWorth}
+      monthlyAssets={monthlyAssets}
+      setMonthlyAssets={setMonthlyAssets}
       connectSheets={connectSheets}
       syncFromSheets={() => syncFromSheets(sheetsApiUrl)}
       saveAssetsToSheets={saveAssetsToSheets}
       addTransaction={addTransaction}
       removeTransaction={removeTransaction}
-      saveMonthlySnapshot={saveMonthlySnapshot}
     >
       <div className="mx-auto max-w-7xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-6" suppressHydrationWarning>{children}</div>
 
@@ -241,17 +244,7 @@ export default function RootLayoutClient({ children }) {
         onAddNew={handleAddNewAsset}
         onRemove={handleRemoveAsset}
         onUpdate={handleUpdateAsset}
-      />
-      <MonthlySnapshotModal
-        isOpen={showMonthlySnapshotModal}
-        onClose={() => setShowMonthlySnapshotModal(false)}
-        onSave={saveMonthlySnapshot}
-        currentNetWorth={
-          assets.reduce((sum, a) => {
-            return sum + (a.isLiability ? -Number(a.balance || 0) : Number(a.balance || 0));
-          }, 0)
-        }
-        assets={assets}
+        editingMonth={manageModalContext.year && manageModalContext.month ? `${manageModalContext.year}年${manageModalContext.month}月` : null}
       />
       <CustomDialog
         isOpen={showDialog}
