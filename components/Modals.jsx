@@ -668,13 +668,19 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
 
 export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) {
   const [apiUrl, setApiUrl] = useState('');
-  const [copied, setCopied] = useState(false); // New state for copy button
+  const [copied, setCopied] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToast, setShowToast] = useState(false);
+  const [toastType, setToastType] = useState('success'); // New state for toast type
 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       setApiUrl(initialApiUrl || '');
-      setCopied(false); // Reset copied state when modal opens
+      setCopied(false);
+      setToastMessage('');
+      setShowToast(false);
+      setToastType('success'); // Reset toast type when modal opens
     } else {
       document.body.style.overflow = 'auto';
     }
@@ -686,10 +692,34 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
   const handleCopy = () => {
     navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_CODE).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000); // Reset "Copied!" message after 2 seconds
+      setTimeout(() => setCopied(false), 2000);
     }).catch(err => {
       console.error('Failed to copy text: ', err);
     });
+  };
+
+  const handleConnect = async () => {
+    if (!apiUrl.trim()) {
+      setToastMessage('記得輸入網頁應用程式 URL！');
+      setToastType('warning'); // Set type to warning
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+      return;
+    }
+
+    try {
+      await onConnect(apiUrl);
+      setApiUrl('');
+      setToastMessage('連線成功🎉恭喜你已完成設定！');
+      setToastType('success'); // Set type to success
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } catch (error) {
+      setToastMessage(`連線失敗：${error.message || '請檢查 URL 或網路！'}`);
+      setToastType('error'); // Set type to error
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    }
   };
 
   if (!isOpen) return null;
@@ -710,9 +740,8 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
           <div className="space-y-2 rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs leading-relaxed text-slate-700">
             <p className="text-sm font-bold text-rose-950">💡 Google Sheet Apps Script 二分鐘極速架設法：</p>
             <ol className="list-inside list-decimal space-y-1.5 text-slate-600">
-              <li>打開您的 Google 試算表。</li>
-              <li>點選上方選單的 「擴充功能」 -&gt; 「Apps Script」。</li>
-              <li>清除所有空白頁面的預設代碼，貼入後端 script 代碼。</li>
+              <li>登入 Google 試算表點選上方選單的 「擴充功能」 -&gt; 「Apps Script」。</li>
+              <li>清除所有空白頁面的預設代碼，貼入下方後端 script 代碼。</li>
               <li>點擊 「儲存」，或是按「command + s」再點右上角 「部署」 -&gt; 「新增部署版本」。</li>
               <li>新增完後點擊右上角  -&gt; 「管理部署」。</li>
               <li>複製產生的「網頁應用程式 URL」貼在下方！</li>
@@ -722,7 +751,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
           {/* New code block for Google Apps Script */}
           <div className="relative rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-bold text-slate-700">Google Apps Script 代碼</h4>
+              <h4 className="text-sm font-bold text-slate-700">Script 代碼</h4>
               <button
                 onClick={handleCopy}
                 className={`rounded-md px-2 py-1 text-sm font-semibold shadow transition ${
@@ -733,11 +762,11 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
               >
                 {copied ? (
                   <>
-                    成功複製 <span className="text-base">🎉</span>
+                    成功 <span className="text-base">🎉</span>
                   </>
                 ) : (
                   <>
-                    複製代碼 <span className="text-base">📋</span>
+                    複製 <span className="text-base">📋</span>
                   </>
                 )}
               </button>
@@ -769,32 +798,43 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
             </button>
             <button
               type="button"
-              onClick={() => {
-                if (apiUrl.trim()) {
-                  onConnect(apiUrl);
-                  setApiUrl('');
-                }
-              }}
+              onClick={handleConnect}
               className="w-1/2 flex items-center justify-center gap-1.5 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600"
             >
-              💾 直接儲存連線
+              💾 開始連線
             </button>
           </div>
         </div>
       </div>
+      {/* Pass toastType to Toast component */}
+      <Toast message={toastMessage} isVisible={showToast} type={toastType} />
     </div>
   );
 }
 
-export function Toast({ message, isVisible }) {
+export function Toast({ message, isVisible, type = 'success' }) { // Accept type prop with default
+  let iconEmoji = '✓'; // Default to success
+  let bgColorClass = 'bg-emerald-50';
+  let textColorClass = 'text-emerald-600';
+
+  if (type === 'error') {
+    iconEmoji = '✕';
+    bgColorClass = 'bg-red-50';
+    textColorClass = 'text-red-600';
+  } else if (type === 'warning') {
+    iconEmoji = '！'; // Changed from '!' to '！' for better visual
+    bgColorClass = 'bg-amber-50';
+    textColorClass = 'text-amber-600';
+  }
+
   return (
     <div
       className={`fixed bottom-5 right-5 flex items-center gap-3 rounded-xl border border-rose-100 bg-white px-4 py-3 shadow-xl transition-all duration-300 z-50 ${
         isVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
       }`}
     >
-      <div className="rounded-lg bg-rose-50 p-1.5 text-rose-600">
-        ✓
+      <div className={`rounded-lg p-1.5 ${bgColorClass} ${textColorClass}`}>
+        {iconEmoji}
       </div>
       <div className="text-xs font-semibold text-slate-800">{message}</div>
     </div>
@@ -946,14 +986,14 @@ export function MonthlySnapshotModal({ isOpen, onClose, onSave, currentNetWorth,
             <button
               type="button"
               onClick={onClose}
-              className="w-1/3 rounded-lg bg-slate-100 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
+              className="w-1/2 rounded-lg bg-slate-100 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
             >
               取消
             </button>
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-rose-500 py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-rose-600"
+              className="flex-1 flex items-center justify-center gap-2 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-rose-600"
             >
               <span>💾</span>
               <span>{useCustom ? '儲存自訂淨值' : '使用當前淨值'}</span>

@@ -30,7 +30,7 @@ export default function TabNav({ activeTab }) {
                   : 'bg-amber-100 text-amber-700'
               }`}
             >
-              {isSheetsConnected ? '已成功連線至 Google Sheet' : '未連線'}
+              {isSheetsConnected ? '已成功連線' : '未連線'}
             </span>
           </div>
           <p className="text-xs text-slate-400">Google Sheets 個人資產庫</p>

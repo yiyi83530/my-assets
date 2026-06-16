@@ -23,6 +23,7 @@ export default function RootLayoutClient({ children }) {
   const [showDialog, setShowDialog] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState('success'); // Added toastType state here
 
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
@@ -32,8 +33,9 @@ export default function RootLayoutClient({ children }) {
   const [sheetsApiUrl, setSheetsApiUrl] = useState('');
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
 
-  const displayToast = useCallback((msg) => {
+  const displayToast = useCallback((msg, type = 'success') => { // Modified to accept type
     setToastMessage(msg);
+    setToastType(type); // Set toast type
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   }, []);
@@ -45,15 +47,23 @@ export default function RootLayoutClient({ children }) {
 
   const syncFromSheets = useCallback(async (apiUrl, { silent = false } = {}) => {
     if (!apiUrl) return;
-    const data = await fetchSheetsData(apiUrl);
-    if (Array.isArray(data.assets)) {
-      setAssets(data.assets);
-    }
-    if (Array.isArray(data.transactions)) {
-      setTransactions(data.transactions);
-    }
-    if (!silent) {
-      displayToast('已從 Google Sheets 讀取最新資料');
+    try {
+      const data = await fetchSheetsData(apiUrl);
+      if (Array.isArray(data.assets)) {
+        setAssets(data.assets);
+      }
+      if (Array.isArray(data.transactions)) {
+        setTransactions(data.transactions);
+      }
+      if (!silent) {
+        displayToast('已從 Google Sheets 讀取最新資料', 'success');
+      }
+    } catch (error) {
+      console.error('Error syncing from sheets:', error);
+      if (!silent) {
+        displayToast(`從 Google Sheets 同步失敗: ${error.message || '請檢查連線'}`, 'error');
+      }
+      throw error; // Re-throw to propagate the error
     }
   }, [displayToast]);
 
@@ -63,18 +73,31 @@ export default function RootLayoutClient({ children }) {
 
     setSheetsApiUrl(stored);
     testSheetsConnection(stored)
-      .then(async () => {
-        setIsSheetsConnected(true);
-        await syncFromSheets(stored, { silent: true });
+      .then(async (isConnected) => { // testSheetsConnection should return a boolean
+        if (isConnected) {
+          setIsSheetsConnected(true);
+          await syncFromSheets(stored, { silent: true });
+        } else {
+          setIsSheetsConnected(false);
+          // Optionally display a toast here if initial connection fails silently
+          // displayToast('自動連線 Google Sheets 失敗，請手動設定', 'error');
+        }
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('Initial Sheets connection test failed:', error);
         setIsSheetsConnected(false);
+        // displayToast(`自動連線 Google Sheets 失敗: ${error.message || '請檢查連線'}`, 'error');
       });
   }, [syncFromSheets]);
 
   const connectSheets = useCallback(async (apiUrl) => {
     const nextUrl = String(apiUrl || '').trim();
-    await testSheetsConnection(nextUrl);
+    const isConnected = await testSheetsConnection(nextUrl); // testSheetsConnection should return a boolean
+
+    if (!isConnected) {
+      throw new Error('Google Sheets 連線測試失敗，請檢查 URL 或部署權限。');
+    }
+
     window.localStorage.setItem(SHEETS_URL_STORAGE_KEY, nextUrl);
     setSheetsApiUrl(nextUrl);
     setIsSheetsConnected(true);
@@ -117,22 +140,24 @@ export default function RootLayoutClient({ children }) {
   const handleTransactionSubmit = async (txData) => {
     try {
       await addTransaction(txData);
-      displayToast(`已成功記錄 ${txData.stock} 交易！`);
+      displayToast(`已成功記錄 ${txData.stock} 交易！`, 'success');
       setShowTransactionModal(false);
     } catch (error) {
-      displayToast(`交易儲存失敗：${error.message || '請稍後再試'}`);
+      displayToast(`交易儲存失敗：${error.message || '請稍後再試'}`, 'error');
     }
   };
 
   const handleConfigConnect = async (apiUrl) => {
     try {
       await connectSheets(apiUrl);
-      displayToast('Google Sheets 連線成功，已同步資料！');
+      // ConfigModal 內部會處理成功/失敗的 toast，這裡不需要重複
+      // displayToast('Google Sheets 連線成功，已同步資料！', 'success');
       setShowConfigModal(false);
     } catch (error) {
       setIsSheetsConnected(false);
-      displayToast(`連線失敗：${error.message || '請檢查 URL 與部署權限'}`);
-      throw error;
+      // ConfigModal 內部會處理成功/失敗的 toast，這裡不需要重複
+      // displayToast(`連線失敗：${error.message || '請檢查 URL 與部署權限'}`, 'error');
+      throw error; // Re-throw the error so ConfigModal can catch it
     }
   };
 
@@ -149,17 +174,17 @@ export default function RootLayoutClient({ children }) {
           // TODO: 同步月度資料到 Google Sheets
           // await saveMonthlyAssetsToSheets(sheetsApiUrl, updatedMonthlyAssets);
         }
-        displayToast(`✅ 已儲存 ${year}年${month}月 資產負債`);
+        displayToast(`✅ 已儲存 ${year}年${month}月 資產負債`, 'success');
       } else {
         // fallback: 儲存到全局 assets
         if (isSheetsConnected) {
           await saveAssetsToSheets(assets);
         }
-        displayToast(isSheetsConnected ? '資產負債餘額已同步儲存 🐷' : '已更新本機資料（尚未連線 Google Sheets）');
+        displayToast(isSheetsConnected ? '資產負債餘額已同步儲存 🐷' : '已更新本機資料（尚未連線 Google Sheets）', 'success');
       }
       setShowManageModal(false);
     } catch (error) {
-      displayToast(`資產同步失敗：${error.message || '請稍後再試'}`);
+      displayToast(`資產同步失敗：${error.message || '請稍後再試'}`, 'error');
     }
   };
 
@@ -253,7 +278,7 @@ export default function RootLayoutClient({ children }) {
         message={dialog.message}
         buttons={dialog.buttons}
       />
-      <Toast message={toastMessage} isVisible={showToast} />
+      <Toast message={toastMessage} isVisible={showToast} type={toastType} />
     </AppProvider>
   );
 }
