@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-const CATEGORIES = ['台幣活存', '外幣活存', '員工持股信託', '負債項目'];
-const FOREIGN_CURRENCIES = ['USD', 'JPY', 'EUR', 'HKD', 'CNY', 'SGD'];
+import { ASSETS_CATEGORIES, FOREIGN_CURRENCIES } from '@/components/common/constants';
 
 export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew, onRemove, onUpdate, editingMonth }) {
   const [activeIndex, setActiveIndex] = useState(null);
@@ -12,7 +10,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
   const [highlightedByIndex, setHighlightedByIndex] = useState({});
   const [itemToDelete, setItemToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [activeTab, setActiveTab] = useState(CATEGORIES[0]);
+  const [activeTab, setActiveTab] = useState(ASSETS_CATEGORIES[0]);
 
   useEffect(() => {
     if (isOpen) {
@@ -27,11 +25,11 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
 
   useEffect(() => {
     if (isOpen) {
-      setActiveTab(CATEGORIES[0]);
+      setActiveTab(ASSETS_CATEGORIES[0]);
     }
   }, [isOpen]);
 
-  const categoryCounts = CATEGORIES.reduce((acc, category) => {
+  const categoryCounts = ASSETS_CATEGORIES.reduce((acc, category) => {
     acc[category] = assets.filter((item) => item.category === category).length;
     return acc;
   }, {});
@@ -154,7 +152,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
           <div className="sticky top-0 z-30 -mx-6 mb-3 border-b border-slate-100 bg-white px-6 pb-3 pt-1">
             <div className="rounded-xl border border-rose-100 bg-rose-50/40 p-1.5 shadow-sm">
               <div className="grid grid-cols-4 gap-1.5">
-                {CATEGORIES.map((category) => {
+                {ASSETS_CATEGORIES.map((category) => {
                   const isActive = activeTab === category;
                   return (
                     <button

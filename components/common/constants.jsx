@@ -254,3 +254,6 @@ export const INDUSTRY_COLORS = {
   '金融': '#hsl(200, 80%, 60%)',
   'default': '#a78bfa',
 };
+
+export const ASSETS_CATEGORIES = ['台幣活存', '外幣活存', '員工持股信託', '負債項目'];
+export const FOREIGN_CURRENCIES = ['USD', 'JPY', 'EUR', 'HKD', 'CNY', 'SGD'];
