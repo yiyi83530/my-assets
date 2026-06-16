@@ -2,6 +2,189 @@
 
 import { useEffect, useState } from 'react';
 
+const GOOGLE_APPS_SCRIPT_CODE = `const SHEET_ASSETS = 'assets';
+const SHEET_TRANSACTIONS = 'transactions';
+
+const ASSET_HEADERS = ['id', 'category', 'name', 'balance', 'isLiability', 'currency', 'amount'];
+const TX_HEADERS = [
+  'id',
+  'date',
+  'recordedAt',
+  'market',
+  'symbol',
+  'stock',
+  'type',
+  'qty',
+  'price',
+  'actualAmount',
+  'note',
+];
+
+function jsonResponse(payload) {
+  return ContentService
+    .createTextOutput(JSON.stringify(payload))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function getOrCreateSheet_(name, headers) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+
+  if (sheet.getLastRow() === 0) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  } else {
+    const currentHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+    const mismatch = headers.some((h, i) => String(currentHeaders[i] || '') !== h);
+    if (mismatch) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    }
+  }
+
+  return sheet;
+}
+
+function rowsToObjects_(rows, headers) {
+  return rows.map((row) => {
+    const obj = {};
+    headers.forEach((h, i) => {
+      obj[h] = row[i];
+    });
+    return obj;
+  });
+}
+
+function clearAndWriteObjects_(sheet, headers, items) {
+  const maxRows = sheet.getMaxRows();
+  if (maxRows > 1) {
+    sheet.getRange(2, 1, maxRows - 1, headers.length).clearContent();
+  }
+
+  if (!items || items.length === 0) return;
+
+  const values = items.map((item) => headers.map((h) => item[h] !== undefined ? item[h] : ''));
+  sheet.getRange(2, 1, values.length, headers.length).setValues(values);
+}
+
+function normalizeAsset_(asset) {
+  const category = String(asset.category || '台幣活存');
+  const isForeign = category === '外幣活存';
+  const balance = Number(asset.balance || 0);
+  const amount = isForeign ? Number(asset.amount != null ? asset.amount : balance) : '';
+  return {
+    id: String(asset.id || \`asset_\$\{new Date().getTime()}\`),
+    category: category,
+    name: String(asset.name || ''),
+    balance: isForeign ? amount : balance,
+    isLiability: Boolean(asset.isLiability || category === '負債項目'),
+    currency: isForeign ? String(asset.currency || 'USD').toUpperCase() : '',
+    amount: isForeign ? amount : '',
+  };
+}
+
+function normalizeTx_(tx) {
+  return {
+    id: String(tx.id || \`tx_\$\{new Date().getTime()}\`),
+    date: String(tx.date || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd')),
+    recordedAt: String(tx.recordedAt || new Date().toISOString()),
+    market: String((tx.market || 'TWSE')).toUpperCase() === 'US' ? 'US' : 'TWSE',
+    symbol: String(tx.symbol || ''),
+    stock: String(tx.stock || ''),
+    type: String(tx.type || 'buy'),
+    qty: Number(tx.qty || 0),
+    price: Number(tx.price || 0),
+    actualAmount: Number(tx.actualAmount || 0),
+    note: String(tx.note || ''),
+  };
+}
+
+function getAll_() {
+  const assetsSheet = getOrCreateSheet_(SHEET_ASSETS, ASSET_HEADERS);
+  const txSheet = getOrCreateSheet_(SHEET_TRANSACTIONS, TX_HEADERS);
+
+  const assetLastRow = assetsSheet.getLastRow();
+  const txLastRow = txSheet.getLastRow();
+
+  const assetsRows = assetLastRow > 1
+    ? assetsSheet.getRange(2, 1, assetLastRow - 1, ASSET_HEADERS.length).getValues()
+    : [];
+  const txRows = txLastRow > 1
+    ? txSheet.getRange(2, 1, txLastRow - 1, TX_HEADERS.length).getValues()
+    : [];
+
+  return {
+    assets: rowsToObjects_(assetsRows, ASSET_HEADERS),
+    transactions: rowsToObjects_(txRows, TX_HEADERS),
+  };
+}
+
+function upsertAssets_(assets) {
+  const assetsSheet = getOrCreateSheet_(SHEET_ASSETS, ASSET_HEADERS);
+  const normalized = (assets || []).map(normalizeAsset_);
+  clearAndWriteObjects_(assetsSheet, ASSET_HEADERS, normalized);
+  return { count: normalized.length };
+}
+
+function appendTransaction_(transaction) {
+  const txSheet = getOrCreateSheet_(SHEET_TRANSACTIONS, TX_HEADERS);
+  const tx = normalizeTx_(transaction || {});
+  const row = TX_HEADERS.map((h) => tx[h] !== undefined ? tx[h] : '');
+  txSheet.appendRow(row);
+  return { id: tx.id };
+}
+
+function removeTransaction_(id) {
+  const txSheet = getOrCreateSheet_(SHEET_TRANSACTIONS, TX_HEADERS);
+  const lastRow = txSheet.getLastRow();
+  if (lastRow <= 1) return { removed: 0 };
+
+  const values = txSheet.getRange(2, 1, lastRow - 1, TX_HEADERS.length).getValues();
+  const idIndex = TX_HEADERS.indexOf('id');
+  let removed = 0;
+
+  for (let i = values.length - 1; i >= 0; i--) {
+    if (String(values[i][idIndex]) === String(id || '')) {
+      txSheet.deleteRow(i + 2);
+      removed += 1;
+    }
+  }
+
+  return { removed: removed };
+}
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents || '{}');
+    const action = String(body.action || '').trim();
+    const payload = body.payload || {};
+
+    if (action === 'health') {
+      return jsonResponse({ ok: true, data: { status: 'ok' } });
+    }
+
+    if (action === 'getAll') {
+      return jsonResponse({ ok: true, data: getAll_() });
+    }
+
+    if (action === 'upsertAssets') {
+      return jsonResponse({ ok: true, data: upsertAssets_(payload.assets || []) });
+    }
+
+    if (action === 'appendTransaction') {
+      return jsonResponse({ ok: true, data: appendTransaction_(payload.transaction || {}) });
+    }
+
+    if (action === 'removeTransaction') {
+      return jsonResponse({ ok: true, data: removeTransaction_(payload.id) });
+    }
+
+    return jsonResponse({ ok: false, message: \`Unknown action: \$\{action}\` });
+  } catch (error) {
+    return jsonResponse({ ok: false, message: String(error) });
+  }
+}
+`;
+
 export function TransactionModal({ isOpen, onClose, onSubmit }) {
   const [market, setMarket] = useState('TWSE');
   const [type, setType] = useState('buy');
@@ -400,7 +583,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
             )}
             <p className="mt-1 text-[11px] text-slate-400">
               {market === 'TWSE'
-                ? '台股可輸入代碼或名稱（含興櫃），例如「2330」、「台積電」或「宏偉 4565」。'
+                ? '台股可輸入代碼或名稱，例如「2330」、「台積電」。'
                 : '美股可輸入代碼或名稱，例如「AAPL」或「Apple」。'}
             </p>
           </div>
@@ -452,7 +635,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">備註原因</label>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">其他備註</label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -485,11 +668,13 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
 
 export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) {
   const [apiUrl, setApiUrl] = useState('');
+  const [copied, setCopied] = useState(false); // New state for copy button
 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
       setApiUrl(initialApiUrl || '');
+      setCopied(false); // Reset copied state when modal opens
     } else {
       document.body.style.overflow = 'auto';
     }
@@ -498,15 +683,13 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
     };
   }, [isOpen, initialApiUrl]);
 
-  const handleConnect = async () => {
-    if (apiUrl.trim()) {
-      try {
-        await onConnect(apiUrl);
-        setApiUrl('');
-      } catch (error) {
-        // Error message is surfaced by caller toast.
-      }
-    }
+  const handleCopy = () => {
+    navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_CODE).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000); // Reset "Copied!" message after 2 seconds
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+    });
   };
 
   if (!isOpen) return null;
@@ -516,7 +699,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-rose-100 px-6 py-4">
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-            ☁️ 設置 Google 試算表同步後端
+            ☁️ 設置 Google 試算表同步資料
           </h3>
           <button onClick={onClose} className="text-slate-400 transition hover:text-slate-600">
             ✕
@@ -525,15 +708,45 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
 
         <div className="space-y-4 overflow-y-auto p-6 max-h-[80vh]">
           <div className="space-y-2 rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs leading-relaxed text-slate-700">
-            <p className="text-sm font-bold text-rose-950">💡 升級版 Google Apps Script 二分鐘極速架設法：</p>
+            <p className="text-sm font-bold text-rose-950">💡 Google Sheet Apps Script 二分鐘極速架設法：</p>
             <ol className="list-inside list-decimal space-y-1.5 text-slate-600">
               <li>打開您的 Google 試算表。</li>
               <li>點選上方選單的 「擴充功能」 -&gt; 「Apps Script」。</li>
-              <li>清除所有舊代碼，貼入後端代碼。</li>
-              <li>點擊 「儲存」，再點右上角 「部署」 -&gt; 「新增部署版本」。</li>
+              <li>清除所有空白頁面的預設代碼，貼入後端 script 代碼。</li>
+              <li>點擊 「儲存」，或是按「command + s」再點右上角 「部署」 -&gt; 「新增部署版本」。</li>
+              <li>新增完後點擊右上角  -&gt; 「管理部署」。</li>
               <li>複製產生的「網頁應用程式 URL」貼在下方！</li>
             </ol>
           </div>
+
+          {/* New code block for Google Apps Script */}
+          <div className="relative rounded-xl border border-slate-200 bg-slate-50 p-4 font-mono text-xs">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-bold text-slate-700">Google Apps Script 代碼</h4>
+              <button
+                onClick={handleCopy}
+                className={`rounded-md px-2 py-1 text-sm font-semibold shadow transition ${
+                  copied
+                    ? 'bg-rose-100 text-rose-500'
+                    : 'bg-white text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {copied ? (
+                  <>
+                    成功複製 <span className="text-base">🎉</span>
+                  </>
+                ) : (
+                  <>
+                    複製代碼 <span className="text-base">📋</span>
+                  </>
+                )}
+              </button>
+            </div>
+            <pre className="max-h-40 overflow-y-auto rounded-lg border border-slate-300 bg-white p-3 text-slate-800">
+              <code>{GOOGLE_APPS_SCRIPT_CODE}</code>
+            </pre>
+          </div>
+          {/* End new code block */}
 
           <div>
             <label className="mb-1.5 block text-xs font-bold text-slate-700">網頁應用程式 URL (Web App URL)</label>
@@ -556,7 +769,12 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
             </button>
             <button
               type="button"
-              onClick={handleConnect}
+              onClick={() => {
+                if (apiUrl.trim()) {
+                  onConnect(apiUrl);
+                  setApiUrl('');
+                }
+              }}
               className="w-1/2 flex items-center justify-center gap-1.5 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600"
             >
               💾 直接儲存連線
