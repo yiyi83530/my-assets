@@ -605,77 +605,79 @@ export function StocksContent({ initialPrices = {} }) {
           </div>
         </div>
 
-        <div key={histTab} className="animate-in fade-in duration-500 overflow-x-auto">
+        <div key={histTab} className="animate-in fade-in duration-500">
           {activeTx.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
               目前沒有 {histTab === 'TWSE' ? '台股' : '美股'} 交易紀錄
             </div>
           ) : (
           <div className="">
-            <table className="w-full min-w-[760px] text-center border-separate border-spacing-0 relative">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 shadow-sm">
-                <tr className="h-12">
-                  <th className="px-4 py-3 align-middle text-left">日期 / 時間</th>
-                  <th className="px-0 py-3 align-middle text-left">股票</th>
-                  <th className="px-4 py-3 align-middle">類型</th>
-                  <th className="px-4 py-3 align-middle">股數</th>
-                  <th className="px-4 py-3 align-middle">成交單價</th>
-                  <th className="px-4 py-3 align-middle">實際收支</th>
-                  <th className="px-4 py-3 align-middle">備註</th>
-                  <th className="px-4 py-3 align-middle">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedTx.map((tx) => {
-                  const txSymbol = tx.stock.split(' ')[0];
-                  const txName = tx.stock.split(' ').slice(1).join(' ');
-                  const txTime = fmtTime(tx.recordedAt);
-                  return (
-                    <tr key={tx.id} className="h-16 border-t border-slate-100 hover:bg-slate-50/60 transition">
-                      {/* 日期 / 時間 */}
-                      <td className="px-4 py-3 align-middle text-left">
-                        <div className="font-mono text-xs text-slate-700">{fmtDate(tx.date)}</div>
-                        {txTime && <div className="font-mono text-xs text-slate-400">{txTime}</div>}
-                      </td>
-                      {/* 股票 */}
-                      <td className="px-0 py-3 align-middle text-left">
-                        <div className="text-xs font-bold text-slate-400">{txSymbol}</div>
-                        {txName && <div className="text-sm text-slate-800">{txName}</div>}
-                      </td>
-                      {/* 類型 */}
-                      <td className="px-4 py-3 align-middle">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap ${tx.type === 'buy' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                          {tx.type === 'buy' ? '買進' : '賣出'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                        {Number(tx.qty).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                        ${Number(tx.price).toLocaleString()}
-                      </td>
-                      <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${tx.type === 'buy' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {tx.type === 'buy' ? '-' : '+'}${Number(tx.actualAmount).toLocaleString()}
-                      </td>
-                      <td className="max-w-[220px] truncate whitespace-nowrap px-4 py-3 align-middle text-left text-xs text-slate-500">{tx.note || '—'}</td>
-                      <td className="px-4 py-3 align-middle">
-                        <div className="flex justify-center">
-                          <button
-                            onClick={() => setDeleteId(tx.id)}
-                            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
-                            title="刪除此筆紀錄"
-                          >
-                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                              <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto"> {/* New div for horizontal scrolling */}
+              <table className="w-full min-w-[760px] text-center border-separate border-spacing-0 relative">
+                <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 shadow-sm">
+                  <tr className="h-12">
+                    <th className="px-4 py-3 align-middle text-left">日期 / 時間</th>
+                    <th className="px-0 py-3 align-middle text-left">股票</th>
+                    <th className="px-4 py-3 align-middle">類型</th>
+                    <th className="px-4 py-3 align-middle">股數</th>
+                    <th className="px-4 py-3 align-middle">成交單價</th>
+                    <th className="px-4 py-3 align-middle">實際收支</th>
+                    <th className="px-4 py-3 align-middle">備註</th>
+                    <th className="px-4 py-3 align-middle">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedTx.map((tx) => {
+                    const txSymbol = tx.stock.split(' ')[0];
+                    const txName = tx.stock.split(' ').slice(1).join(' ');
+                    const txTime = fmtTime(tx.recordedAt);
+                    return (
+                      <tr key={tx.id} className="h-16 border-t border-slate-100 hover:bg-slate-50/60 transition">
+                        {/* 日期 / 時間 */}
+                        <td className="px-4 py-3 align-middle text-left">
+                          <div className="font-mono text-xs text-slate-700">{fmtDate(tx.date)}</div>
+                          {txTime && <div className="font-mono text-xs text-slate-400">{txTime}</div>}
+                        </td>
+                        {/* 股票 */}
+                        <td className="px-0 py-3 align-middle text-left">
+                          <div className="text-xs font-bold text-slate-400">{txSymbol}</div>
+                          {txName && <div className="text-sm text-slate-800">{txName}</div>}
+                        </td>
+                        {/* 類型 */}
+                        <td className="px-4 py-3 align-middle">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap ${tx.type === 'buy' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                            {tx.type === 'buy' ? '買進' : '賣出'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
+                          {Number(tx.qty).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
+                          ${Number(tx.price).toLocaleString()}
+                        </td>
+                        <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${tx.type === 'buy' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          {tx.type === 'buy' ? '-' : '+'}${Number(tx.actualAmount).toLocaleString()}
+                        </td>
+                        <td className="max-w-[220px] truncate whitespace-nowrap px-4 py-3 align-middle text-left text-xs text-slate-500">{tx.note || '—'}</td>
+                        <td className="px-4 py-3 align-middle">
+                          <div className="flex justify-center">
+                            <button
+                              onClick={() => setDeleteId(tx.id)}
+                              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+                              title="刪除此筆紀錄"
+                            >
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
             {/* Pagination UI */}
             {totalTxPages > 1 && (
