@@ -537,25 +537,27 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } finally {
-      setIsLoading(false); // Set loading false
+      // Add a small delay to make the loading state visible
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
     }
   };
 
   const handleDisconnectClick = async () => {
     setIsLoading(true); // Set loading true
     try {
-      await onDisconnect(); // Call the parent's disconnect function
-      setToastMessage('已成功結束連線！');
-      setToastType('success');
-      setShowToast(true);
-      setTimeout(() => setShowToast(false), 3000);
+      await onDisconnect();
     } catch (error) {
       setToastMessage(`斷開連線失敗：${error.message || '請稍後再試！'}`);
       setToastType('error');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } finally {
-      setIsLoading(false); // Set loading false
+      // Add a small delay to make the loading state visible
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 500);
     }
   };
 
@@ -585,11 +587,11 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
           <div className="space-y-2 rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs leading-relaxed text-slate-700">
             <p className="text-sm font-bold text-rose-950">💡 Google Sheet Apps Script 二分鐘極速架設法：</p>
             <ol className="list-inside list-decimal space-y-1.5 text-slate-600">
-              <li>登入 Google 試算表點選上方選單的 「擴充功能」 -&gt; 「Apps Script」。</li>
+              <li>登入 Google 試算表點選上方選單的「擴充功能」-&gt; 「Apps Script」。</li>
               <li>清除所有空白頁面的預設代碼，貼入下方後端 script 代碼。</li>
-              <li>點擊 「儲存」，或是按「command + s」再點右上角 「部署」 -&gt; 「新增部署版本」。</li>
-              <li>新增完後點擊右上角  -&gt; 「管理部署」。</li>
-              <li>複製產生的「網頁應用程式 URL」貼在下方！</li>
+              <li>點擊「儲存」，或是按「command + s」再點右上角「部署」 -&gt; 「新增部署版本」。</li>
+              <li>新增完後點擊右上角 -&gt; 「管理部署」。</li>
+              <li>複製產生的「網頁應用程式 URL」網址貼在下方！</li>
             </ol>
           </div>
 
@@ -616,7 +618,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
                 )}
               </button>
             </div>
-            <pre className="max-h-40 overflow-y-auto rounded-lg border border-slate-300 bg-white p-3 text-slate-800">
+            <pre className="max-h-[100px] overflow-y-auto rounded-lg border border-slate-300 bg-white p-3 text-slate-800">
               <code>{GOOGLE_APPS_SCRIPT_CODE}</code>
             </pre>
           </div>
