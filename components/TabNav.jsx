@@ -37,7 +37,7 @@ export default function TabNav({ activeTab }) {
         </div>
         <button
           onClick={openConfigModal}
-          className="p-1.5 text-slate-500 transition hover:text-slate-900"
+          className=" p-1.5 text-slate-500 transition hover:text-slate-900"
           title="設定"
           aria-label="設定"
         >

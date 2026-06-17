@@ -148,6 +148,14 @@ function removeTransaction_(id) {
   return { removed: removed };
 }
 
+function doGet(e) {
+  return jsonResponse({
+    ok: true,
+    message: "Web App 連線正常！請使用 POST 請求來操作數據。",
+    status: "Running"
+  });
+}
+
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents || '{}');

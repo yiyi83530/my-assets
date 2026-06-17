@@ -484,21 +484,23 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
   );
 }
 
-export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) {
+export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialApiUrl = '', isConnected }) {
   const [apiUrl, setApiUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
-  const [toastType, setToastType] = useState('success'); // New state for toast type
+  const [toastType, setToastType] = useState('success');
+  const [isLoading, setIsLoading] = useState(false); // New loading state
 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      setApiUrl(initialApiUrl || '');
+      setApiUrl(initialApiUrl || ''); // Set apiUrl from initialApiUrl when modal opens
       setCopied(false);
       setToastMessage('');
       setShowToast(false);
-      setToastType('success'); // Reset toast type when modal opens
+      setToastType('success');
+      setIsLoading(false); // Reset loading state
     } else {
       document.body.style.overflow = 'auto';
     }
@@ -519,26 +521,51 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
   const handleConnect = async () => {
     if (!apiUrl.trim()) {
       setToastMessage('記得輸入網頁應用程式 URL！');
-      setToastType('warning'); // Set type to warning
+      setToastType('warning');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
       return;
     }
 
+    setIsLoading(true); // Set loading true
     try {
       await onConnect(apiUrl);
-      setApiUrl('');
-      setToastMessage('連線成功🎉恭喜你已完成設定！');
-      setToastType('success'); // Set type to success
+      // Success toast is now handled by the parent component (layout-client.jsx)
+    } catch (error) {
+      setToastMessage(`連線失敗：${error.message || '請檢查 URL 或網路！'}`);
+      setToastType('error');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    } finally {
+      setIsLoading(false); // Set loading false
+    }
+  };
+
+  const handleDisconnectClick = async () => {
+    setIsLoading(true); // Set loading true
+    try {
+      await onDisconnect(); // Call the parent's disconnect function
+      setToastMessage('已成功結束連線！');
+      setToastType('success');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } catch (error) {
-      setToastMessage(`連線失敗：${error.message || '請檢查 URL 或網路！'}`);
-      setToastType('error'); // Set type to error
+      setToastMessage(`斷開連線失敗：${error.message || '請稍後再試！'}`);
+      setToastType('error');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
+    } finally {
+      setIsLoading(false); // Set loading false
     }
   };
+
+  const buttonText = isConnected
+    ? (isLoading ? '斷開中...' : '結束連線')
+    : (isLoading ? '連線中...' : '💾 開始連線');
+  const buttonClasses = isConnected
+    ? 'bg-amber-100 text-amber-700 shadow-md shadow-amber-100 hover:bg-amber-200'
+    : 'bg-rose-500 text-white shadow-md shadow-rose-100 hover:bg-rose-600';
+  const buttonAction = isConnected ? handleDisconnectClick : handleConnect;
 
   if (!isOpen) return null;
 
@@ -606,32 +633,31 @@ export function ConfigModal({ isOpen, onClose, onConnect, initialApiUrl = '' }) 
             />
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="flex pt-2">
             <button
               type="button"
-              onClick={onClose}
-              className="w-1/2 rounded-lg bg-slate-100 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-200"
+              onClick={buttonAction}
+              disabled={isLoading} // Disable button when loading
+              className={`w-full flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold transition ${buttonClasses} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
-              關閉
-            </button>
-            <button
-              type="button"
-              onClick={handleConnect}
-              className="w-1/2 flex items-center justify-center gap-1.5 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600"
-            >
-              💾 開始連線
+              {isLoading && (
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              )}
+              {buttonText}
             </button>
           </div>
         </div>
       </div>
-      {/* Pass toastType to Toast component */}
       <Toast message={toastMessage} isVisible={showToast} type={toastType} />
     </div>
   );
 }
 
-export function Toast({ message, isVisible, type = 'success' }) { // Accept type prop with default
-  let iconEmoji = '✓'; // Default to success
+export function Toast({ message, isVisible, type = 'success' }) {
+  let iconEmoji = '✓';
   let bgColorClass = 'bg-emerald-50';
   let textColorClass = 'text-emerald-600';
 
@@ -640,7 +666,7 @@ export function Toast({ message, isVisible, type = 'success' }) { // Accept type
     bgColorClass = 'bg-red-50';
     textColorClass = 'text-red-600';
   } else if (type === 'warning') {
-    iconEmoji = '！'; // Changed from '!' to '！' for better visual
+    iconEmoji = '！';
     bgColorClass = 'bg-amber-50';
     textColorClass = 'text-amber-600';
   }

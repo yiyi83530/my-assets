@@ -105,6 +105,13 @@ export default function RootLayoutClient({ children }) {
     return true;
   }, [syncFromSheets]);
 
+  const handleDisconnect = useCallback(() => {
+    window.localStorage.removeItem(SHEETS_URL_STORAGE_KEY);
+    setSheetsApiUrl('');
+    setIsSheetsConnected(false);
+    displayToast('已成功結束連線！', 'success');
+  }, [displayToast]);
+
   const saveAssetsToSheets = useCallback(async (nextAssets) => {
     if (!sheetsApiUrl) {
       throw new Error('尚未設定 Google Sheets Web App URL');
@@ -150,13 +157,14 @@ export default function RootLayoutClient({ children }) {
   const handleConfigConnect = async (apiUrl) => {
     try {
       await connectSheets(apiUrl);
-      // ConfigModal 內部會處理成功/失敗的 toast，這裡不需要重複
-      // displayToast('Google Sheets 連線成功，已同步資料！', 'success');
-      setShowConfigModal(false);
+      displayToast('連線成功🎉恭喜你已完成設定！', 'success'); // Moved success toast here
+      // Delay closing the modal to allow the toast to be seen
+      setTimeout(() => {
+        setShowConfigModal(false);
+      }, 1500); // 1.5 seconds delay
     } catch (error) {
       setIsSheetsConnected(false);
-      // ConfigModal 內部會處理成功/失敗的 toast，這裡不需要重複
-      // displayToast(`連線失敗：${error.message || '請檢查 URL 與部署權限'}`, 'error');
+      // ConfigModal 內部會處理失敗的 toast，這裡不需要重複
       throw error; // Re-throw the error so ConfigModal can catch it
     }
   };
@@ -259,7 +267,9 @@ export default function RootLayoutClient({ children }) {
         isOpen={showConfigModal}
         onClose={() => setShowConfigModal(false)}
         onConnect={handleConfigConnect}
+        onDisconnect={handleDisconnect}
         initialApiUrl={sheetsApiUrl}
+        isConnected={isSheetsConnected}
       />
       <ManageAccountsModal
         isOpen={showManageModal}
