@@ -228,13 +228,32 @@ export default function RootLayoutClient({ children }) {
       openTransactionModal={() => setShowTransactionModal(true)}
       openConfigModal={() => setShowConfigModal(true)}
       openManageModal={(context) => {
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth() + 1; // getMonth() is 0-indexed
+
+        let yearToSet = currentYear;
+        let monthToSet = currentMonth;
+
+        // If a context is provided and it's a valid past or current month, use it.
+        // Otherwise, default to the current month.
         if (context && context.year && context.month) {
-          setManageModalContext(context);
-          // 載入對應月份的資料到 assets state
-          const monthKey = `${context.year}-${String(context.month).padStart(2, '0')}`;
-          const monthAssets = monthlyAssets[monthKey] || [];
-          setAssets(monthAssets);
+          const contextDate = new Date(context.year, context.month - 1); // month - 1 because Date month is 0-indexed
+          const currentDate = new Date(currentYear, currentMonth - 1);
+
+          if (contextDate <= currentDate) { // Only use context if it's a past or current month
+            yearToSet = context.year;
+            monthToSet = context.month;
+          }
         }
+
+        setManageModalContext({ year: yearToSet, month: monthToSet });
+        
+        // 載入對應月份的資料到 assets state
+        const monthKey = `${yearToSet}-${String(monthToSet).padStart(2, '0')}`;
+        const monthAssets = monthlyAssets[monthKey] || [];
+        setAssets(monthAssets);
+
         setShowManageModal(true);
       }}
       displayToast={displayToast}

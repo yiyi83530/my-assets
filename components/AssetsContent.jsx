@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 import { useApp } from '@/lib/app-context';
 import { formatMoney } from '@/lib/format';
+import { demoMonthlyAssets, demoMonthlyNetWorth, demoSummary, demoPortfolio } from '@/lib/demo-data';
 
 function MonthTick({ x, y, payload, currentMonth }) {
   const month = String(payload?.value ?? '');
@@ -82,19 +83,40 @@ function ListBlock({
   );
 }
 
-export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, foreign, trust, liabilities }) {
-  const { openManageModal, openConfigModal, isSheetsConnected, monthlyAssets = {}, setMonthlyAssets } = useApp();
+export function AssetsContent() {
+  const {
+    openManageModal,
+    openConfigModal,
+    isSheetsConnected,
+    monthlyAssets: realMonthlyAssets,
+    setMonthlyAssets: realSetMonthlyAssets,
+    monthlyNetWorth: realMonthlyNetWorth,
+    summary: realSummary,
+    portfolio: realPortfolio,
+  } = useApp();
+
   const [isTrendOpen, setIsTrendOpen] = useState(false);
+
+  // 根據連線狀態決定使用真實資料或假資料
+  const activeMonthlyAssets = isSheetsConnected ? realMonthlyAssets : demoMonthlyAssets;
+  const activeMonthlyNetWorth = isSheetsConnected ? realMonthlyNetWorth : demoMonthlyNetWorth;
+  const activeSummary = isSheetsConnected ? realSummary : demoSummary;
+  const activePortfolio = isSheetsConnected ? realPortfolio : demoPortfolio;
+
+  // 在演示模式下，setMonthlyAssets 不會修改假資料
+  const setMonthlyAssets = isSheetsConnected ? realSetMonthlyAssets : () => {
+    console.warn("Attempted to set monthly assets in demo mode. Operation ignored.");
+  };
 
   // 年月篩選狀態（預設當前年月）
   const today = new Date();
   const currentYear = today.getFullYear();
   const currentMonthDefault = today.getMonth() + 1;
 
-  // 從 monthlyAssets 計算有資料的年份和月份
+  // 從 activeMonthlyAssets 計算有資料的年份和月份
   const availableYearMonths = useMemo(() => {
     const yearMonthMap = {};
-    Object.keys(monthlyAssets || {}).forEach((key) => {
+    Object.keys(activeMonthlyAssets || {}).forEach((key) => {
       const [year, month] = key.split('-').map(Number);
       if (!yearMonthMap[year]) {
         yearMonthMap[year] = [];
@@ -106,7 +128,7 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
       yearMonthMap[year].sort((a, b) => a - b);
     });
     return yearMonthMap;
-  }, [monthlyAssets]);
+  }, [activeMonthlyAssets]);
 
   const availableYears = Object.keys(availableYearMonths).map(Number).sort((a, b) => b - a);
 
@@ -146,19 +168,19 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
   // 取得選中月份的資產，沒有就複製上月
   const getAssetsForMonth = (yearMonth) => {
     // 如果當月資料存在（包括空陣列），直接返回
-    if (monthlyAssets.hasOwnProperty(yearMonth)) {
-      return monthlyAssets[yearMonth];
+    if (activeMonthlyAssets.hasOwnProperty(yearMonth)) {
+      return activeMonthlyAssets[yearMonth];
     }
 
     // 沒有當月資料，嘗試複製上月
     const [year, month] = yearMonth.split('-').map(Number);
     const prevKey = getPreviousMonthKey(year, month);
 
-    if (monthlyAssets[prevKey]) {
+    if (activeMonthlyAssets[prevKey]) {
       // 複製上月資料到當月
-      const copied = JSON.parse(JSON.stringify(monthlyAssets[prevKey]));
-      const updated = { ...monthlyAssets, [yearMonth]: copied };
-      setMonthlyAssets(updated);
+      const copied = JSON.parse(JSON.stringify(activeMonthlyAssets[prevKey]));
+      const updated = { ...activeMonthlyAssets, [yearMonth]: copied };
+      setMonthlyAssets(updated); // This will be realSetMonthlyAssets or the no-op function
       return copied;
     }
 
@@ -180,7 +202,7 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
   const totalForeign = displayForeign.reduce((sum, item) => sum + (Number(item.convertedBalance ?? item.balance) || 0), 0);
   const totalTrust = displayTrust.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
   const totalLiabilities = displayLiabilities.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
-  const totalStocks = portfolio.currentPortfolioValue;
+  const totalStocks = activePortfolio.currentPortfolioValue;
   const totalAssets = totalNtd + totalForeign + totalTrust + totalStocks;
 
   const allocationData = [
@@ -192,7 +214,7 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
   // ──────────────────
 
   // 使用傳入的真實月份資料，如果沒有就用空陣列
-  const fullChartData = monthlyNetWorthData && monthlyNetWorthData.length > 0 ? monthlyNetWorthData : [];
+  const fullChartData = activeMonthlyNetWorth && activeMonthlyNetWorth.length > 0 ? activeMonthlyNetWorth : [];
   const currentMonthNum = new Date().getMonth() + 1;
   const visibleEndMonth = Math.max(6, currentMonthNum);
   const chartData = fullChartData.filter((item) => Number(item.month) <= visibleEndMonth);
@@ -234,9 +256,9 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
               個人淨資產
             </p>
           </div>
-          <p className="text-4xl font-black text-slate-900">${summary.netWorth.toLocaleString()}</p>
-          <p className={`mt-3 flex items-center text-xs font-bold ${summary.netGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            較上月 <span className="mx-1 text-[10px]">{summary.netGrowth >= 0 ? '▲' : '▼'}</span> ${summary.netGrowth.toLocaleString()} ({summary.growthRate.toFixed(2)}%)
+          <p className="text-4xl font-black text-slate-900">${activeSummary.netWorth.toLocaleString()}</p>
+          <p className={`mt-3 flex items-center text-xs font-bold ${activeSummary.netGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            較上月 <span className="mx-1 text-[10px]">{activeSummary.netGrowth >= 0 ? '▲' : '▼'}</span> ${activeSummary.netGrowth.toLocaleString()} ({activeSummary.growthRate.toFixed(2)}%)
           </p>
 
           <button
@@ -262,41 +284,45 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
                  </h4>
                  <span className="text-[10px] font-medium text-slate-400">單位：新台幣</span>
                </div>
-               <div className="h-44">
-                 <ResponsiveContainer width="100%" height="100%">
-                 <LineChart data={chartData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
-                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                    <XAxis
-                      dataKey="month"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={(props) => <MonthTick {...props} currentMonth={currentMonth} />}
-                    />
-                   <YAxis
-                     tick={{ fontSize: 11, fill: '#64748b' }}
-                     axisLine={false}
-                     tickLine={false}
-                     tickFormatter={(value) => `${Math.round(value / 10000)}萬`}
-                   />
-                   <Tooltip
-                     formatter={(value) => [`$${Number(value).toLocaleString('zh-TW')}`, '淨值']}
-                     labelFormatter={(label) => `${label}月`}
-                     contentStyle={{
-                       borderRadius: '0.75rem',
-                       border: '1px solid #fecdd3',
-                       boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)',
-                     }}
-                   />
-                   <Line
-                     type="monotone"
-                     dataKey="netWorth"
-                     stroke="#f43f5e"
-                     strokeWidth={2.5}
-                     dot={{ r: 5, fill: '#f43f5e' }}
-                     activeDot={{ r: 5 }}
-                   />
-                 </LineChart>
-                 </ResponsiveContainer>
+               <div className="h-44 flex items-center justify-center"> {/* Added flex and justify-center */}
+                 {chartData.length > 0 ? (
+                   <ResponsiveContainer width="100%" height="100%">
+                   <LineChart data={chartData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+                     <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <XAxis
+                        dataKey="month"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={(props) => <MonthTick {...props} currentMonth={currentMonth} />}
+                      />
+                     <YAxis
+                       tick={{ fontSize: 11, fill: '#64748b' }}
+                       axisLine={false}
+                       tickLine={false}
+                       tickFormatter={(value) => `${Math.round(value / 10000)}萬`}
+                     />
+                     <Tooltip
+                       formatter={(value) => [`$${Number(value).toLocaleString('zh-TW')}`, '淨值']}
+                       labelFormatter={(label) => `${label}月`}
+                       contentStyle={{
+                         borderRadius: '0.75rem',
+                         border: '1px solid #fecdd3',
+                         boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)',
+                       }}
+                     />
+                     <Line
+                       type="monotone"
+                       dataKey="netWorth"
+                       stroke="#f43f5e"
+                       strokeWidth={2.5}
+                       dot={{ r: 5, fill: '#f43f5e' }}
+                       activeDot={{ r: 5 }}
+                     />
+                   </LineChart>
+                   </ResponsiveContainer>
+                 ) : (
+                   <p className="text-sm text-slate-400">尚無資產淨值變動資料</p>
+                 )}
                </div>
             </div>
           </div>
@@ -313,51 +339,61 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
             將滑鼠移動到圓餅圖上，就可以顯示該資產名稱及餘額哦！
           </p>
 
-          <div className="h-40 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={allocationData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={45}
-                  outerRadius={65}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {allocationData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                  ))}
-                </Pie>
-                <Tooltip
-                  formatter={(value) => `$${value.toLocaleString()}`}
-                  contentStyle={{ borderRadius: '0.5rem', fontSize: '12px' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="h-40 w-full flex items-center justify-center"> {/* Added flex and justify-center */}
+            {allocationData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={allocationData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={65}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {allocationData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => `$${value.toLocaleString()}`}
+                    contentStyle={{ borderRadius: '0.5rem', fontSize: '12px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-slate-400">尚無資產配置資料</p>
+            )}
           </div>
 
           {/* 簡易圖例與數值 */}
           <div className="mt-2 w-full space-y-1.5">
-            {allocationData.map((item) => {
-              const percent = totalAssets > 0 ? (item.value / totalAssets) * 100 : 0;
-              return (
-                <div key={item.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-[11px] font-medium text-slate-500">{item.name}</span>
+            {allocationData.length > 0 ? (
+              allocationData.map((item) => {
+                const percent = totalAssets > 0 ? (item.value / totalAssets) * 100 : 0;
+                return (
+                  <div key={item.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-[11px] font-medium text-slate-500">{item.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-[11px] font-bold text-slate-700">
+                        ${item.value.toLocaleString()}
+                      </span>
+                      <span className="w-8 text-right font-mono text-[10px] text-slate-400">
+                        {percent.toFixed(0)}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-[11px] font-bold text-slate-700">
-                      ${item.value.toLocaleString()}
-                    </span>
-                    <span className="w-8 text-right font-mono text-[10px] text-slate-400">
-                      {percent.toFixed(0)}%
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              // No need for a separate message here, as the chart area already shows it.
+              // But if you want to explicitly hide the legend when no data, this is where you'd do it.
+              null
+            )}
           </div>
           </div>
       </div>

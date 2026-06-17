@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useApp } from '@/lib/app-context';
 import { INDUSTRY_COLORS, INDUSTRY_MAP } from '@/components/common/constants';
+import { demoTransactions, demoInitialPrices } from '@/lib/demo-stock-data'; // 引入假資料
 
 function getIndustry(symbol) {
   return INDUSTRY_MAP[symbol] || '其他';
@@ -71,9 +72,21 @@ function fmtTime(isoStr) {
 // ─── component ────────────────────────────────────────────────────────────────
 
 export function StocksContent({ initialPrices = {} }) {
-  const { transactions, removeTransaction } = useApp();
+  const {
+    transactions: realTransactions,
+    removeTransaction: realRemoveTransaction,
+    isSheetsConnected,
+  } = useApp();
 
-  const [priceMap, setPriceMap] = useState(initialPrices);
+  // 根據連線狀態決定使用真實資料或假資料
+  const transactions = isSheetsConnected ? realTransactions : demoTransactions;
+  const removeTransaction = isSheetsConnected ? realRemoveTransaction : async (id) => {
+    console.warn(`Attempted to remove transaction ${id} in demo mode. Operation ignored.`);
+    // 在演示模式下，不實際刪除，但可以給出提示
+    alert('目前為演示模式，無法刪除交易紀錄。請先串接 Google 試算表。');
+  };
+
+  const [priceMap, setPriceMap] = useState(isSheetsConnected ? initialPrices : demoInitialPrices);
   const [deleteId, setDeleteId] = useState(null); // 儲存準備刪除的 ID
   const [isDeleting, setIsDeleting] = useState(false); // 刪除中的 loading 狀態
   const [showChart, setShowChart] = useState(false); // 圓餅圖顯示/隱藏
@@ -114,6 +127,15 @@ export function StocksContent({ initialPrices = {} }) {
     if (toFetch.length === 0) return;
     setIsFetchingPrices(true);
 
+    // 在演示模式下，不發送實際的 API 請求
+    if (!isSheetsConnected) {
+      console.log('Demo mode: Skipping price fetch API call.');
+      // 可以模擬一個延遲
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIsFetchingPrices(false);
+      return;
+    }
+
     try {
       const results = await Promise.allSettled(
         toFetch.map((pos) =>
@@ -148,7 +170,7 @@ export function StocksContent({ initialPrices = {} }) {
     const toFetch = basePositions.filter((p) => !fetchedRef.current.has(p.name));
     fetchPrices(toFetch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionKeys]);
+  }, [positionKeys, isSheetsConnected]); // 增加 isSheetsConnected 作為依賴
 
   // 手動重新整理目前分頁的報價
   const handleManualRefresh = () => {
@@ -366,7 +388,7 @@ export function StocksContent({ initialPrices = {} }) {
         <div key={posTab} className="animate-in fade-in duration-500">
           {activePositions.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
-              目前沒有 {posTab === 'TWSE' ? '台股' : '美股'} 持股紀錄
+              目前沒有「{posTab === 'TWSE' ? '台股' : '美股'}」持股明細
             </div>
           ) : (
           <div className="overflow-x-auto" style={{ maxHeight: `${posContainerMaxHeight}px`, overflowY: 'auto' }}>
@@ -535,7 +557,7 @@ export function StocksContent({ initialPrices = {} }) {
         <div key={histTab} className="animate-in fade-in duration-500">
           {activeTx.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
-              目前沒有 {histTab === 'TWSE' ? '台股' : '美股'} 交易紀錄
+              目前沒有「{histTab === 'TWSE' ? '台股' : '美股'}」歷史交易紀錄
             </div>
           ) : (
           <div className="">
