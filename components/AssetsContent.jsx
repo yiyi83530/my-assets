@@ -367,7 +367,7 @@ export function AssetsContent({ summary, portfolio, monthlyNetWorthData, ntd, fo
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold text-slate-700">查看月份：</span>
-            <span className="text-xs text-slate-500">選擇年月查看該月資產負債</span>
+            <span className="text-xs text-slate-500">選擇年月查看該月資產及負債</span>
           </div>
 
           <div className="flex items-center gap-2">

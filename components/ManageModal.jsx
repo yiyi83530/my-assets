@@ -329,7 +329,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
             onClick={onSave}
             className="w-1/2 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600"
           >
-            全部儲存同步 🐷
+            同步儲存 🐷
           </button>
         </div>
       </div>
