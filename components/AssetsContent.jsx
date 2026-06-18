@@ -128,11 +128,19 @@ export function AssetsContent() {
     if (activeMonthlyAssets.hasOwnProperty(yearMonth)) {
       return activeMonthlyAssets[yearMonth];
     }
-    const [year, month] = yearMonth.split('-').map(Number);
-    const prevKey = getPreviousMonthKey(year, month);
-    if (activeMonthlyAssets[prevKey]) {
-      return JSON.parse(JSON.stringify(activeMonthlyAssets[prevKey]));
+
+    // 找不到該月資料時，一路往前找最近一筆「真正有資料」的月份當作預設值
+    // 安全上限：最多往前找 60 個月（5 年），避免使用者帳號完全沒有任何資料時無窮迴圈
+    let [year, month] = yearMonth.split('-').map(Number);
+    for (let i = 0; i < 60; i++) {
+      const prevKey = getPreviousMonthKey(year, month);
+      if (activeMonthlyAssets[prevKey]) {
+        // 深拷貝：避免使用者編輯這份「預設值」時，意外動到原始月份的歷史資料
+        return JSON.parse(JSON.stringify(activeMonthlyAssets[prevKey]));
+      }
+      [year, month] = prevKey.split('-').map(Number);
     }
+
     return [];
   };
 
