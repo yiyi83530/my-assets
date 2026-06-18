@@ -4,11 +4,14 @@ import { useState, useCallback, useEffect } from 'react';
 import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
 import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData, monthlyAssetsSnapshots as initialMonthlyAssets } from '@/lib/data';
+import { demoMonthlyAssets } from '@/lib/demo-data';
 import { AppProvider } from '@/lib/app-context';
 import {
   appendTransactionToSheets,
+  fetchMonthlyAssetsFromSheets,
   fetchSheetsData,
   removeTransactionFromSheets,
+  saveMonthlyAssetsToSheets,
   testSheetsConnection,
   upsertAssetsToSheets,
 } from '@/lib/sheets-client';
@@ -23,19 +26,27 @@ export default function RootLayoutClient({ children }) {
   const [showDialog, setShowDialog] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [toastType, setToastType] = useState('success'); // Added toastType state here
+  const [toastType, setToastType] = useState('success');
 
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
   const [transactions, setTransactions] = useState(initialTransactions);
   const [monthlyNetWorth, setMonthlyNetWorth] = useState(initialMonthlyData);
-  const [monthlyAssets, setMonthlyAssets] = useState(initialMonthlyAssets);
   const [sheetsApiUrl, setSheetsApiUrl] = useState('');
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
 
-  const displayToast = useCallback((msg, type = 'success') => { // Modified to accept type
+  // 真實月度資產（連線 Google Sheets 後才會有內容；未連線時維持空物件）
+  const [realMonthlyAssets, setRealMonthlyAssets] = useState(initialMonthlyAssets);
+  // demo 模式下的「本機模擬」月度資產，初始值＝demo 假資料，使用者編輯只會改到這份，不會動到 realMonthlyAssets
+  const [localDemoMonthlyAssets, setLocalDemoMonthlyAssets] = useState(demoMonthlyAssets);
+
+  // 依目前連線狀態決定「管理帳戶」實際讀寫的是哪一份資料
+  const monthlyAssets = isSheetsConnected ? realMonthlyAssets : localDemoMonthlyAssets;
+  const setMonthlyAssets = isSheetsConnected ? setRealMonthlyAssets : setLocalDemoMonthlyAssets;
+
+  const displayToast = useCallback((msg, type = 'success') => {
     setToastMessage(msg);
-    setToastType(type); // Set toast type
+    setToastType(type);
     setShowToast(true);
     setTimeout(() => setShowToast(false), 3000);
   }, []);
@@ -55,6 +66,16 @@ export default function RootLayoutClient({ children }) {
       if (Array.isArray(data.transactions)) {
         setTransactions(data.transactions);
       }
+
+      // 順便拉取月度資產快照，這樣切換年月時才能看到 Google Sheets 上真實儲存過的歷史資料
+      try {
+        const monthly = await fetchMonthlyAssetsFromSheets(apiUrl);
+        setRealMonthlyAssets(monthly);
+      } catch (monthlyError) {
+        console.error('Error syncing monthly assets from sheets:', monthlyError);
+        // 月度快照失敗不影響主要同步流程，僅記錄錯誤
+      }
+
       if (!silent) {
         displayToast('已從 Google Sheets 讀取最新資料', 'success');
       }
@@ -63,7 +84,7 @@ export default function RootLayoutClient({ children }) {
       if (!silent) {
         displayToast(`從 Google Sheets 同步失敗: ${error.message || '請檢查連線'}`, 'error');
       }
-      throw error; // Re-throw to propagate the error
+      throw error;
     }
   }, [displayToast]);
 
@@ -73,26 +94,23 @@ export default function RootLayoutClient({ children }) {
 
     setSheetsApiUrl(stored);
     testSheetsConnection(stored)
-      .then(async (isConnected) => { // testSheetsConnection should return a boolean
+      .then(async (isConnected) => {
         if (isConnected) {
           setIsSheetsConnected(true);
           await syncFromSheets(stored, { silent: true });
         } else {
           setIsSheetsConnected(false);
-          // Optionally display a toast here if initial connection fails silently
-          // displayToast('自動連線 Google Sheets 失敗，請手動設定', 'error');
         }
       })
       .catch((error) => {
         console.error('Initial Sheets connection test failed:', error);
         setIsSheetsConnected(false);
-        // displayToast(`自動連線 Google Sheets 失敗: ${error.message || '請檢查連線'}`, 'error');
       });
   }, [syncFromSheets]);
 
   const connectSheets = useCallback(async (apiUrl) => {
     const nextUrl = String(apiUrl || '').trim();
-    const isConnected = await testSheetsConnection(nextUrl); // testSheetsConnection should return a boolean
+    const isConnected = await testSheetsConnection(nextUrl);
 
     if (!isConnected) {
       throw new Error('Google Sheets 連線測試失敗，請檢查 URL 或部署權限。');
@@ -157,15 +175,13 @@ export default function RootLayoutClient({ children }) {
   const handleConfigConnect = async (apiUrl) => {
     try {
       await connectSheets(apiUrl);
-      displayToast('連線成功🎉恭喜你已完成設定！', 'success'); // Moved success toast here
-      // Delay closing the modal to allow the toast to be seen
+      displayToast('連線成功🎉恭喜你已完成設定！', 'success');
       setTimeout(() => {
         setShowConfigModal(false);
-      }, 1500); // 1.5 seconds delay
+      }, 1500);
     } catch (error) {
       setIsSheetsConnected(false);
-      // ConfigModal 內部會處理失敗的 toast，這裡不需要重複
-      throw error; // Re-throw the error so ConfigModal can catch it
+      throw error;
     }
   };
 
@@ -173,18 +189,20 @@ export default function RootLayoutClient({ children }) {
     try {
       const { year, month } = manageModalContext;
       if (year && month) {
-        // 儲存到對應月份
         const monthKey = `${year}-${String(month).padStart(2, '0')}`;
         const updatedMonthlyAssets = { ...monthlyAssets, [monthKey]: assets };
         setMonthlyAssets(updatedMonthlyAssets);
 
         if (isSheetsConnected) {
-          // TODO: 同步月度資料到 Google Sheets
-          // await saveMonthlyAssetsToSheets(sheetsApiUrl, updatedMonthlyAssets);
+          await saveMonthlyAssetsToSheets(sheetsApiUrl, monthKey, assets);
         }
-        displayToast(`✅ 已儲存 ${year}年${month}月 資產負債`, 'success');
+        displayToast(
+          isSheetsConnected
+            ? `✅ 已儲存 ${year}年${month}月 資產負債`
+            : `已更新本機模擬資料（${year}年${month}月，尚未連線 Google Sheets，重新整理後會還原）`,
+          'success'
+        );
       } else {
-        // fallback: 儲存到全局 assets
         if (isSheetsConnected) {
           await saveAssetsToSheets(assets);
         }
@@ -230,26 +248,25 @@ export default function RootLayoutClient({ children }) {
       openManageModal={(context) => {
         const today = new Date();
         const currentYear = today.getFullYear();
-        const currentMonth = today.getMonth() + 1; // getMonth() is 0-indexed
+        const currentMonth = today.getMonth() + 1;
 
         let yearToSet = currentYear;
         let monthToSet = currentMonth;
 
-        // If a context is provided and it's a valid past or current month, use it.
-        // Otherwise, default to the current month.
         if (context && context.year && context.month) {
-          const contextDate = new Date(context.year, context.month - 1); // month - 1 because Date month is 0-indexed
+          const contextDate = new Date(context.year, context.month - 1);
           const currentDate = new Date(currentYear, currentMonth - 1);
 
-          if (contextDate <= currentDate) { // Only use context if it's a past or current month
+          if (contextDate <= currentDate) {
             yearToSet = context.year;
             monthToSet = context.month;
           }
         }
 
         setManageModalContext({ year: yearToSet, month: monthToSet });
-        
+
         // 載入對應月份的資料到 assets state
+        // monthlyAssets 會依連線狀態自動指向 realMonthlyAssets 或 localDemoMonthlyAssets，兩邊與畫面顯示的資料來源保持一致
         const monthKey = `${yearToSet}-${String(monthToSet).padStart(2, '0')}`;
         const monthAssets = monthlyAssets[monthKey] || [];
         setAssets(monthAssets);

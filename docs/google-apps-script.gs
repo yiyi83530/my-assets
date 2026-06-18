@@ -1,5 +1,6 @@
 const SHEET_ASSETS = 'assets';
 const SHEET_TRANSACTIONS = 'transactions';
+const SHEET_MONTHLY_ASSETS = 'monthly_assets';
 
 const ASSET_HEADERS = ['id', 'category', 'name', 'balance', 'isLiability', 'currency', 'amount'];
 const TX_HEADERS = [
@@ -15,6 +16,8 @@ const TX_HEADERS = [
   'actualAmount',
   'note',
 ];
+// monthKey 額外放在第一欄，後面欄位跟 ASSET_HEADERS 一致，方便沿用既有的 normalize 邏輯
+const MONTHLY_ASSET_HEADERS = ['monthKey'].concat(ASSET_HEADERS);
 
 function jsonResponse(payload) {
   return ContentService
@@ -148,6 +151,71 @@ function removeTransaction_(id) {
   return { removed: removed };
 }
 
+// ─────────────────────────────────────────────
+// 月度資產快照（monthly_assets）
+// 儲存格式：每一列 = 某個月份的某一筆資產，monthKey 欄位用來分組（例如 "2026-06"）
+// ─────────────────────────────────────────────
+
+function getMonthlyAssets_() {
+  const sheet = getOrCreateSheet_(SHEET_MONTHLY_ASSETS, MONTHLY_ASSET_HEADERS);
+  const lastRow = sheet.getLastRow();
+
+  if (lastRow <= 1) return {};
+
+  const rows = sheet.getRange(2, 1, lastRow - 1, MONTHLY_ASSET_HEADERS.length).getValues();
+  const objects = rowsToObjects_(rows, MONTHLY_ASSET_HEADERS);
+
+  // 依 monthKey 分組，還原成前端期待的 { "2026-06": [asset, asset, ...], ... } 格式
+  const grouped = {};
+  objects.forEach((row) => {
+    const monthKey = String(row.monthKey || '').trim();
+    if (!monthKey) return;
+
+    const asset = {};
+    ASSET_HEADERS.forEach((h) => { asset[h] = row[h]; });
+
+    if (!grouped[monthKey]) grouped[monthKey] = [];
+    grouped[monthKey].push(asset);
+  });
+
+  return grouped;
+}
+
+function upsertMonthlyAssets_(monthKey, assets) {
+  const key = String(monthKey || '').trim();
+  if (!key) {
+    throw new Error('缺少 monthKey');
+  }
+
+  const sheet = getOrCreateSheet_(SHEET_MONTHLY_ASSETS, MONTHLY_ASSET_HEADERS);
+  const lastRow = sheet.getLastRow();
+
+  // 讀出所有現有列，先過濾掉「屬於這個月份」的舊資料，其餘月份原封不動保留
+  const existingRows = lastRow > 1
+    ? sheet.getRange(2, 1, lastRow - 1, MONTHLY_ASSET_HEADERS.length).getValues()
+    : [];
+  const monthKeyIndex = MONTHLY_ASSET_HEADERS.indexOf('monthKey');
+  const keptRows = existingRows.filter((row) => String(row[monthKeyIndex]) !== key);
+
+  const normalized = (assets || []).map(normalizeAsset_);
+  const newRows = normalized.map((asset) =>
+    MONTHLY_ASSET_HEADERS.map((h) => (h === 'monthKey' ? key : (asset[h] !== undefined ? asset[h] : '')))
+  );
+
+  const finalRows = keptRows.concat(newRows);
+
+  // 整張表清空後，把保留的舊月份資料＋這個月份的新資料一起寫回去
+  const maxRows = sheet.getMaxRows();
+  if (maxRows > 1) {
+    sheet.getRange(2, 1, maxRows - 1, MONTHLY_ASSET_HEADERS.length).clearContent();
+  }
+  if (finalRows.length > 0) {
+    sheet.getRange(2, 1, finalRows.length, MONTHLY_ASSET_HEADERS.length).setValues(finalRows);
+  }
+
+  return { monthKey: key, count: normalized.length };
+}
+
 function doGet(e) {
   return jsonResponse({
     ok: true,
@@ -180,6 +248,14 @@ function doPost(e) {
 
     if (action === 'removeTransaction') {
       return jsonResponse({ ok: true, data: removeTransaction_(payload.id) });
+    }
+
+    if (action === 'getMonthlyAssets') {
+      return jsonResponse({ ok: true, data: getMonthlyAssets_() });
+    }
+
+    if (action === 'upsertMonthlyAssets') {
+      return jsonResponse({ ok: true, data: upsertMonthlyAssets_(payload.monthKey, payload.assets || []) });
     }
 
     return jsonResponse({ ok: false, message: `Unknown action: ${action}` });
