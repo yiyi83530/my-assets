@@ -73,7 +73,7 @@ export function AssetsContent() {
 
   const activeMonthlyAssets = isSheetsConnected ? realMonthlyAssets : demoMonthlyAssets;
   const activeMonthlyNetWorth = isSheetsConnected ? realMonthlyNetWorth : demoMonthlyNetWorth;
-  const activeSummary = isSheetsConnected ? realSummary : demoSummary;
+  const activeSummary = isSheetsConnected ? (realSummary || { netWorth: 0, netGrowth: 0, growthRate: 0 }) : demoSummary;
   const activePortfolio = isSheetsConnected ? realPortfolio : demoPortfolio;
 
   const setMonthlyAssets = isSheetsConnected ? realSetMonthlyAssets : () => {
@@ -81,9 +81,10 @@ export function AssetsContent() {
   };
 
   // 定義「當下」的年月
-  const today = new Date();
-  const currentYearReal = today.getFullYear();
-  const currentMonthReal = today.getMonth() + 1;
+  const { currentYearReal, currentMonthReal } = useMemo(() => { // 將 new Date() 包裹在 useMemo 中
+    const today = new Date();
+    return { currentYearReal: today.getFullYear(), currentMonthReal: today.getMonth() + 1 };
+  }, []);
 
   // 計算有資料的年份 (只要該年有任一月份資料就列出)
   const availableYears = useMemo(() => {
@@ -96,7 +97,7 @@ export function AssetsContent() {
       uniqueYears.sort((a, b) => b - a);
     }
     return uniqueYears;
-  }, [activeMonthlyAssets]);
+  }, [activeMonthlyAssets, currentYearReal]); // 修正依賴項
 
   // 預設狀態：直接設為當前年月
   const [selectedYear, setSelectedYear] = useState(currentYearReal);
@@ -146,7 +147,7 @@ export function AssetsContent() {
   const totalForeign = displayForeign.reduce((sum, item) => sum + (Number(item.convertedBalance ?? item.balance) || 0), 0);
   const totalTrust = displayTrust.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
   const totalLiabilities = displayLiabilities.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
-  const totalStocks = activePortfolio.currentPortfolioValue;
+  const totalStocks = activePortfolio?.currentPortfolioValue || 0; // 確保 totalStocks 始終為數字
   const totalAssets = totalNtd + totalForeign + totalTrust + totalStocks;
 
   const allocationData = [
@@ -157,10 +158,9 @@ export function AssetsContent() {
   ].filter(d => d.value > 0);
 
   const fullChartData = activeMonthlyNetWorth && activeMonthlyNetWorth.length > 0 ? activeMonthlyNetWorth : [];
-  const currentMonthNum = new Date().getMonth() + 1;
-  const visibleEndMonth = Math.max(6, currentMonthNum);
+  const visibleEndMonth = Math.max(6, currentMonthReal); // 使用 memoized 的 currentMonthReal
   const chartData = fullChartData.filter((item) => Number(item.month) <= visibleEndMonth);
-  const currentMonthStr = String(currentMonthNum);
+  const currentMonthStr = String(currentMonthReal); // 使用 memoized 的 currentMonthReal
 
   return (
     <>
@@ -193,7 +193,7 @@ export function AssetsContent() {
           </p>
 
           <button type="button" onClick={() => setIsTrendOpen((prev) => !prev)} className="mt-3 flex w-full justify-center md:hidden">
-            <svg viewBox="0 0 20 20" fill="currentColor" className={`h-6 w-6 text-slate-400 transition-transform ${isTrendOpen ? 'rotate-180' : ''}`}><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 1 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
+            <svg viewBox="0 0 20 20" fill="currentColor" className={`h-6 w-6 text-slate-400 transition-transform ${isTrendOpen ? 'rotate-180' : ''}`}><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
           </button>
 
           <div className={`${isTrendOpen ? 'block' : 'hidden'} md:block`}>
