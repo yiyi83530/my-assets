@@ -136,7 +136,11 @@ export function AssetsContent() {
     return [];
   };
 
-  const displayAssetsRaw = getAssetsForMonth(selectedMonthKey);
+  const displayAssetsRaw = useMemo(
+    () => getAssetsForMonth(selectedMonthKey),
+    [activeMonthlyAssets, selectedMonthKey]
+  );
+
   const hasNoAssets = displayAssetsRaw.length === 0;
 
   // 拉取外幣即時匯率（僅在連線模式下才需要打 API；demo 資料已經內建 fxRate/convertedBalance）
