@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { GOOGLE_APPS_SCRIPT_CODE } from '@/components/common/constants';
 
 export function TransactionModal({ isOpen, onClose, onSubmit }) {
   const [market, setMarket] = useState('TWSE');
@@ -257,82 +256,82 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
             </div>
           </div>
 
-           <div className="grid grid-cols-[minmax(0,1fr)_9.5rem] gap-3 sm:grid-cols-2 sm:gap-4">
-             <div className="min-w-0">
-               <label className="mb-1 block text-xs font-semibold text-slate-500">市場</label>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMarketDropdown(!showMarketDropdown);
-                      if (!showMarketDropdown) setMarketHighlightedIndex(market === 'TWSE' ? 0 : 1);
-                    }}
-                    onKeyDown={handleMarketDropdownKeyDown}
-                    className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 transition hover:bg-white focus:border-rose-300 focus:bg-white focus:outline-none"
+          <div className="grid grid-cols-[minmax(0,1fr)_9.5rem] gap-3 sm:grid-cols-2 sm:gap-4">
+            <div className="min-w-0">
+              <label className="mb-1 block text-xs font-semibold text-slate-500">市場</label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMarketDropdown(!showMarketDropdown);
+                    if (!showMarketDropdown) setMarketHighlightedIndex(market === 'TWSE' ? 0 : 1);
+                  }}
+                  onKeyDown={handleMarketDropdownKeyDown}
+                  className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 transition hover:bg-white focus:border-rose-300 focus:bg-white focus:outline-none"
+                >
+                  <span>{market === 'TWSE' ? '📈 台股' : '🇺🇸 美股'}</span>
+                  <svg
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className={`h-4 w-4 text-slate-400 transition-transform ${showMarketDropdown ? 'rotate-180' : ''}`}
                   >
-                    <span>{market === 'TWSE' ? '📈 台股' : '🇺🇸 美股'}</span>
-                    <svg
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      className={`h-4 w-4 text-slate-400 transition-transform ${showMarketDropdown ? 'rotate-180' : ''}`}
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+                {showMarketDropdown && (
+                  <div className="absolute z-30 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onMouseEnter={() => setMarketHighlightedIndex(0)}
+                      onClick={() => {
+                        const nextMarket = 'TWSE';
+                        setMarket(nextMarket);
+                        setStock('');
+                        setSelectedSymbol('');
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                        setHighlightedSuggestionIndex(-1);
+                        setShowMarketDropdown(false);
+                        setMarketHighlightedIndex(-1);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm font-semibold transition flex items-center gap-2 ${
+                        marketHighlightedIndex === 0
+                          ? 'bg-rose-50 text-rose-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
                     >
-                      <path
-                        fillRule="evenodd"
-                        d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                  {showMarketDropdown && (
-                    <div className="absolute z-30 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-lg overflow-hidden">
-                      <button
-                        type="button"
-                        onMouseEnter={() => setMarketHighlightedIndex(0)}
-                        onClick={() => {
-                          const nextMarket = 'TWSE';
-                          setMarket(nextMarket);
-                          setStock('');
-                          setSelectedSymbol('');
-                          setSuggestions([]);
-                          setShowSuggestions(false);
-                          setHighlightedSuggestionIndex(-1);
-                          setShowMarketDropdown(false);
-                          setMarketHighlightedIndex(-1);
-                        }}
-                        className={`w-full px-3 py-2 text-left text-sm font-semibold transition flex items-center gap-2 ${
-                          marketHighlightedIndex === 0
-                            ? 'bg-rose-50 text-rose-700'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        📈 台股
-                      </button>
-                      <button
-                        type="button"
-                        onMouseEnter={() => setMarketHighlightedIndex(1)}
-                        onClick={() => {
-                          const nextMarket = 'US';
-                          setMarket(nextMarket);
-                          setStock('');
-                          setSelectedSymbol('');
-                          setSuggestions([]);
-                          setShowSuggestions(false);
-                          setHighlightedSuggestionIndex(-1);
-                          setShowMarketDropdown(false);
-                          setMarketHighlightedIndex(-1);
-                        }}
-                        className={`w-full px-3 py-2 text-left text-sm font-semibold transition flex items-center gap-2 border-t border-slate-100 ${
-                          marketHighlightedIndex === 1
-                            ? 'bg-rose-50 text-rose-700'
-                            : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        🇺🇸 美股
-                      </button>
-                    </div>
-                  )}
-                </div>
-             </div>
+                      📈 台股
+                    </button>
+                    <button
+                      type="button"
+                      onMouseEnter={() => setMarketHighlightedIndex(1)}
+                      onClick={() => {
+                        const nextMarket = 'US';
+                        setMarket(nextMarket);
+                        setStock('');
+                        setSelectedSymbol('');
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                        setHighlightedSuggestionIndex(-1);
+                        setShowMarketDropdown(false);
+                        setMarketHighlightedIndex(-1);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm font-semibold transition flex items-center gap-2 border-t border-slate-100 ${
+                        marketHighlightedIndex === 1
+                          ? 'bg-rose-50 text-rose-700'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      🇺🇸 美股
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="min-w-0">
               <label className="mb-1 block text-xs font-semibold text-slate-500">交易日期</label>
               <input
@@ -490,17 +489,40 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastType, setToastType] = useState('success');
-  const [isLoading, setIsLoading] = useState(false); // New loading state
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Apps Script 程式碼改為開啟 Modal 時即時抓取最新版（來源：GitHub repo 的 docs/google-apps-script.gs），
+  // 不再內嵌於前端常數，避免兩邊版本不同步
+  const [scriptCode, setScriptCode] = useState('');
+  const [isScriptLoading, setIsScriptLoading] = useState(false);
+  const [scriptLoadFailed, setScriptLoadFailed] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
-      setApiUrl(initialApiUrl || ''); // Set apiUrl from initialApiUrl when modal opens
+      setApiUrl(initialApiUrl || '');
       setCopied(false);
       setToastMessage('');
       setShowToast(false);
       setToastType('success');
-      setIsLoading(false); // Reset loading state
+      setIsLoading(false);
+
+      // 每次打開 Modal 都重新抓一次，確保拿到的是最新版（Next.js fetch cache 會自動處理快取，不會每次都真的打 GitHub）
+      setIsScriptLoading(true);
+      setScriptLoadFailed(false);
+      fetch('/api/google-apps-script')
+        .then((res) => res.json())
+        .then((json) => {
+          setScriptCode(json.code || '');
+          setScriptLoadFailed(!json.ok);
+        })
+        .catch(() => {
+          setScriptCode('');
+          setScriptLoadFailed(true);
+        })
+        .finally(() => {
+          setIsScriptLoading(false);
+        });
     } else {
       document.body.style.overflow = 'auto';
     }
@@ -510,7 +532,8 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
   }, [isOpen, initialApiUrl]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(GOOGLE_APPS_SCRIPT_CODE).then(() => {
+    if (!scriptCode) return;
+    navigator.clipboard.writeText(scriptCode).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }).catch(err => {
@@ -527,7 +550,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
       return;
     }
 
-    setIsLoading(true); // Set loading true
+    setIsLoading(true);
     try {
       await onConnect(apiUrl);
       // Success toast is now handled by the parent component (layout-client.jsx)
@@ -545,7 +568,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
   };
 
   const handleDisconnectClick = async () => {
-    setIsLoading(true); // Set loading true
+    setIsLoading(true);
     try {
       await onDisconnect();
     } catch (error) {
@@ -554,7 +577,6 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
     } finally {
-      // Add a small delay to make the loading state visible
       setTimeout(() => {
         setIsLoading(false);
       }, 500);
@@ -601,7 +623,8 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
               <h4 className="text-sm font-bold text-slate-700">Script 代碼</h4>
               <button
                 onClick={handleCopy}
-                className={`rounded-md px-2 py-1 text-sm font-semibold shadow transition ${
+                disabled={isScriptLoading || !scriptCode}
+                className={`rounded-md px-2 py-1 text-sm font-semibold shadow transition disabled:cursor-not-allowed disabled:opacity-50 ${
                   copied
                     ? 'bg-rose-100 text-rose-500'
                     : 'bg-white text-slate-600 hover:bg-slate-100'
@@ -618,11 +641,24 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
                 )}
               </button>
             </div>
-            <pre className="max-h-[100px] overflow-y-auto rounded-lg border border-slate-300 bg-white p-3 text-slate-800">
-              <code>{GOOGLE_APPS_SCRIPT_CODE}</code>
-            </pre>
+
+            {isScriptLoading ? (
+              <div className="flex h-[100px] items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-400">
+                載入最新版程式碼中...
+              </div>
+            ) : (
+              <>
+                {scriptLoadFailed && (
+                  <p className="mb-2 text-[11px] font-semibold text-amber-600">
+                    ⚠️ 無法自動載入最新版本，以下為備援內容，建議直接到 GitHub 查看最新版。
+                  </p>
+                )}
+                <pre className="max-h-[100px] overflow-y-auto rounded-lg border border-slate-300 bg-white p-3 text-slate-800">
+                  <code>{scriptCode}</code>
+                </pre>
+              </>
+            )}
           </div>
-          {/* End new code block */}
 
           <div>
             <label className="mb-1.5 block text-xs font-bold text-slate-700">網頁應用程式 URL (Web App URL)</label>
@@ -639,7 +675,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
             <button
               type="button"
               onClick={buttonAction}
-              disabled={isLoading} // Disable button when loading
+              disabled={isLoading}
               className={`w-full flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold transition ${buttonClasses} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {isLoading && (
