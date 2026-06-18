@@ -15,6 +15,13 @@ import {
 } from 'recharts';
 import { useApp } from '@/lib/app-context';
 import { formatMoney } from '@/lib/format';
+import {
+  calculateAssetsSummary,
+  calculateStockPortfolio,
+  decorateAssetsWithFx,
+  fetchForeignExchangeRates,
+} from '@/lib/calculations';
+import { stockMarketPrices } from '@/lib/data';
 import { demoMonthlyAssets, demoMonthlyNetWorth, demoSummary, demoPortfolio } from '@/lib/demo-data';
 
 function MonthTick({ x, y, payload, currentMonth }) {
@@ -65,23 +72,22 @@ export function AssetsContent() {
     monthlyAssets: realMonthlyAssets,
     setMonthlyAssets: realSetMonthlyAssets,
     monthlyNetWorth: realMonthlyNetWorth,
-    summary: realSummary,
-    portfolio: realPortfolio,
+    transactions: realTransactions,
   } = useApp();
 
   const [isTrendOpen, setIsTrendOpen] = useState(false);
+  const [fxRates, setFxRates] = useState({});
 
   const activeMonthlyAssets = isSheetsConnected ? realMonthlyAssets : demoMonthlyAssets;
   const activeMonthlyNetWorth = isSheetsConnected ? realMonthlyNetWorth : demoMonthlyNetWorth;
-  const activeSummary = isSheetsConnected ? (realSummary || { netWorth: 0, netGrowth: 0, growthRate: 0 }) : demoSummary;
-  const activePortfolio = isSheetsConnected ? realPortfolio : demoPortfolio;
+  const activeTransactions = isSheetsConnected ? (realTransactions || []) : (demoPortfolio.transactionHistory || []);
 
   const setMonthlyAssets = isSheetsConnected ? realSetMonthlyAssets : () => {
     console.warn("Demo mode: Operation ignored.");
   };
 
   // 定義「當下」的年月
-  const { currentYearReal, currentMonthReal } = useMemo(() => { // 將 new Date() 包裹在 useMemo 中
+  const { currentYearReal, currentMonthReal } = useMemo(() => {
     const today = new Date();
     return { currentYearReal: today.getFullYear(), currentMonthReal: today.getMonth() + 1 };
   }, []);
@@ -97,7 +103,7 @@ export function AssetsContent() {
       uniqueYears.sort((a, b) => b - a);
     }
     return uniqueYears;
-  }, [activeMonthlyAssets, currentYearReal]); // 修正依賴項
+  }, [activeMonthlyAssets, currentYearReal]);
 
   // 預設狀態：直接設為當前年月
   const [selectedYear, setSelectedYear] = useState(currentYearReal);
@@ -110,11 +116,6 @@ export function AssetsContent() {
 
   // 只要選擇了年份，月份永遠顯示 1-12 月
   const availableMonths = Array.from({ length: 12 }, (_, i) => i + 1);
-
-  // 當年份改變時，保持目前的月份（如果該月在 1-12 之間，必然成立）
-  useEffect(() => {
-    // 這裡不需要特別處理，因為 1-12 月永遠可用
-  }, [selectedYear]);
 
   const selectedMonthKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
 
@@ -135,19 +136,78 @@ export function AssetsContent() {
     return [];
   };
 
-  const displayAssets = getAssetsForMonth(selectedMonthKey);
-  const hasNoAssets = displayAssets.length === 0;
+  const displayAssetsRaw = getAssetsForMonth(selectedMonthKey);
+  const hasNoAssets = displayAssetsRaw.length === 0;
+
+  // 拉取外幣即時匯率（僅在連線模式下才需要打 API；demo 資料已經內建 fxRate/convertedBalance）
+  useEffect(() => {
+    if (!isSheetsConnected) {
+      setFxRates({});
+      return;
+    }
+    const currencies = [...new Set(
+      displayAssetsRaw
+        .filter((item) => item.category === '外幣活存')
+        .map((item) => item.currency)
+        .filter(Boolean)
+    )];
+
+    let active = true;
+    fetchForeignExchangeRates(currencies)
+      .then((rates) => { if (active) setFxRates(rates); })
+      .catch(() => { if (active) setFxRates({}); });
+
+    return () => { active = false; };
+  }, [isSheetsConnected, selectedMonthKey, displayAssetsRaw]);
+
+  // 真實模式才需要重新跑匯率換算；demo 資料本身已經算好 convertedBalance
+  const displayAssets = useMemo(() => {
+    if (!isSheetsConnected) return displayAssetsRaw;
+    return decorateAssetsWithFx(displayAssetsRaw, fxRates);
+  }, [isSheetsConnected, displayAssetsRaw, fxRates]);
 
   const displayNtd = hasNoAssets ? [] : displayAssets.filter((a) => a.category === '台幣活存');
   const displayForeign = hasNoAssets ? [] : displayAssets.filter((a) => a.category === '外幣活存');
   const displayTrust = hasNoAssets ? [] : displayAssets.filter((a) => a.category === '員工持股信託');
   const displayLiabilities = hasNoAssets ? [] : displayAssets.filter((a) => a.isLiability || a.category === '負債項目');
 
+  // ─── 依「選定年月」算出當月底持倉與淨值總覽（兩者都會隨年月切換重新計算） ───
+  const lastDayOfSelectedMonth = `${selectedMonthKey}-31`; // 字串比較即可，日期格式皆為 YYYY-MM-DD
+
+  const portfolioAtSelectedMonth = useMemo(() => {
+    if (!isSheetsConnected) return demoPortfolio;
+    const txUpToMonth = (activeTransactions || []).filter((tx) => tx.date <= lastDayOfSelectedMonth);
+    return calculateStockPortfolio(txUpToMonth, stockMarketPrices);
+  }, [isSheetsConnected, activeTransactions, lastDayOfSelectedMonth]);
+
+  const previousMonthKey = getPreviousMonthKey(selectedYear, selectedMonth);
+  const previousMonthSummaryNetWorth = useMemo(() => {
+    if (!isSheetsConnected) {
+      const idx = activeMonthlyNetWorth.findIndex((d) => d.month === String(selectedMonth));
+      return idx > 0 ? activeMonthlyNetWorth[idx - 1].netWorth : 0;
+    }
+    const found = activeMonthlyNetWorth.find((d) => `${selectedYear}-${String(d.month).padStart(2, '0')}` === previousMonthKey);
+    return found ? found.netWorth : 0;
+  }, [isSheetsConnected, activeMonthlyNetWorth, selectedMonth, selectedYear, previousMonthKey]);
+
+  const activeSummary = useMemo(() => {
+    if (!isSheetsConnected) return demoSummary;
+    if (hasNoAssets) return { netWorth: 0, netGrowth: 0, growthRate: 0, totals: {}, totalAssets: 0 };
+    return calculateAssetsSummary(
+      displayAssets,
+      portfolioAtSelectedMonth.currentPortfolioValue,
+      previousMonthSummaryNetWorth,
+      fxRates
+    );
+  }, [isSheetsConnected, hasNoAssets, displayAssets, portfolioAtSelectedMonth, previousMonthSummaryNetWorth, fxRates]);
+
+  const activePortfolio = portfolioAtSelectedMonth;
+  const totalStocks = activePortfolio?.currentPortfolioValue || 0;
+
   const totalNtd = displayNtd.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
   const totalForeign = displayForeign.reduce((sum, item) => sum + (Number(item.convertedBalance ?? item.balance) || 0), 0);
   const totalTrust = displayTrust.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
   const totalLiabilities = displayLiabilities.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
-  const totalStocks = activePortfolio?.currentPortfolioValue || 0; // 確保 totalStocks 始終為數字
   const totalAssets = totalNtd + totalForeign + totalTrust + totalStocks;
 
   const allocationData = [
@@ -158,9 +218,9 @@ export function AssetsContent() {
   ].filter(d => d.value > 0);
 
   const fullChartData = activeMonthlyNetWorth && activeMonthlyNetWorth.length > 0 ? activeMonthlyNetWorth : [];
-  const visibleEndMonth = Math.max(6, currentMonthReal); // 使用 memoized 的 currentMonthReal
+  const visibleEndMonth = Math.max(6, currentMonthReal);
   const chartData = fullChartData.filter((item) => Number(item.month) <= visibleEndMonth);
-  const currentMonthStr = String(currentMonthReal); // 使用 memoized 的 currentMonthReal
+  const currentMonthStr = String(currentMonthReal);
 
   return (
     <>
@@ -187,9 +247,9 @@ export function AssetsContent() {
             <span className="hidden rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600 md:inline-flex">淨值總覽</span>
             <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">個人淨資產</p>
           </div>
-          <p className="text-4xl font-black text-slate-900">${activeSummary.netWorth.toLocaleString()}</p>
-          <p className={`mt-3 flex items-center text-xs font-bold ${activeSummary.netGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            較上月 <span className="mx-1 text-[10px]">{activeSummary.netGrowth >= 0 ? '▲' : '▼'}</span> ${activeSummary.netGrowth.toLocaleString()} ({activeSummary.growthRate.toFixed(2)}%)
+          <p className="text-4xl font-black text-slate-900">${(activeSummary?.netWorth ?? 0).toLocaleString()}</p>
+          <p className={`mt-3 flex items-center text-xs font-bold ${(activeSummary?.netGrowth ?? 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            較上月 <span className="mx-1 text-[10px]">{(activeSummary?.netGrowth ?? 0) >= 0 ? '▲' : '▼'}</span> ${(activeSummary?.netGrowth ?? 0).toLocaleString()} ({(activeSummary?.growthRate ?? 0).toFixed(2)}%)
           </p>
 
           <button type="button" onClick={() => setIsTrendOpen((prev) => !prev)} className="mt-3 flex w-full justify-center md:hidden">
