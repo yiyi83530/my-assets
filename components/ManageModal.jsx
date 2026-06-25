@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ASSETS_CATEGORIES, FOREIGN_CURRENCIES } from '@/components/common/constants';
 
-export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew, onRemove, onUpdate, editingMonth }) {
+export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew, onRemove, onUpdate, editingMonth, isSaving = false }) {
   const [activeIndex, setActiveIndex] = useState(null);
   const [suggestionsByIndex, setSuggestionsByIndex] = useState({});
   const [isSearchingByIndex, setIsSearchingByIndex] = useState({});
@@ -327,9 +327,13 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
           <button
             type="button"
             onClick={onSave}
-            className="w-1/2 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600"
+            disabled={isSaving}
+            className={`w-1/2 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition ${
+              isSaving ? 'cursor-not-allowed opacity-70' : 'hover:bg-rose-600'
+            } flex items-center justify-center gap-2`}
           >
-            同步儲存 🐷
+            {isSaving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+            {isSaving ? '儲存中...' : '同步儲存 🐷'}
           </button>
         </div>
       </div>

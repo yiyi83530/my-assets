@@ -59,7 +59,7 @@ function fmt(num) {
 function fmtDate(dateStr) {
   if (!dateStr) return '';
   const [y, m, d] = dateStr.split('-');
-  return `${y}/${parseInt(m)}/${parseInt(d)}`;
+  return `${y}/${m.padStart(2, '0')}/${d.padStart(2, '0')}`;
 }
 
 // ISO string → "13:02"（local time, 24h）
@@ -75,6 +75,7 @@ export function StocksContent({ initialPrices = {} }) {
   const {
     transactions: realTransactions,
     removeTransaction: realRemoveTransaction,
+    openTransactionModal,
     isSheetsConnected,
   } = useApp();
 
@@ -615,7 +616,17 @@ export function StocksContent({ initialPrices = {} }) {
                         </td>
                         <td className="max-w-[220px] truncate whitespace-nowrap px-4 py-3 align-middle text-left text-xs text-slate-500">{tx.note || '—'}</td>
                         <td className="px-4 py-3 align-middle">
-                          <div className="flex justify-center">
+                          <div className="flex justify-center gap-1">
+                            <button
+                              onClick={() => openTransactionModal(tx)}
+                              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-amber-50 hover:text-amber-500"
+                              title="編輯此筆紀錄"
+                            >
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                <path d="M5.433 13.917l-1.5 1.5A.75.75 0 003.5 16.03l1.5-1.5zM11.778 4.291a.75.75 0 00-1.06 0L5.918 9.1C5.558 9.46 5.378 9.775 5.258 10.02l-.938 2.062a.75.75 0 00.957.957l2.062-.938c.245-.12.56-.3.92-.66l4.79-4.79a.75.75 0 000-1.06l-.04-.04zM16.125 1.75a.75.75 0 011.06 0l1.25 1.25a.75.75 0 010 1.06L17.06 5.44l-2.31-2.31 1.37-1.38z" />
+                                <path fillRule="evenodd" d="M1.75 1.75a.75.75 0 00-.75.75v14.5c0 .414.336.75.75.75h14.5a.75.75 0 00.75-.75V8.5a.75.75 0 011.5 0v7.75a2.25 2.25 0 01-2.25 2.25H2.5a2.25 2.25 0 01-2.25-2.25V2.5C.25 2.086.586 1.75 1 1.75h-.001z" clipRule="evenodd" />
+                              </svg>
+                            </button>
                             <button
                               onClick={() => setDeleteId(tx.id)}
                               className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"

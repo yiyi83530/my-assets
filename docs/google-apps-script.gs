@@ -151,6 +151,43 @@ function removeTransaction_(id) {
   return { removed: removed };
 }
 
+function updateTransaction_(transaction) {
+  const txSheet = getOrCreateSheet_(SHEET_TRANSACTIONS, TX_HEADERS);
+  const normalized = normalizeTx_(transaction || {});
+  const txId = normalized.id;
+
+  if (!txId) {
+    throw new Error('缺少要更新的交易 ID');
+  }
+
+  const lastRow = txSheet.getLastRow();
+  if (lastRow <= 1) { // No data rows
+    throw new Error('找不到可更新的交易，試算表為空。');
+  }
+
+  const dataRange = txSheet.getRange(2, 1, lastRow - 1, TX_HEADERS.length);
+  const values = dataRange.getValues();
+  const idIndex = TX_HEADERS.indexOf('id');
+
+  let updated = false;
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][idIndex]) === String(txId)) {
+      // Found the row to update
+      const newRow = TX_HEADERS.map((header) => normalized[header] !== undefined ? normalized[header] : '');
+      values[i] = newRow;
+      updated = true;
+      break; // Assuming IDs are unique, we can stop after finding it
+    }
+  }
+
+  if (updated) {
+    dataRange.setValues(values);
+    return { id: txId, status: 'updated' };
+  } else {
+    throw new Error(`找不到 ID 為 ${txId} 的交易來進行更新。`);
+  }
+}
+
 // ─────────────────────────────────────────────
 // 月度資產快照（monthly_assets）
 // 儲存格式：每一列 = 某個月份的某一筆資產，monthKey 欄位用來分組（例如 "2026-06"）
@@ -244,6 +281,10 @@ function doPost(e) {
 
     if (action === 'appendTransaction') {
       return jsonResponse({ ok: true, data: appendTransaction_(payload.transaction || {}) });
+    }
+
+    if (action === 'updateTransaction') {
+      return jsonResponse({ ok: true, data: updateTransaction_(payload.transaction || {}) });
     }
 
     if (action === 'removeTransaction') {

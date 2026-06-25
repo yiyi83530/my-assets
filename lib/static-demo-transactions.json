@@ -1,0 +1,802 @@
+[
+  {
+    "id": "txn-40",
+    "date": "2026-06-23",
+    "symbol": "2317",
+    "name": "鴻海",
+    "type": "買入",
+    "shares": 6600,
+    "price": 240.5,
+    "amount": 1587300
+  },
+  {
+    "id": "txn-67",
+    "date": "2026-06-15",
+    "symbol": "2330",
+    "name": "台積電",
+    "type": "買入",
+    "shares": 800,
+    "price": 436.17,
+    "amount": 348936
+  },
+  {
+    "id": "txn-33",
+    "date": "2026-06-14",
+    "symbol": "2330",
+    "name": "台積電",
+    "type": "買入",
+    "shares": 5900,
+    "price": 394.58,
+    "amount": 2328022
+  },
+  {
+    "id": "txn-54",
+    "date": "2026-06-11",
+    "symbol": "2615",
+    "name": "萬海",
+    "type": "買入",
+    "shares": 9300,
+    "price": 318.37,
+    "amount": 2960841
+  },
+  {
+    "id": "txn-79",
+    "date": "2026-06-09",
+    "symbol": "2882",
+    "name": "國泰金",
+    "type": "賣出",
+    "shares": 3500,
+    "price": 426.14,
+    "amount": 1491490
+  },
+  {
+    "id": "txn-22",
+    "date": "2026-06-06",
+    "symbol": "5269",
+    "name": "祥碩",
+    "type": "買入",
+    "shares": 3200,
+    "price": 380.67,
+    "amount": 1218144
+  },
+  {
+    "id": "txn-46",
+    "date": "2026-06-01",
+    "symbol": "2382",
+    "name": "廣達",
+    "type": "賣出",
+    "shares": 3400,
+    "price": 356.19,
+    "amount": 1211046
+  },
+  {
+    "id": "txn-58",
+    "date": "2026-05-29",
+    "symbol": "2409",
+    "name": "友達",
+    "type": "賣出",
+    "shares": 1700,
+    "price": 112.61,
+    "amount": 191437
+  },
+  {
+    "id": "txn-80",
+    "date": "2026-05-24",
+    "symbol": "1301",
+    "name": "台塑",
+    "type": "買入",
+    "shares": 9900,
+    "price": 171.31,
+    "amount": 1695969
+  },
+  {
+    "id": "txn-78",
+    "date": "2026-05-23",
+    "symbol": "2886",
+    "name": "兆豐金",
+    "type": "買入",
+    "shares": 6300,
+    "price": 137.15,
+    "amount": 864045
+  },
+  {
+    "id": "txn-68",
+    "date": "2026-05-21",
+    "symbol": "2330",
+    "name": "台積電",
+    "type": "買入",
+    "shares": 1000,
+    "price": 312.7,
+    "amount": 312700
+  },
+  {
+    "id": "txn-73",
+    "date": "2026-05-20",
+    "symbol": "3711",
+    "name": "日月光投控",
+    "type": "買入",
+    "shares": 1900,
+    "price": 71.35,
+    "amount": 135565
+  },
+  {
+    "id": "txn-29",
+    "date": "2026-05-18",
+    "symbol": "2609",
+    "name": "陽明",
+    "type": "買入",
+    "shares": 600,
+    "price": 348.59,
+    "amount": 209153.99999999997
+  },
+  {
+    "id": "txn-14",
+    "date": "2026-05-13",
+    "symbol": "2317",
+    "name": "鴻海",
+    "type": "買入",
+    "shares": 4300,
+    "price": 375.48,
+    "amount": 1614564
+  },
+  {
+    "id": "txn-56",
+    "date": "2026-05-11",
+    "symbol": "6643",
+    "name": "M31",
+    "type": "賣出",
+    "shares": 800,
+    "price": 343.88,
+    "amount": 275104
+  },
+  {
+    "id": "txn-21",
+    "date": "2026-05-02",
+    "symbol": "6643",
+    "name": "M31",
+    "type": "買入",
+    "shares": 4700,
+    "price": 105.05,
+    "amount": 493735
+  },
+  {
+    "id": "txn-38",
+    "date": "2026-04-30",
+    "symbol": "1326",
+    "name": "台化",
+    "type": "賣出",
+    "shares": 3100,
+    "price": 131.31,
+    "amount": 407061
+  },
+  {
+    "id": "txn-49",
+    "date": "2026-04-29",
+    "symbol": "3481",
+    "name": "群創",
+    "type": "賣出",
+    "shares": 9200,
+    "price": 464.16,
+    "amount": 4270272
+  },
+  {
+    "id": "txn-65",
+    "date": "2026-04-25",
+    "symbol": "6415",
+    "name": "矽力-KY",
+    "type": "賣出",
+    "shares": 600,
+    "price": 503.1,
+    "amount": 301860
+  },
+  {
+    "id": "txn-9",
+    "date": "2026-04-18",
+    "symbol": "2618",
+    "name": "長榮航",
+    "type": "賣出",
+    "shares": 9800,
+    "price": 471.62,
+    "amount": 4621876
+  },
+  {
+    "id": "txn-57",
+    "date": "2026-04-18",
+    "symbol": "2330",
+    "name": "台積電",
+    "type": "賣出",
+    "shares": 200,
+    "price": 355.6,
+    "amount": 71120
+  },
+  {
+    "id": "txn-50",
+    "date": "2026-04-04",
+    "symbol": "2603",
+    "name": "長榮",
+    "type": "賣出",
+    "shares": 5600,
+    "price": 418.17,
+    "amount": 2341752
+  },
+  {
+    "id": "txn-23",
+    "date": "2026-03-29",
+    "symbol": "2609",
+    "name": "陽明",
+    "type": "賣出",
+    "shares": 5200,
+    "price": 472.41,
+    "amount": 2456532
+  },
+  {
+    "id": "txn-6",
+    "date": "2026-03-28",
+    "symbol": "2308",
+    "name": "台達電",
+    "type": "買入",
+    "shares": 6800,
+    "price": 418.36,
+    "amount": 2844848
+  },
+  {
+    "id": "txn-55",
+    "date": "2026-03-24",
+    "symbol": "1303",
+    "name": "南亞",
+    "type": "賣出",
+    "shares": 3200,
+    "price": 518.36,
+    "amount": 1658752
+  },
+  {
+    "id": "txn-63",
+    "date": "2026-03-21",
+    "symbol": "2610",
+    "name": "華航",
+    "type": "買入",
+    "shares": 1900,
+    "price": 417.54,
+    "amount": 793326
+  },
+  {
+    "id": "txn-32",
+    "date": "2026-03-14",
+    "symbol": "2603",
+    "name": "長榮",
+    "type": "賣出",
+    "shares": 7900,
+    "price": 412.89,
+    "amount": 3261831
+  },
+  {
+    "id": "txn-25",
+    "date": "2026-03-10",
+    "symbol": "2603",
+    "name": "長榮",
+    "type": "買入",
+    "shares": 6800,
+    "price": 416.25,
+    "amount": 2830500
+  },
+  {
+    "id": "txn-43",
+    "date": "2026-03-09",
+    "symbol": "2303",
+    "name": "聯電",
+    "type": "買入",
+    "shares": 600,
+    "price": 283.01,
+    "amount": 169806
+  },
+  {
+    "id": "txn-74",
+    "date": "2026-03-08",
+    "symbol": "1303",
+    "name": "南亞",
+    "type": "買入",
+    "shares": 800,
+    "price": 180.89,
+    "amount": 144712
+  },
+  {
+    "id": "txn-26",
+    "date": "2026-03-01",
+    "symbol": "2382",
+    "name": "廣達",
+    "type": "買入",
+    "shares": 3700,
+    "price": 401.13,
+    "amount": 1484181
+  },
+  {
+    "id": "txn-28",
+    "date": "2026-03-01",
+    "symbol": "5269",
+    "name": "祥碩",
+    "type": "買入",
+    "shares": 500,
+    "price": 139.01,
+    "amount": 69505
+  },
+  {
+    "id": "txn-15",
+    "date": "2026-02-16",
+    "symbol": "2454",
+    "name": "聯發科",
+    "type": "買入",
+    "shares": 6400,
+    "price": 442.18,
+    "amount": 2829952
+  },
+  {
+    "id": "txn-66",
+    "date": "2026-02-16",
+    "symbol": "3481",
+    "name": "群創",
+    "type": "買入",
+    "shares": 8200,
+    "price": 228.48,
+    "amount": 1873536
+  },
+  {
+    "id": "txn-16",
+    "date": "2026-02-14",
+    "symbol": "3711",
+    "name": "日月光投控",
+    "type": "買入",
+    "shares": 7900,
+    "price": 291.88,
+    "amount": 2305852
+  },
+  {
+    "id": "txn-7",
+    "date": "2026-02-12",
+    "symbol": "2317",
+    "name": "鴻海",
+    "type": "買入",
+    "shares": 8200,
+    "price": 475.15,
+    "amount": 3896230
+  },
+  {
+    "id": "txn-8",
+    "date": "2026-02-12",
+    "symbol": "5269",
+    "name": "祥碩",
+    "type": "買入",
+    "shares": 3200,
+    "price": 480.67,
+    "amount": 1538144
+  },
+  {
+    "id": "txn-72",
+    "date": "2026-02-12",
+    "symbol": "5269",
+    "name": "祥碩",
+    "type": "買入",
+    "shares": 3800,
+    "price": 89.15,
+    "amount": 338770
+  },
+  {
+    "id": "txn-18",
+    "date": "2026-02-02",
+    "symbol": "3529",
+    "name": "力旺",
+    "type": "買入",
+    "shares": 5100,
+    "price": 512.95,
+    "amount": 2616045
+  },
+  {
+    "id": "txn-77",
+    "date": "2026-01-29",
+    "symbol": "2609",
+    "name": "陽明",
+    "type": "買入",
+    "shares": 4600,
+    "price": 279.58,
+    "amount": 1286068
+  },
+  {
+    "id": "txn-60",
+    "date": "2026-01-17",
+    "symbol": "3443",
+    "name": "創意",
+    "type": "賣出",
+    "shares": 6200,
+    "price": 171.83,
+    "amount": 1065346
+  },
+  {
+    "id": "txn-10",
+    "date": "2026-01-12",
+    "symbol": "2891",
+    "name": "中信金",
+    "type": "賣出",
+    "shares": 6400,
+    "price": 270.78,
+    "amount": 1732991.9999999998
+  },
+  {
+    "id": "txn-35",
+    "date": "2026-01-11",
+    "symbol": "2891",
+    "name": "中信金",
+    "type": "賣出",
+    "shares": 1900,
+    "price": 382.34,
+    "amount": 726446
+  },
+  {
+    "id": "txn-75",
+    "date": "2026-01-06",
+    "symbol": "2886",
+    "name": "兆豐金",
+    "type": "買入",
+    "shares": 3400,
+    "price": 527.14,
+    "amount": 1792276
+  },
+  {
+    "id": "txn-70",
+    "date": "2026-01-01",
+    "symbol": "1301",
+    "name": "台塑",
+    "type": "買入",
+    "shares": 6600,
+    "price": 429.62,
+    "amount": 2835492
+  },
+  {
+    "id": "txn-76",
+    "date": "2025-12-30",
+    "symbol": "3481",
+    "name": "群創",
+    "type": "賣出",
+    "shares": 5500,
+    "price": 240.66,
+    "amount": 1323630
+  },
+  {
+    "id": "txn-45",
+    "date": "2025-12-22",
+    "symbol": "2886",
+    "name": "兆豐金",
+    "type": "賣出",
+    "shares": 4100,
+    "price": 310.03,
+    "amount": 1271123
+  },
+  {
+    "id": "txn-62",
+    "date": "2025-12-22",
+    "symbol": "6643",
+    "name": "M31",
+    "type": "賣出",
+    "shares": 5800,
+    "price": 515.21,
+    "amount": 2988218
+  },
+  {
+    "id": "txn-5",
+    "date": "2025-12-16",
+    "symbol": "2382",
+    "name": "廣達",
+    "type": "買入",
+    "shares": 5200,
+    "price": 191.72,
+    "amount": 996944
+  },
+  {
+    "id": "txn-11",
+    "date": "2025-12-16",
+    "symbol": "5347",
+    "name": "世界先進",
+    "type": "買入",
+    "shares": 7700,
+    "price": 126.09,
+    "amount": 970893
+  },
+  {
+    "id": "txn-36",
+    "date": "2025-12-15",
+    "symbol": "5347",
+    "name": "世界先進",
+    "type": "買入",
+    "shares": 5800,
+    "price": 542.51,
+    "amount": 3146558
+  },
+  {
+    "id": "txn-24",
+    "date": "2025-12-10",
+    "symbol": "3529",
+    "name": "力旺",
+    "type": "賣出",
+    "shares": 6700,
+    "price": 379.03,
+    "amount": 2539501
+  },
+  {
+    "id": "txn-48",
+    "date": "2025-12-08",
+    "symbol": "1326",
+    "name": "台化",
+    "type": "賣出",
+    "shares": 6300,
+    "price": 241.47,
+    "amount": 1521261
+  },
+  {
+    "id": "txn-31",
+    "date": "2025-12-06",
+    "symbol": "1301",
+    "name": "台塑",
+    "type": "買入",
+    "shares": 7200,
+    "price": 366.55,
+    "amount": 2639160
+  },
+  {
+    "id": "txn-42",
+    "date": "2025-12-03",
+    "symbol": "2891",
+    "name": "中信金",
+    "type": "買入",
+    "shares": 5900,
+    "price": 167.17,
+    "amount": 986302.9999999999
+  },
+  {
+    "id": "txn-2",
+    "date": "2025-11-19",
+    "symbol": "2412",
+    "name": "中華電",
+    "type": "買入",
+    "shares": 3600,
+    "price": 181.03,
+    "amount": 651708
+  },
+  {
+    "id": "txn-53",
+    "date": "2025-11-14",
+    "symbol": "2454",
+    "name": "聯發科",
+    "type": "賣出",
+    "shares": 5100,
+    "price": 499.22,
+    "amount": 2546022
+  },
+  {
+    "id": "txn-69",
+    "date": "2025-11-07",
+    "symbol": "6415",
+    "name": "矽力-KY",
+    "type": "買入",
+    "shares": 400,
+    "price": 67.87,
+    "amount": 27148
+  },
+  {
+    "id": "txn-4",
+    "date": "2025-10-25",
+    "symbol": "2609",
+    "name": "陽明",
+    "type": "賣出",
+    "shares": 1100,
+    "price": 486.44,
+    "amount": 535084
+  },
+  {
+    "id": "txn-37",
+    "date": "2025-10-21",
+    "symbol": "2881",
+    "name": "富邦金",
+    "type": "賣出",
+    "shares": 9800,
+    "price": 338.81,
+    "amount": 3320338
+  },
+  {
+    "id": "txn-12",
+    "date": "2025-10-16",
+    "symbol": "2603",
+    "name": "長榮",
+    "type": "買入",
+    "shares": 5000,
+    "price": 487.99,
+    "amount": 2439950
+  },
+  {
+    "id": "txn-34",
+    "date": "2025-10-15",
+    "symbol": "3529",
+    "name": "力旺",
+    "type": "買入",
+    "shares": 7000,
+    "price": 364.51,
+    "amount": 2551570
+  },
+  {
+    "id": "txn-13",
+    "date": "2025-10-09",
+    "symbol": "2618",
+    "name": "長榮航",
+    "type": "賣出",
+    "shares": 6100,
+    "price": 177.39,
+    "amount": 1082079
+  },
+  {
+    "id": "txn-1",
+    "date": "2025-10-03",
+    "symbol": "6415",
+    "name": "矽力-KY",
+    "type": "賣出",
+    "shares": 3800,
+    "price": 304.81,
+    "amount": 1158278
+  },
+  {
+    "id": "txn-3",
+    "date": "2025-09-27",
+    "symbol": "2330",
+    "name": "台積電",
+    "type": "買入",
+    "shares": 600,
+    "price": 401.68,
+    "amount": 241008
+  },
+  {
+    "id": "txn-71",
+    "date": "2025-09-27",
+    "symbol": "1326",
+    "name": "台化",
+    "type": "賣出",
+    "shares": 6500,
+    "price": 211.13,
+    "amount": 1372345
+  },
+  {
+    "id": "txn-61",
+    "date": "2025-09-25",
+    "symbol": "1303",
+    "name": "南亞",
+    "type": "買入",
+    "shares": 7300,
+    "price": 549.18,
+    "amount": 4009013.9999999995
+  },
+  {
+    "id": "txn-52",
+    "date": "2025-09-15",
+    "symbol": "2609",
+    "name": "陽明",
+    "type": "買入",
+    "shares": 1500,
+    "price": 300.8,
+    "amount": 451200
+  },
+  {
+    "id": "txn-30",
+    "date": "2025-09-10",
+    "symbol": "3711",
+    "name": "日月光投控",
+    "type": "賣出",
+    "shares": 4600,
+    "price": 149.08,
+    "amount": 685768
+  },
+  {
+    "id": "txn-41",
+    "date": "2025-09-09",
+    "symbol": "6415",
+    "name": "矽力-KY",
+    "type": "賣出",
+    "shares": 7900,
+    "price": 196.36,
+    "amount": 1551244
+  },
+  {
+    "id": "txn-27",
+    "date": "2025-09-01",
+    "symbol": "5347",
+    "name": "世界先進",
+    "type": "賣出",
+    "shares": 5000,
+    "price": 346.34,
+    "amount": 1731699.9999999998
+  },
+  {
+    "id": "txn-39",
+    "date": "2025-09-01",
+    "symbol": "2615",
+    "name": "萬海",
+    "type": "賣出",
+    "shares": 7700,
+    "price": 120,
+    "amount": 924000
+  },
+  {
+    "id": "txn-17",
+    "date": "2025-08-30",
+    "symbol": "5347",
+    "name": "世界先進",
+    "type": "買入",
+    "shares": 4300,
+    "price": 238.35,
+    "amount": 1024905
+  },
+  {
+    "id": "txn-44",
+    "date": "2025-08-28",
+    "symbol": "1326",
+    "name": "台化",
+    "type": "賣出",
+    "shares": 8300,
+    "price": 248.49,
+    "amount": 2062467
+  },
+  {
+    "id": "txn-20",
+    "date": "2025-08-20",
+    "symbol": "2412",
+    "name": "中華電",
+    "type": "賣出",
+    "shares": 9000,
+    "price": 134.85,
+    "amount": 1213650
+  },
+  {
+    "id": "txn-47",
+    "date": "2025-08-16",
+    "symbol": "2382",
+    "name": "廣達",
+    "type": "賣出",
+    "shares": 1500,
+    "price": 112.34,
+    "amount": 168510
+  },
+  {
+    "id": "txn-19",
+    "date": "2025-08-11",
+    "symbol": "3711",
+    "name": "日月光投控",
+    "type": "買入",
+    "shares": 4400,
+    "price": 516.35,
+    "amount": 2271940
+  },
+  {
+    "id": "txn-59",
+    "date": "2025-08-08",
+    "symbol": "2891",
+    "name": "中信金",
+    "type": "買入",
+    "shares": 1200,
+    "price": 275.73,
+    "amount": 330876
+  },
+  {
+    "id": "txn-64",
+    "date": "2025-08-05",
+    "symbol": "1303",
+    "name": "南亞",
+    "type": "賣出",
+    "shares": 6000,
+    "price": 456.75,
+    "amount": 2740500
+  },
+  {
+    "id": "txn-51",
+    "date": "2025-08-02",
+    "symbol": "1301",
+    "name": "台塑",
+    "type": "買入",
+    "shares": 9900,
+    "price": 204.85,
+    "amount": 2028015
+  }
+]

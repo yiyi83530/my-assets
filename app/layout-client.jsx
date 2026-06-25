@@ -13,6 +13,7 @@ import {
   removeTransactionFromSheets,
   saveMonthlyAssetsToSheets,
   testSheetsConnection,
+  updateTransactionInSheets,
   upsertAssetsToSheets,
 } from '@/lib/sheets-client';
 
@@ -27,6 +28,8 @@ export default function RootLayoutClient({ children }) {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [isSaveLoading, setIsSaveLoading] = useState(false);
 
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
@@ -163,6 +166,24 @@ export default function RootLayoutClient({ children }) {
     return newTx;
   }, [isSheetsConnected, sheetsApiUrl]);
 
+  const editTransaction = useCallback(async (updatedTx) => {
+    setTransactions((prev) =>
+        prev.map((tx) => (tx.id === updatedTx.id ? updatedTx : tx))
+    );
+    try {
+        if (isSheetsConnected && sheetsApiUrl) {
+            await updateTransactionInSheets(sheetsApiUrl, updatedTx);
+        }
+    } catch (error) {
+        // If sheet update fails, revert local state
+        setTransactions((prev) => {
+            const originalTx = transactions.find(t => t.id === updatedTx.id);
+            return prev.map((tx) => (tx.id === updatedTx.id ? (originalTx || tx) : tx));
+        });
+        throw error;
+    }
+  }, [isSheetsConnected, sheetsApiUrl, transactions]);
+
   const removeTransaction = useCallback(async (id) => {
     let snapshot = [];
     setTransactions((prev) => {
@@ -181,9 +202,15 @@ export default function RootLayoutClient({ children }) {
 
   const handleTransactionSubmit = async (txData) => {
     try {
-      await addTransaction(txData);
-      displayToast(`已成功記錄 ${txData.stock} 交易！`, 'success');
+      if (txData.id) { // If txData has an ID, it's an edit
+          await editTransaction(txData);
+          displayToast(`已成功更新 ${txData.stock} 交易！`, 'success');
+      } else { // Otherwise, it's a new transaction
+          await addTransaction(txData);
+          displayToast(`已成功記錄 ${txData.stock} 交易！`, 'success');
+      }
       setShowTransactionModal(false);
+      setEditingTransaction(null); // Clear editing transaction after submit
     } catch (error) {
       displayToast(`交易儲存失敗：${error.message || '請稍後再試'}`, 'error');
     }
@@ -203,6 +230,7 @@ export default function RootLayoutClient({ children }) {
   };
 
   const handleSaveAssets = async () => {
+    setIsSaveLoading(true); // Start loading
     try {
       const { year, month } = manageModalContext;
       if (year && month) {
@@ -228,6 +256,8 @@ export default function RootLayoutClient({ children }) {
       setShowManageModal(false);
     } catch (error) {
       displayToast(`資產同步失敗：${error.message || '請稍後再試'}`, 'error');
+    } finally {
+      setIsSaveLoading(false); // End loading
     }
   };
 
@@ -260,7 +290,10 @@ export default function RootLayoutClient({ children }) {
 
   return (
     <AppProvider
-      openTransactionModal={() => setShowTransactionModal(true)}
+      openTransactionModal={(transaction = null) => {
+        setEditingTransaction(transaction);
+        setShowTransactionModal(true);
+      }}
       openConfigModal={() => setShowConfigModal(true)}
       openManageModal={(context) => {
         const today = new Date();
@@ -317,7 +350,15 @@ export default function RootLayoutClient({ children }) {
         🐷 記一筆股票
       </button>
 
-      <TransactionModal isOpen={showTransactionModal} onClose={() => setShowTransactionModal(false)} onSubmit={handleTransactionSubmit} />
+      <TransactionModal
+        isOpen={showTransactionModal}
+        onClose={() => {
+          setShowTransactionModal(false);
+          setEditingTransaction(null); // Clear editing transaction on close
+        }}
+        onSubmit={handleTransactionSubmit}
+        initialData={editingTransaction}
+      />
       <ConfigModal
         isOpen={showConfigModal}
         onClose={() => setShowConfigModal(false)}
@@ -335,6 +376,7 @@ export default function RootLayoutClient({ children }) {
         onRemove={handleRemoveAsset}
         onUpdate={handleUpdateAsset}
         editingMonth={manageModalContext.year && manageModalContext.month ? `${manageModalContext.year}年${manageModalContext.month}月` : null}
+        isSaving={isSaveLoading}
       />
       <CustomDialog
         isOpen={showDialog}

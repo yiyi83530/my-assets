@@ -8,7 +8,7 @@ export default function TabsLayout({ children }) {
   const activeTab = pathname === '/assets' ? 'assets' : 'stocks';
 
   return (
-    <div className="space-y-6" suppressHydrationWarning>
+    <div className="space-y-6">
       <TabNav activeTab={activeTab} />
       {children}
     </div>

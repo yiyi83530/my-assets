@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-export function TransactionModal({ isOpen, onClose, onSubmit }) {
+export function TransactionModal({ isOpen, onClose, onSubmit, initialData }) {
   const [market, setMarket] = useState('TWSE');
   const [type, setType] = useState('buy');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -19,6 +19,32 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
   const [showMarketDropdown, setShowMarketDropdown] = useState(false);
   const [marketHighlightedIndex, setMarketHighlightedIndex] = useState(-1);
 
+  // Use useEffect to populate form fields when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      setMarket(initialData.market || 'TWSE');
+      setType(initialData.type || 'buy');
+      setDate(initialData.date ? initialData.date.split('T')[0] : new Date().toISOString().split('T')[0]);
+      setStock(initialData.stock || '');
+      setQty(String(initialData.qty || ''));
+      setPrice(String(initialData.price || ''));
+      setNote(initialData.note || '');
+      setSelectedSymbol(initialData.symbol || '');
+      setIsPriceManual(true); // Assume manual price when editing existing data
+    } else {
+      // Reset form fields when no initialData (i.e., adding a new transaction)
+      setMarket('TWSE');
+      setType('buy');
+      setDate(new Date().toISOString().split('T')[0]);
+      setStock('');
+      setQty('');
+      setPrice('');
+      setNote('');
+      setSelectedSymbol('');
+      setIsPriceManual(false);
+    }
+  }, [initialData]);
+
   const rawTotal = Number(qty) * Number(price) || 0;
   let fee = 0;
   let finalTotal = rawTotal;
@@ -34,6 +60,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     onSubmit({
+      id: initialData?.id, // Pass the ID if it's an edit
       type,
       date,
       stock,
@@ -44,16 +71,9 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
       actualAmount: finalTotal,
       market,
       symbol: selectedSymbol,
+      recordedAt: initialData?.recordedAt || new Date().toISOString(), // Keep original recordedAt for edits
     });
-    setStock('');
-    setQty('');
-    setPrice('');
-    setNote('');
-    setSelectedSymbol('');
-    setIsPriceManual(false);
-    setSuggestions([]);
-    setShowSuggestions(false);
-    setHighlightedSuggestionIndex(-1);
+    // Form fields are reset by the useEffect when initialData becomes null (onClose)
   };
 
   useEffect(() => {
@@ -218,7 +238,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit }) {
       <div className="flex h-[78vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl max-h-[78vh]">
         <div className="flex shrink-0 items-center justify-between border-b border-rose-100 px-6 py-4">
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-            ➕ 記錄股票交易
+            {initialData ? '✍️ 編輯股票交易' : '➕ 記錄股票交易'}
           </h3>
           <button onClick={onClose} className="text-slate-400 transition hover:text-slate-600">
             ✕

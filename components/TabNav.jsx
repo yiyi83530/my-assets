@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useApp } from '@/lib/app-context';
+import { useState, useEffect } from 'react';
 
 function tabClass(isActive) {
   return [
@@ -14,24 +15,31 @@ function tabClass(isActive) {
 
 export default function TabNav({ activeTab }) {
   const { openConfigModal, isSheetsConnected } = useApp();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
-    <header className="rounded-2xl border border-rose-100 bg-white p-4 shadow-sm" suppressHydrationWarning>
-      <div className="mb-3 flex items-center justify-between gap-3" suppressHydrationWarning>
-        <div suppressHydrationWarning>
+    <header className="rounded-2xl border border-rose-100 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
           <div className="flex items-center gap-2">
             <h1 className="text-base font-extrabold tracking-tight text-slate-900">
               我的小豬存錢筒 <span className="text-rose-500">🐷</span>
             </h1>
-            <span
-              className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                isSheetsConnected
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-amber-100 text-amber-700'
-              }`}
-            >
-              {isSheetsConnected ? '成功連線' : '未連線'}
-            </span>
+            {mounted && (
+              <span
+                className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                  isSheetsConnected
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : 'bg-amber-100 text-amber-700'
+                }`}
+              >
+                {isSheetsConnected ? '成功連線' : '未連線'}
+              </span>
+            )}
           </div>
           <p className="text-xs text-slate-400">Google Sheets 個人資產庫</p>
         </div>
@@ -45,7 +53,7 @@ export default function TabNav({ activeTab }) {
         </button>
       </div>
 
-      <div className="grid w-full grid-cols-2 gap-2 rounded-xl bg-slate-100/90 p-1.5 md:gap-2.5 md:p-2" suppressHydrationWarning>
+      <div className="grid w-full grid-cols-2 gap-2 rounded-xl bg-slate-100/90 p-1.5 md:gap-2.5 md:p-2">
         <Link href="/assets" className={tabClass(activeTab === 'assets')}>
           資產與負債
         </Link>
