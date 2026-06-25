@@ -20,9 +20,10 @@ import {
   calculateStockPortfolio,
   decorateAssetsWithFx,
   fetchForeignExchangeRates,
+  getForeignAssetTwdValue,
 } from '@/lib/calculations';
-import { stockMarketPrices } from '@/lib/data';
-import { demoMonthlyAssets, demoMonthlyNetWorth, demoSummary, demoPortfolio } from '@/lib/demo-data';
+import { demoMonthlyAssets, demoPortfolio } from '@/lib/demo-data';
+import { demoInitialPrices } from '@/lib/demo-stock-data';
 
 function MonthTick({ x, y, payload, currentMonth }) {
   const month = String(payload?.value ?? '');
@@ -73,14 +74,129 @@ export function AssetsContent() {
     setMonthlyAssets: realSetMonthlyAssets,
     monthlyNetWorth: realMonthlyNetWorth,
     transactions: realTransactions,
+    stockMarketPrices: contextStockMarketPrices,
   } = useApp();
 
   const [isTrendOpen, setIsTrendOpen] = useState(false);
   const [fxRates, setFxRates] = useState({});
 
+  // ─── 整合 Demo 模式下的股票報價 ───
+  const demoPrices = useMemo(() => {
+    const pricesMap = { ...demoInitialPrices };
+    if (demoPortfolio && Array.isArray(demoPortfolio.stockHoldings)) {
+      demoPortfolio.stockHoldings.forEach((h) => {
+        if (h.name) {
+          pricesMap[h.name] = h.currentPrice;
+        }
+      });
+    }
+    return pricesMap;
+  }, []);
+
+  // ─── 股票報價狀態（即時與快取） ───
+  const [prices, setPrices] = useState({});
+
+  useEffect(() => {
+    if (!isSheetsConnected) {
+      setPrices(demoPrices);
+      return;
+    }
+    
+    // 先用 Sheet 快取報價初始化
+    setPrices(contextStockMarketPrices || {});
+
+    // 取得所有交易中出現的股票代號，拉取最新即時報價
+    const uniqueStocks = [];
+    const seen = new Set();
+    const txs = realTransactions || [];
+    txs.forEach((tx) => {
+      if (tx.stock && !seen.has(tx.stock)) {
+        seen.add(tx.stock);
+        uniqueStocks.push({
+          name: tx.stock,
+          symbol: tx.symbol || tx.stock.split(' ')[0],
+          market: tx.market || 'TWSE',
+        });
+      }
+    });
+
+    if (uniqueStocks.length === 0) return;
+
+    let active = true;
+    Promise.allSettled(
+      uniqueStocks.map((pos) =>
+        fetch(`/api/stocks/quote?symbol=${encodeURIComponent(pos.symbol)}&market=${pos.market}`)
+          .then((r) => r.json())
+          .then((data) => ({ name: pos.name, price: data.price }))
+      )
+    ).then((results) => {
+      if (!active) return;
+      const newPrices = {};
+      results.forEach((r) => {
+        if (r.status === 'fulfilled' && r.value.price != null) {
+          newPrices[r.value.name] = r.value.price;
+        }
+      });
+      setPrices((prev) => ({ ...prev, ...newPrices }));
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [isSheetsConnected, realTransactions, contextStockMarketPrices, demoPrices]);
+
   const activeMonthlyAssets = isSheetsConnected ? realMonthlyAssets : demoMonthlyAssets;
-  const activeMonthlyNetWorth = isSheetsConnected ? realMonthlyNetWorth : demoMonthlyNetWorth;
-  const activeTransactions = isSheetsConnected ? (realTransactions || []) : (demoPortfolio.transactionHistory || []);
+
+  // 確保不管是真實交易或 Demo 交易，都有標準化的欄位可供計算持股
+  const activeTransactions = useMemo(() => {
+    const txs = realTransactions || [];
+    return txs.map((tx) => ({
+      ...tx,
+      stock: tx.stock || tx.name || '',
+      qty: Number(tx.qty ?? tx.shares ?? 0),
+      actualAmount: Number(tx.actualAmount ?? tx.amount ?? 0),
+      price: Number(tx.price ?? 0),
+    }));
+  }, [realTransactions]);
+
+  // 動態計算月度淨值（包含存款、負債與當月持股現值）
+  const activeMonthlyNetWorth = useMemo(() => {
+    const monthKeys = Object.keys(activeMonthlyAssets || {}).sort();
+    if (monthKeys.length === 0) return [];
+
+    return monthKeys.map((monthKey) => {
+      const assets = activeMonthlyAssets[monthKey] || [];
+      
+      let bankSavings = 0;
+      let liabilities = 0;
+      
+      assets.forEach((item) => {
+        if (item.category === '台幣活存') {
+          bankSavings += Number(item.balance) || 0;
+        } else if (item.category === '外幣活存') {
+          const val = Number(item.convertedBalance ?? getForeignAssetTwdValue(item, fxRates) ?? item.balance) || 0;
+          bankSavings += val;
+        } else if (item.category === '員工持股信託') {
+          bankSavings += Number(item.balance) || 0;
+        } else if (item.isLiability || item.category === '負債項目') {
+          liabilities += Number(item.balance) || 0;
+        }
+      });
+
+      const lastDayOfMonth = `${monthKey}-31`;
+      const txUpToMonth = (activeTransactions || []).filter((tx) => tx.date <= lastDayOfMonth);
+      const portfolioAtMonth = calculateStockPortfolio(txUpToMonth, prices);
+      const stockValue = portfolioAtMonth.currentPortfolioValue || 0;
+
+      const netWorth = Math.round(bankSavings + stockValue - liabilities);
+
+      return {
+        month: String(Number(monthKey.split('-')[1])),
+        netWorth: netWorth,
+        yearMonth: monthKey
+      };
+    });
+  }, [activeMonthlyAssets, activeTransactions, prices, fxRates]);
 
   const setMonthlyAssets = isSheetsConnected ? realSetMonthlyAssets : () => {
     console.warn("Demo mode: Operation ignored.");
@@ -187,31 +303,24 @@ export function AssetsContent() {
   const lastDayOfSelectedMonth = `${selectedMonthKey}-31`; // 字串比較即可，日期格式皆為 YYYY-MM-DD
 
   const portfolioAtSelectedMonth = useMemo(() => {
-    if (!isSheetsConnected) return demoPortfolio;
     const txUpToMonth = (activeTransactions || []).filter((tx) => tx.date <= lastDayOfSelectedMonth);
-    return calculateStockPortfolio(txUpToMonth, stockMarketPrices);
-  }, [isSheetsConnected, activeTransactions, lastDayOfSelectedMonth]);
+    return calculateStockPortfolio(txUpToMonth, prices);
+  }, [activeTransactions, lastDayOfSelectedMonth, prices]);
 
   const previousMonthKey = getPreviousMonthKey(selectedYear, selectedMonth);
   const previousMonthSummaryNetWorth = useMemo(() => {
-    if (!isSheetsConnected) {
-      const idx = activeMonthlyNetWorth.findIndex((d) => d.month === String(selectedMonth));
-      return idx > 0 ? activeMonthlyNetWorth[idx - 1].netWorth : 0;
-    }
-    const found = activeMonthlyNetWorth.find((d) => `${selectedYear}-${String(d.month).padStart(2, '0')}` === previousMonthKey);
+    const found = activeMonthlyNetWorth.find((d) => d.yearMonth === previousMonthKey);
     return found ? found.netWorth : 0;
-  }, [isSheetsConnected, activeMonthlyNetWorth, selectedMonth, selectedYear, previousMonthKey]);
+  }, [activeMonthlyNetWorth, previousMonthKey]);
 
   const activeSummary = useMemo(() => {
-    if (!isSheetsConnected) return demoSummary;
-    if (hasNoAssets) return { netWorth: 0, netGrowth: 0, growthRate: 0, totals: {}, totalAssets: 0 };
     return calculateAssetsSummary(
       displayAssets,
       portfolioAtSelectedMonth.currentPortfolioValue,
       previousMonthSummaryNetWorth,
       fxRates
     );
-  }, [isSheetsConnected, hasNoAssets, displayAssets, portfolioAtSelectedMonth, previousMonthSummaryNetWorth, fxRates]);
+  }, [displayAssets, portfolioAtSelectedMonth, previousMonthSummaryNetWorth, fxRates]);
 
   const activePortfolio = portfolioAtSelectedMonth;
   const totalStocks = activePortfolio?.currentPortfolioValue || 0;
@@ -229,9 +338,17 @@ export function AssetsContent() {
     { name: '員工信託', value: totalTrust, color: '#eab308' },   // 黃色
   ].filter(d => d.value > 0);
 
-  const fullChartData = activeMonthlyNetWorth && activeMonthlyNetWorth.length > 0 ? activeMonthlyNetWorth : [];
-  const visibleEndMonth = Math.max(6, currentMonthReal);
-  const chartData = fullChartData.filter((item) => Number(item.month) <= visibleEndMonth);
+  const chartData = useMemo(() => {
+    return activeMonthlyNetWorth.filter((item) => {
+      const itemYear = Number(item.yearMonth.split('-')[0]);
+      if (itemYear !== selectedYear) return false;
+      
+      if (itemYear === currentYearReal) {
+        return Number(item.month) <= Math.max(selectedMonth, currentMonthReal);
+      }
+      return true;
+    });
+  }, [activeMonthlyNetWorth, selectedYear, selectedMonth, currentYearReal, currentMonthReal]);
   const currentMonthStr = String(currentMonthReal);
 
   return (

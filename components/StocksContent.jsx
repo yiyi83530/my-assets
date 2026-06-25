@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useApp } from '@/lib/app-context';
 import { INDUSTRY_COLORS, INDUSTRY_MAP } from '@/components/common/constants';
@@ -78,13 +78,19 @@ export function StocksContent({ initialPrices = {} }) {
     isSheetsConnected,
   } = useApp();
 
-  // 根據連線狀態決定使用真實資料或假資料
-  const transactions = isSheetsConnected ? realTransactions : demoTransactions;
-  const removeTransaction = isSheetsConnected ? realRemoveTransaction : async (id) => {
-    console.warn(`Attempted to remove transaction ${id} in demo mode. Operation ignored.`);
-    // 在演示模式下，不實際刪除，但可以給出提示
-    alert('目前為演示模式，無法刪除交易紀錄。請先串接 Google 試算表。');
-  };
+  // 統一採用 Context 中的 transactions 數據，並進行標準化處理
+  const transactions = useMemo(() => {
+    const txs = realTransactions || [];
+    return txs.map((tx) => ({
+      ...tx,
+      stock: tx.stock || tx.name || '',
+      qty: Number(tx.qty ?? tx.shares ?? 0),
+      actualAmount: Number(tx.actualAmount ?? tx.amount ?? 0),
+      price: Number(tx.price ?? 0),
+    }));
+  }, [realTransactions]);
+
+  const removeTransaction = realRemoveTransaction;
 
   const [priceMap, setPriceMap] = useState(isSheetsConnected ? initialPrices : demoInitialPrices);
   const [deleteId, setDeleteId] = useState(null); // 儲存準備刪除的 ID

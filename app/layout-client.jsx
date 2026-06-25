@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
 import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData, monthlyAssetsSnapshots as initialMonthlyAssets } from '@/lib/data';
-import { demoMonthlyAssets } from '@/lib/demo-data';
+import { demoMonthlyAssets, demoPortfolio } from '@/lib/demo-data';
 import { AppProvider } from '@/lib/app-context';
 import {
   appendTransactionToSheets,
@@ -30,10 +30,21 @@ export default function RootLayoutClient({ children }) {
 
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
-  const [transactions, setTransactions] = useState(initialTransactions);
+  const [transactions, setTransactions] = useState(() => {
+    // 預設載入富含歷史記錄的 demo 交易資料並進行格式標準化，讓 Demo 模式下也能完整互動
+    return (demoPortfolio?.transactionHistory || []).map((tx) => ({
+      ...tx,
+      stock: tx.stock || tx.name || '',
+      qty: Number(tx.qty ?? tx.shares ?? 0),
+      actualAmount: Number(tx.actualAmount ?? tx.amount ?? 0),
+      price: Number(tx.price ?? 0),
+    }));
+  });
   const [monthlyNetWorth, setMonthlyNetWorth] = useState(initialMonthlyData);
   const [sheetsApiUrl, setSheetsApiUrl] = useState('');
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
+  const [stockMarketPrices, setStockMarketPrices] = useState({});
+  const [lastMonthNetWorth, setLastMonthNetWorth] = useState(0);
 
   // 真實月度資產（連線 Google Sheets 後才會有內容；未連線時維持空物件）
   const [realMonthlyAssets, setRealMonthlyAssets] = useState(initialMonthlyAssets);
@@ -65,6 +76,12 @@ export default function RootLayoutClient({ children }) {
       }
       if (Array.isArray(data.transactions)) {
         setTransactions(data.transactions);
+      }
+      if (data.stockMarketPrices && typeof data.stockMarketPrices === 'object') {
+        setStockMarketPrices(data.stockMarketPrices);
+      }
+      if (data.lastMonthNetWorth !== undefined) {
+        setLastMonthNetWorth(data.lastMonthNetWorth);
       }
 
       // 順便拉取月度資產快照，這樣切換年月時才能看到 Google Sheets 上真實儲存過的歷史資料
@@ -281,6 +298,8 @@ export default function RootLayoutClient({ children }) {
       transactions={transactions}
       monthlyNetWorth={monthlyNetWorth}
       monthlyAssets={monthlyAssets}
+      stockMarketPrices={stockMarketPrices}
+      lastMonthNetWorth={lastMonthNetWorth}
       setMonthlyAssets={setMonthlyAssets}
       connectSheets={connectSheets}
       syncFromSheets={() => syncFromSheets(sheetsApiUrl)}
