@@ -766,7 +766,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
           </button>
         </div>
 
-        <div className="space-y-4 overflow-y-auto p-6 max-h-[80vh]">
+        <div className="space-y-4 overflow-y-auto p-6 max-h-[calc(80vh-120px)]">
           <div className="space-y-2 rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs leading-relaxed text-slate-700">
             <p className="text-sm font-bold text-rose-950">💡 Google Sheet Apps Script 二分鐘極速架設法：</p>
             <ol className="list-inside list-decimal space-y-1.5 text-slate-600">
@@ -820,7 +820,10 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
               </>
             )}
           </div>
+        </div>
 
+        {/* Sticky footer for Web App URL and button */}
+        <div className="sticky bottom-0 bg-white p-6 border-t border-slate-200 z-10">
           <div>
             <label className="mb-1.5 block text-xs font-bold text-slate-700">網頁應用程式 URL (Web App URL)</label>
             <input
