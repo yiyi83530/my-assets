@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
+import { SettingsModal } from '@/components/SettingsModal';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
 import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData, monthlyAssetsSnapshots as initialMonthlyAssets } from '@/lib/data';
 import { demoMonthlyAssets, demoPortfolio } from '@/lib/demo-data';
@@ -18,11 +19,21 @@ import {
 } from '@/lib/sheets-client';
 
 const SHEETS_URL_STORAGE_KEY = 'my_assets_google_sheets_api_url';
+const STOCK_FEE_SETTINGS_KEY = 'my_assets_stock_fee_settings';
+
+const DEFAULT_STOCK_FEE_SETTINGS = {
+  feeRate: 0.001425,
+  feeDiscount: 0.6,
+  minFee: 20,
+  taxRate: 0.003,
+};
 
 export default function RootLayoutClient({ children }) {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showManageModal, setShowManageModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsModalSource, setSettingsModalSource] = useState(null); // 'fromTransactionModal' or null
   const [manageModalContext, setManageModalContext] = useState({ year: null, month: null });
   const [showDialog, setShowDialog] = useState(false);
   const [showToast, setShowToast] = useState(false);
@@ -31,6 +42,7 @@ export default function RootLayoutClient({ children }) {
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [isSaveLoading, setIsSaveLoading] = useState(false); // For ManageAccountsModal
   const [isTransactionSaving, setIsTransactionSaving] = useState(false); // For TransactionModal
+  const [isSettingsSaving, setIsSettingsSaving] = useState(false);
 
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
@@ -49,6 +61,7 @@ export default function RootLayoutClient({ children }) {
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
   const [stockMarketPrices, setStockMarketPrices] = useState({});
   const [lastMonthNetWorth, setLastMonthNetWorth] = useState(0);
+  const [stockFeeSettings, setStockFeeSettings] = useState(DEFAULT_STOCK_FEE_SETTINGS);
 
   // 真實月度資產（連線 Google Sheets 後才會有內容；未連線時維持空物件）
   const [realMonthlyAssets, setRealMonthlyAssets] = useState(initialMonthlyAssets);
@@ -110,23 +123,33 @@ export default function RootLayoutClient({ children }) {
   }, [displayToast]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(SHEETS_URL_STORAGE_KEY) || '';
-    if (!stored) return;
-
-    setSheetsApiUrl(stored);
-    testSheetsConnection(stored)
-      .then(async (isConnected) => {
-        if (isConnected) {
-          setIsSheetsConnected(true);
-          await syncFromSheets(stored, { silent: true });
-        } else {
+    const storedUrl = window.localStorage.getItem(SHEETS_URL_STORAGE_KEY) || '';
+    if (storedUrl) {
+      setSheetsApiUrl(storedUrl);
+      testSheetsConnection(storedUrl)
+        .then(async (isConnected) => {
+          if (isConnected) {
+            setIsSheetsConnected(true);
+            await syncFromSheets(storedUrl, { silent: true });
+          } else {
+            setIsSheetsConnected(false);
+          }
+        })
+        .catch((error) => {
+          console.error('Initial Sheets connection test failed:', error);
           setIsSheetsConnected(false);
-        }
-      })
-      .catch((error) => {
-        console.error('Initial Sheets connection test failed:', error);
-        setIsSheetsConnected(false);
-      });
+        });
+    }
+
+    const storedSettings = window.localStorage.getItem(STOCK_FEE_SETTINGS_KEY);
+    if (storedSettings) {
+      try {
+        const parsed = JSON.parse(storedSettings);
+        setStockFeeSettings((prev) => ({ ...prev, ...parsed }));
+      } catch (e) {
+        console.error('Failed to parse stock fee settings from localStorage', e);
+      }
+    }
   }, [syncFromSheets]);
 
   const connectSheets = useCallback(async (apiUrl) => {
@@ -291,6 +314,33 @@ export default function RootLayoutClient({ children }) {
   const handleRemoveAsset = (index) => {
     setAssets(assets.filter((_, i) => i !== index));
   };
+  
+  const handleSaveSettings = useCallback((newSettings) => {
+    setIsSettingsSaving(true);
+    try {
+      const updatedSettings = { ...stockFeeSettings, ...newSettings };
+      setStockFeeSettings(updatedSettings);
+      window.localStorage.setItem(STOCK_FEE_SETTINGS_KEY, JSON.stringify(updatedSettings));
+      displayToast('交易設定已更新！', 'success');
+      setShowSettingsModal(false);
+      if (settingsModalSource === 'fromTransactionModal') {
+        setShowTransactionModal(true); // Re-open TransactionModal
+      }
+    } catch (error) {
+      displayToast('設定儲存失敗', 'error');
+    } finally {
+      setIsSettingsSaving(false);
+      setSettingsModalSource(null); // Clear source
+    }
+  }, [stockFeeSettings, displayToast, settingsModalSource]);
+
+  const handleCloseSettingsModal = useCallback(() => {
+    setShowSettingsModal(false);
+    if (settingsModalSource === 'fromTransactionModal') {
+      setShowTransactionModal(true); // Re-open TransactionModal
+    }
+    setSettingsModalSource(null); // Clear source
+  }, [settingsModalSource]);
 
   return (
     <AppProvider
@@ -299,6 +349,10 @@ export default function RootLayoutClient({ children }) {
         setShowTransactionModal(true);
       }}
       openConfigModal={() => setShowConfigModal(true)}
+      openSettingsModal={(source = null) => {
+        setSettingsModalSource(source);
+        setShowSettingsModal(true);
+      }}
       openManageModal={(context) => {
         const today = new Date();
         const currentYear = today.getFullYear();
@@ -337,12 +391,14 @@ export default function RootLayoutClient({ children }) {
       monthlyAssets={monthlyAssets}
       stockMarketPrices={stockMarketPrices}
       lastMonthNetWorth={lastMonthNetWorth}
+      stockFeeSettings={stockFeeSettings}
       setMonthlyAssets={setMonthlyAssets}
       connectSheets={connectSheets}
       syncFromSheets={() => syncFromSheets(sheetsApiUrl)}
       saveAssetsToSheets={saveAssetsToSheets}
       addTransaction={addTransaction}
       removeTransaction={removeTransaction}
+      saveStockFeeSettings={handleSaveSettings}
     >
       <div className="mx-auto max-w-7xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-6" suppressHydrationWarning>{children}</div>
 
@@ -372,6 +428,14 @@ export default function RootLayoutClient({ children }) {
         initialApiUrl={sheetsApiUrl}
         isConnected={isSheetsConnected}
       />
+      <SettingsModal
+        isOpen={showSettingsModal}
+        onClose={handleCloseSettingsModal}
+        onSave={handleSaveSettings}
+        initialSettings={stockFeeSettings}
+        isSaving={isSettingsSaving}
+      />
+
       <ManageAccountsModal
         isOpen={showManageModal}
         onClose={() => setShowManageModal(false)}

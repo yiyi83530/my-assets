@@ -1,16 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useApp } from '@/lib/app-context';
 
 export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSaving }) {
+  const { stockFeeSettings, openSettingsModal } = useApp();
   const [market, setMarket] = useState('TWSE');
   const [type, setType] = useState('buy');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [stock, setStock] = useState('');
   const [qty, setQty] = useState('');
   const [price, setPrice] = useState('');
-  const [note, setNote] = useState('');
+  const [manualFee, setManualFee] = useState('');
+  const [isFeeManual, setIsFeeManual] = useState(false);
   const [isPriceManual, setIsPriceManual] = useState(false);
+  const [note, setNote] = useState('');
   const [selectedSymbol, setSelectedSymbol] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -18,6 +22,9 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
   const [highlightedSuggestionIndex, setHighlightedSuggestionIndex] = useState(-1);
   const [showMarketDropdown, setShowMarketDropdown] = useState(false);
   const [marketHighlightedIndex, setMarketHighlightedIndex] = useState(-1);
+
+  const stockInputRef = useRef(null);
+  const suggestionsRef = useRef(null);
 
   // Use useEffect to populate form fields when initialData changes
   useEffect(() => {
@@ -31,6 +38,31 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       setNote(initialData.note || '');
       setSelectedSymbol(initialData.symbol || '');
       setIsPriceManual(true); // Assume manual price when editing existing data
+
+      // When editing, check if a manual fee was likely used
+      const rawTotal = Number(initialData.qty) * Number(initialData.price);
+      const { fee: calculatedFee } = calculateFee(
+        rawTotal,
+        initialData.type,
+        stockFeeSettings.feeRate,
+        stockFeeSettings.feeDiscount,
+        stockFeeSettings.minFee,
+        stockFeeSettings.taxRate
+      );
+
+      const savedTotal = Number(initialData.actualAmount);
+      const expectedTotal = initialData.type === 'buy' ? rawTotal + calculatedFee : rawTotal - calculatedFee;
+
+      // If the saved total is not what we'd expect, assume the fee was manual.
+      // A small tolerance is added for floating point differences.
+      if (Math.abs(savedTotal - expectedTotal) > 1) {
+        const savedFee = initialData.type === 'buy' ? savedTotal - rawTotal : rawTotal - savedTotal;
+        setIsFeeManual(true);
+        setManualFee(String(Math.round(savedFee)));
+      } else {
+        setIsFeeManual(false);
+        setManualFee('');
+      }
     } else {
       // Reset form fields when no initialData (i.e., adding a new transaction)
       setMarket('TWSE');
@@ -41,24 +73,38 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       setPrice('');
       setNote('');
       setSelectedSymbol('');
-      setIsPriceManual(false);
+      setIsFeeManual(false);
+      setManualFee('');
     }
-  }, [initialData]);
+  }, [initialData, stockFeeSettings]);
+
+  const calculateFee = (baseAmount, type, rate, discount, minFee, taxRate) => {
+    if (baseAmount <= 0) return { fee: 0, tax: 0, totalFee: 0 };
+
+    const commission = Math.max(minFee, Math.floor(baseAmount * rate * discount));
+    const tax = type === 'sell' ? Math.floor(baseAmount * taxRate) : 0;
+    const totalFee = commission + tax;
+
+    return { fee: commission, tax, totalFee };
+  };
 
   const rawTotal = Number(qty) * Number(price) || 0;
-  let fee = 0;
-  let finalTotal = rawTotal;
+  const { fee: autoFee, tax: autoTax, totalFee: autoTotalFee } = calculateFee(
+    rawTotal,
+    type,
+    stockFeeSettings.feeRate,
+    stockFeeSettings.feeDiscount,
+    stockFeeSettings.minFee,
+    stockFeeSettings.taxRate
+  );
 
-  if (type === 'buy') {
-    fee = Math.max(20, Math.floor(rawTotal * 0.001425));
-    finalTotal = rawTotal + fee;
-  } else if (type === 'sell') {
-    fee = Math.max(20, Math.floor(rawTotal * 0.001425)) + Math.floor(rawTotal * 0.003);
-    finalTotal = rawTotal - fee;
-  }
+  const finalFee = isFeeManual ? Number(manualFee) || 0 : autoFee;
+  const finalTax = type === 'sell' ? (isFeeManual ? 0 : autoTax) : 0; // Tax is only auto-calculated
+  const finalTotal = type === 'buy' ? rawTotal + finalFee : rawTotal - finalFee - finalTax;
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const totalCost = type === 'buy' ? rawTotal + finalFee : rawTotal - finalFee - finalTax;
     onSubmit({
       id: initialData?.id, // Pass the ID if it's an edit
       type,
@@ -68,7 +114,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       price: Number(price),
       note,
       rawTotal,
-      actualAmount: finalTotal,
+      actualAmount: totalCost, // Use the final calculated total
       market,
       symbol: selectedSymbol,
       recordedAt: initialData?.recordedAt || new Date().toISOString(), // Keep original recordedAt for edits
@@ -86,6 +132,30 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       document.body.style.overflow = 'auto';
     };
   }, [isOpen]);
+
+  // Handle clicks outside the suggestions to close them
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        stockInputRef.current &&
+        !stockInputRef.current.contains(event.target) &&
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+
+    if (isOpen && showSuggestions) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen, showSuggestions]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -157,7 +227,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
 
     if (nextPrice !== null && nextPrice !== undefined) {
       setPrice(String(nextPrice));
-      setIsPriceManual(false);
+      setIsPriceManual(false); // Price is now auto-filled, so it's not manual
     }
   };
 
@@ -189,6 +259,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       event.preventDefault();
       setShowSuggestions(false);
       setHighlightedSuggestionIndex(-1);
+      if (stockInputRef.current) stockInputRef.current.blur(); // Blur input on escape
     }
   };
 
@@ -366,6 +437,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
           <div className="relative">
             <label className="mb-1 block text-xs font-semibold text-slate-500">股票名稱或代碼</label>
             <input
+              ref={stockInputRef}
               type="text"
               value={stock}
               onChange={(e) => {
@@ -379,16 +451,12 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                 setShowSuggestions(true);
                 if (suggestions.length > 0) setHighlightedSuggestionIndex(0);
               }}
-              onBlur={() => {
-                // Delay closing so click events on suggestion items can fire first.
-                setTimeout(() => setShowSuggestions(false), 120);
-              }}
-              placeholder={market === 'TWSE' ? '2330 台積電' : 'AAPL Apple'}
+              placeholder={market === 'TWSE' ? '例如：2330 台積電' : '例如：AAPL Apple'}
               className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
               required
             />
             {showSuggestions && (stock.trim() || isSearching) && (
-              <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+              <div ref={suggestionsRef} className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
                 {isSearching && (
                   <div className="px-3 py-2 text-xs text-slate-400">搜尋中...</div>
                 )}
@@ -435,6 +503,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
                 min="1"
                 required
+                inputMode="numeric"
               />
             </div>
             <div>
@@ -444,30 +513,85 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                 value={price}
                 onChange={(e) => {
                   setPrice(e.target.value);
-                  setIsPriceManual(true);
+                  setIsPriceManual(true); // User manually changed price
                 }}
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
                 step="0.01"
                 min="0.01"
                 required
+                inputMode="decimal"
               />
             </div>
           </div>
 
-          <div className="space-y-1.5 rounded-xl border border-slate-100 bg-slate-50 p-3.5 text-xs">
-            <div className="flex justify-between">
-              <span className="text-slate-500">成交原始總額：</span>
-              <span className="font-mono font-medium text-slate-800">${rawTotal.toLocaleString()}</span>
-            </div>
-            {type !== 'dividend' && (
-              <div className="flex justify-between text-[11px]">
-                <span className="text-slate-500">手續費估算：</span>
-                <span className="font-mono text-slate-600">${fee.toLocaleString()}</span>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => openSettingsModal('fromTransactionModal')}
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700"
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                <path fillRule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414 6.707 7.707a1 1 0 01-1.414-1.414l4-4z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M9.293 17.707a1 1 0 011.414 0l4-4a1 1 0 01-1.414-1.414L10 15.586l-3.293-3.293a1 1 0 01-1.414 1.414l4 4z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M9 12a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M9 7a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M9 17a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z" clipRule="evenodd" />
+              </svg>
+              手續費設定
+            </button>
+          </div>
+
+          {/* New Fee Section */}
+          <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <div className="space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">成交金額：</span>
+                <span className="font-mono font-medium text-slate-800">${rawTotal.toLocaleString()}</span>
               </div>
-            )}
-            <div className="border-t border-slate-200 pt-2 mt-1 flex justify-between font-bold">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-slate-500">手續費：</span>
+                <span className="font-mono text-slate-600">${finalFee.toLocaleString()}</span>
+              </div>
+              {type === 'sell' && (
+                <div className="flex justify-between text-[11px]">
+                  <span className="text-slate-500">交易稅：</span>
+                  <span className="font-mono text-slate-600">${finalTax.toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-200 pt-3">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={isFeeManual}
+                  onChange={(e) => setIsFeeManual(e.target.checked)}
+                  className="h-4 w-4 rounded text-rose-500 focus:ring-rose-500/50 border-slate-300"
+                />
+                手動填寫手續費 (如：券商特殊優惠)
+              </label>
+              {isFeeManual && (
+                <div className="mt-2">
+                  <input
+                    type="number"
+                    value={manualFee}
+                    onChange={(e) => setManualFee(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+                    placeholder="請輸入此筆交易的總手續費"
+                    inputMode="numeric"
+                  />
+                  {type === 'sell' && (
+                     <p className="mt-1 text-[11px] text-slate-400">
+                      賣出時，手動填寫的手續費<span className="text-slate-600">不包含</span> 0.3% 交易稅，交易稅將會另外計算並扣除。
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-slate-200 pt-3 mt-3 flex justify-between font-bold">
               <span className="text-slate-700">{type === 'buy' ? '實際支出：' : '實際收入：'}</span>
-              <span className="font-mono text-sm text-rose-600">${finalTotal.toLocaleString()}</span>
+              <span className={`font-mono text-sm ${type === 'buy' ? 'text-rose-600' : 'text-emerald-600'}`}>${finalTotal.toLocaleString()}</span>
             </div>
           </div>
 

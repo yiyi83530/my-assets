@@ -190,7 +190,7 @@ export function StocksContent({ initialPrices = {} }) {
   };
 
   const allPositions = basePositions.map((p) => {
-    const marketPrice = priceMap[p.name] ?? 0;
+    const marketPrice = priceMap[p.name] ?? p.avgCost ?? 0;
     const marketValue = p.holdingQty * marketPrice;
     const unrealizedProfit = marketValue - p.totalBuyCost;
     const profitPercent =
@@ -446,7 +446,7 @@ export function StocksContent({ initialPrices = {} }) {
                         <div className="flex justify-center">
                           <input
                             type="number"
-                            value={pos.marketPrice || ''}
+                            value={pos.marketPrice || pos.avgCost || ''}
                             onChange={(e) => handlePriceChange(pos.name, e.target.value)}
                             className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-center font-mono text-sm text-slate-800 transition focus:border-rose-300 focus:outline-none"
                             step="0.01"

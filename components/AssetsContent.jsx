@@ -75,7 +75,10 @@ export function AssetsContent() {
     monthlyNetWorth: realMonthlyNetWorth,
     transactions: realTransactions,
     stockMarketPrices: contextStockMarketPrices,
+    lastMonthNetWorth: contextLastMonthNetWorth,
   } = useApp();
+
+  const [isAssetDataLoading, setIsAssetDataLoading] = useState(true);
 
   const [isTrendOpen, setIsTrendOpen] = useState(false);
   const [fxRates, setFxRates] = useState({});
@@ -271,6 +274,7 @@ export function AssetsContent() {
   useEffect(() => {
     if (!isSheetsConnected) {
       setFxRates({});
+      setIsAssetDataLoading(false); // No fetching for demo mode
       return;
     }
     const currencies = [...new Set(
@@ -280,10 +284,12 @@ export function AssetsContent() {
         .filter(Boolean)
     )];
 
+    setIsAssetDataLoading(true); // Start loading
     let active = true;
     fetchForeignExchangeRates(currencies)
       .then((rates) => { if (active) setFxRates(rates); })
-      .catch(() => { if (active) setFxRates({}); });
+      .catch(() => { if (active) setFxRates({}); })
+      .finally(() => { if (active) setIsAssetDataLoading(false); });
 
     return () => { active = false; };
   }, [isSheetsConnected, selectedMonthKey, displayAssetsRaw]);
@@ -351,6 +357,10 @@ export function AssetsContent() {
   }, [activeMonthlyNetWorth, selectedYear, selectedMonth, currentYearReal, currentMonthReal]);
   const currentMonthStr = String(currentMonthReal);
 
+  const displayNetWorth = activeSummary?.netWorth ?? 0;
+  const displayNetGrowth = activeSummary?.netGrowth ?? 0;
+  const displayGrowthRate = activeSummary?.growthRate ?? 0;
+
   return (
     <>
       {!isSheetsConnected && (
@@ -376,9 +386,21 @@ export function AssetsContent() {
             <span className="hidden rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600 md:inline-flex">淨值總覽</span>
             <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">個人淨資產</p>
           </div>
-          <p className="text-4xl font-black text-slate-900">${(activeSummary?.netWorth ?? 0).toLocaleString()}</p>
-          <p className={`mt-3 flex items-center text-xs font-bold ${(activeSummary?.netGrowth ?? 0) >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            較上月 <span className="mx-1 text-[10px]">{(activeSummary?.netGrowth ?? 0) >= 0 ? '▲' : '▼'}</span> ${(activeSummary?.netGrowth ?? 0).toLocaleString()} ({(activeSummary?.growthRate ?? 0).toFixed(2)}%)
+          {isAssetDataLoading ? (
+            <p className="text-4xl font-black text-slate-900 animate-pulse">計算中...</p>
+          ) : (
+            <p className="text-4xl font-black text-slate-900">
+              {displayNetWorth !== 0 ? (
+                `$${displayNetWorth.toLocaleString()}`
+              ) : (contextLastMonthNetWorth !== 0 && contextLastMonthNetWorth !== undefined) ? (
+                `$${contextLastMonthNetWorth.toLocaleString()} (上月數值)`
+              ) : (
+                `$0`
+              )}
+            </p>
+          )}
+          <p className={`mt-3 flex items-center text-xs font-bold ${displayNetGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            較上月 <span className="mx-1 text-[10px]">{displayNetGrowth >= 0 ? '▲' : '▼'}</span> ${displayNetGrowth.toLocaleString()} ({displayGrowthRate.toFixed(2)}%)
           </p>
 
           <button type="button" onClick={() => setIsTrendOpen((prev) => !prev)} className="mt-3 flex w-full justify-center md:hidden">
