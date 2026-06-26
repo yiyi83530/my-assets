@@ -55,11 +55,14 @@ function fmt(num) {
   return Math.round(num).toLocaleString('zh-TW');
 }
 
-// "2026-03-02" → "2026/3/2"
+// "2026-03-02" → "2026/3/2" or "2026-03-02T10:00:00Z" → "2026/03/02"
 function fmtDate(dateStr) {
   if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-');
-  return `${y}/${m.padStart(2, '0')}/${d.padStart(2, '0')}`;
+  const d = new Date(dateStr);
+  const year = d.getFullYear();
+  const month = (d.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
+  const day = d.getDate().toString().padStart(2, '0');
+  return `${year}/${month}/${day}`;
 }
 
 // ISO string → "13:02"（local time, 24h）

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-export function TransactionModal({ isOpen, onClose, onSubmit, initialData }) {
+export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSaving }) {
   const [market, setMarket] = useState('TWSE');
   const [type, setType] = useState('buy');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -492,9 +492,15 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData }) {
             </button>
             <button
               type="submit"
-              className="w-1/2 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600"
+              disabled={isSaving}
+              className="w-1/2 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              確定存檔
+              {isSaving ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  儲存中
+                </>
+              ) : '存檔'}
             </button>
           </div>
         </form>

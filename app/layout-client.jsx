@@ -29,7 +29,8 @@ export default function RootLayoutClient({ children }) {
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState('success');
   const [editingTransaction, setEditingTransaction] = useState(null);
-  const [isSaveLoading, setIsSaveLoading] = useState(false);
+  const [isSaveLoading, setIsSaveLoading] = useState(false); // For ManageAccountsModal
+  const [isTransactionSaving, setIsTransactionSaving] = useState(false); // For TransactionModal
 
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
@@ -201,6 +202,7 @@ export default function RootLayoutClient({ children }) {
   }, [isSheetsConnected, sheetsApiUrl]);
 
   const handleTransactionSubmit = async (txData) => {
+    setIsTransactionSaving(true);
     try {
       if (txData.id) { // If txData has an ID, it's an edit
           await editTransaction(txData);
@@ -213,6 +215,8 @@ export default function RootLayoutClient({ children }) {
       setEditingTransaction(null); // Clear editing transaction after submit
     } catch (error) {
       displayToast(`交易儲存失敗：${error.message || '請稍後再試'}`, 'error');
+    } finally {
+      setIsTransactionSaving(false);
     }
   };
 
@@ -358,6 +362,7 @@ export default function RootLayoutClient({ children }) {
         }}
         onSubmit={handleTransactionSubmit}
         initialData={editingTransaction}
+        isSaving={isTransactionSaving}
       />
       <ConfigModal
         isOpen={showConfigModal}
