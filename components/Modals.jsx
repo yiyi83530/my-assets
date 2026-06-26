@@ -26,7 +26,11 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
   const stockInputRef = useRef(null);
   const suggestionsRef = useRef(null);
 
-  // Use useEffect to populate form fields when initialData changes
+  // Get current market's fee settings
+  const currentMarketFeeSettings = stockFeeSettings[market] || stockFeeSettings.TWSE;
+  const currencySymbol = currentMarketFeeSettings.currency === 'TWD' ? '$' : 'US$';
+
+  // Use useEffect to populate form fields when initialData changes or for new transactions
   useEffect(() => {
     if (initialData) {
       setMarket(initialData.market || 'TWSE');
@@ -38,31 +42,6 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       setNote(initialData.note || '');
       setSelectedSymbol(initialData.symbol || '');
       setIsPriceManual(true); // Assume manual price when editing existing data
-
-      // When editing, check if a manual fee was likely used
-      const rawTotal = Number(initialData.qty) * Number(initialData.price);
-      const { fee: calculatedFee } = calculateFee(
-        rawTotal,
-        initialData.type,
-        stockFeeSettings.feeRate,
-        stockFeeSettings.feeDiscount,
-        stockFeeSettings.minFee,
-        stockFeeSettings.taxRate
-      );
-
-      const savedTotal = Number(initialData.actualAmount);
-      const expectedTotal = initialData.type === 'buy' ? rawTotal + calculatedFee : rawTotal - calculatedFee;
-
-      // If the saved total is not what we'd expect, assume the fee was manual.
-      // A small tolerance is added for floating point differences.
-      if (Math.abs(savedTotal - expectedTotal) > 1) {
-        const savedFee = initialData.type === 'buy' ? savedTotal - rawTotal : rawTotal - savedTotal;
-        setIsFeeManual(true);
-        setManualFee(String(Math.round(savedFee)));
-      } else {
-        setIsFeeManual(false);
-        setManualFee('');
-      }
     } else {
       // Reset form fields when no initialData (i.e., adding a new transaction)
       setMarket('TWSE');
@@ -76,7 +55,37 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       setIsFeeManual(false);
       setManualFee('');
     }
-  }, [initialData, stockFeeSettings]);
+  }, [initialData]); // Only depends on initialData
+
+  // useEffect for manual fee check based on current market settings
+  useEffect(() => {
+    if (initialData) {
+      const rawTotal = Number(initialData.qty) * Number(initialData.price);
+      const { fee: calculatedFee } = calculateFee(
+        rawTotal,
+        initialData.type,
+        currentMarketFeeSettings.feeRate,
+        currentMarketFeeSettings.feeDiscount,
+        currentMarketFeeSettings.minFee,
+        currentMarketFeeSettings.taxRate
+      );
+
+      const savedTotal = Number(initialData.actualAmount);
+      const expectedTotal = initialData.type === 'buy' ? rawTotal + calculatedFee : rawTotal - calculatedFee;
+
+      if (Math.abs(savedTotal - expectedTotal) > 1) {
+        const savedFee = initialData.type === 'buy' ? savedTotal - rawTotal : rawTotal - savedTotal;
+        setIsFeeManual(true);
+        setManualFee(String(Math.round(savedFee)));
+      } else {
+        setIsFeeManual(false);
+        setManualFee('');
+      }
+    } else {
+      setIsFeeManual(false);
+      setManualFee('');
+    }
+  }, [initialData, currentMarketFeeSettings]);
 
   const calculateFee = (baseAmount, type, rate, discount, minFee, taxRate) => {
     if (baseAmount <= 0) return { fee: 0, tax: 0, totalFee: 0 };
@@ -92,10 +101,10 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
   const { fee: autoFee, tax: autoTax, totalFee: autoTotalFee } = calculateFee(
     rawTotal,
     type,
-    stockFeeSettings.feeRate,
-    stockFeeSettings.feeDiscount,
-    stockFeeSettings.minFee,
-    stockFeeSettings.taxRate
+    currentMarketFeeSettings.feeRate,
+    currentMarketFeeSettings.feeDiscount,
+    currentMarketFeeSettings.minFee,
+    currentMarketFeeSettings.taxRate
   );
 
   const finalFee = isFeeManual ? Number(manualFee) || 0 : autoFee;
@@ -347,7 +356,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
             </div>
           </div>
 
-          <div className="grid grid-cols-[minmax(0,1fr)_9.5rem] gap-3 sm:grid-cols-2 sm:gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4">
             <div className="min-w-0">
               <label className="mb-1 block text-xs font-semibold text-slate-500">市場</label>
               <div className="relative">
@@ -378,6 +387,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                     <button
                       type="button"
                       onMouseEnter={() => setMarketHighlightedIndex(0)}
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         const nextMarket = 'TWSE';
                         setMarket(nextMarket);
@@ -400,6 +410,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                     <button
                       type="button"
                       onMouseEnter={() => setMarketHighlightedIndex(1)}
+                      onMouseDown={(e) => e.preventDefault()} // Prevent blur on trigger
                       onClick={() => {
                         const nextMarket = 'US';
                         setMarket(nextMarket);
@@ -546,16 +557,16 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-500">成交金額：</span>
-                <span className="font-mono font-medium text-slate-800">${rawTotal.toLocaleString()}</span>
+                <span className="font-mono font-medium text-slate-800">{currencySymbol}{rawTotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-[11px]">
                 <span className="text-slate-500">手續費：</span>
-                <span className="font-mono text-slate-600">${finalFee.toLocaleString()}</span>
+                <span className="font-mono text-slate-600">{currencySymbol}{finalFee.toLocaleString()}</span>
               </div>
               {type === 'sell' && (
                 <div className="flex justify-between text-[11px]">
                   <span className="text-slate-500">交易稅：</span>
-                  <span className="font-mono text-slate-600">${finalTax.toLocaleString()}</span>
+                  <span className="font-mono text-slate-600">{currencySymbol}{finalTax.toLocaleString()}</span>
                 </div>
               )}
             </div>
@@ -577,7 +588,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                     value={manualFee}
                     onChange={(e) => setManualFee(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
-                    placeholder="請輸入此筆交易的總手續費"
+                    placeholder={`請輸入此筆交易的總手續費 (${currentMarketFeeSettings.currency})`}
                     inputMode="numeric"
                   />
                   {type === 'sell' && (
@@ -591,7 +602,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
 
             <div className="border-t border-slate-200 pt-3 mt-3 flex justify-between font-bold">
               <span className="text-slate-700">{type === 'buy' ? '實際支出：' : '實際收入：'}</span>
-              <span className={`font-mono text-sm ${type === 'buy' ? 'text-rose-600' : 'text-emerald-600'}`}>${finalTotal.toLocaleString()}</span>
+              <span className={`font-mono text-sm ${type === 'buy' ? 'text-rose-600' : 'text-emerald-600'}`}>{currencySymbol}{finalTotal.toLocaleString()}</span>
             </div>
           </div>
 

@@ -3,15 +3,21 @@
 import { useEffect, useState } from 'react';
 
 export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSaving }) {
+  const [selectedMarket, setSelectedMarket] = useState('TWSE');
+  const [feeRate, setFeeRate] = useState('0.001425');
   const [feeDiscount, setFeeDiscount] = useState('0.6');
   const [minFee, setMinFee] = useState('20');
+  const [taxRate, setTaxRate] = useState('0.003');
 
   useEffect(() => {
     if (initialSettings) {
-      setFeeDiscount(String(initialSettings.feeDiscount || '0.6'));
-      setMinFee(String(initialSettings.minFee || '20'));
+      const currentMarketSettings = initialSettings[selectedMarket] || {};
+      setFeeRate(String(currentMarketSettings.feeRate || '0.001425')); // Default for TWSE
+      setFeeDiscount(String(currentMarketSettings.feeDiscount || '0.6'));
+      setMinFee(String(currentMarketSettings.minFee || '20'));
+      setTaxRate(String(currentMarketSettings.taxRate || '0.003')); // Default for TWSE
     }
-  }, [initialSettings]);
+  }, [initialSettings, selectedMarket]);
 
   useEffect(() => {
     if (isOpen) {
@@ -26,9 +32,11 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave({
+    onSave(selectedMarket, { // Pass selectedMarket and new settings
+      feeRate: Number(feeRate) || 0,
       feeDiscount: Number(feeDiscount) || 0,
       minFee: Number(minFee) || 0,
+      taxRate: Number(taxRate) || 0,
     });
   };
 
@@ -44,7 +52,48 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
           </button>
         </div>
 
+        <div className="border-b border-slate-100 px-5 py-4">
+          <div className="flex items-center justify-center gap-1 rounded-xl bg-slate-100 p-0.5">
+            <button
+              type="button"
+              onClick={() => setSelectedMarket('TWSE')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                selectedMarket === 'TWSE' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              📈 台股設定
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMarket('US')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                selectedMarket === 'US' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              🇺🇸 美股設定
+            </button>
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">
+              預設券商手續費率 (%)
+            </label>
+            <input
+              type="number"
+              value={feeRate}
+              onChange={(e) => setFeeRate(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+              step="0.000001"
+              min="0"
+              required
+              inputMode="decimal"
+            />
+            <p className="mt-1 text-[11px] text-slate-400">
+              請輸入你的券商手續費率，例如 0.1425% 請輸入 0.001425。
+            </p>
+          </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">
               預設手續費折扣
@@ -65,7 +114,7 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">
-              預設最低手續費 (台幣)
+              預設最低手續費 {selectedMarket === 'TWSE' ? '(台幣)' : '(USD)'}
             </label>
             <input
               type="number"
@@ -77,9 +126,29 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
               inputMode="numeric"
             />
             <p className="mt-1 text-[11px] text-slate-400">
-              單筆交易的最低手續費，通常為 20 元。若無，請輸入 0。
+              單筆交易的最低手續費，{selectedMarket === 'TWSE' ? '通常為 20 元。' : '通常美股沒有最低手續費，填 0 即可。'} 若無，請輸入 0。
             </p>
           </div>
+          {selectedMarket === 'TWSE' && (
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">
+                預設交易稅率 (%) (僅台股賣出有)
+              </label>
+              <input
+                type="number"
+                value={taxRate}
+                onChange={(e) => setTaxRate(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+                step="0.000001"
+                min="0"
+                required
+                inputMode="decimal"
+              />
+              <p className="mt-1 text-[11px] text-slate-400">
+                請輸入交易稅率，例如 0.3% 請輸入 0.003。僅適用於台股賣出交易。
+              </p>
+            </div>
+          )}
 
           <div className="flex gap-3 pt-2">
             <button

@@ -22,10 +22,20 @@ const SHEETS_URL_STORAGE_KEY = 'my_assets_google_sheets_api_url';
 const STOCK_FEE_SETTINGS_KEY = 'my_assets_stock_fee_settings';
 
 const DEFAULT_STOCK_FEE_SETTINGS = {
-  feeRate: 0.001425,
-  feeDiscount: 0.6,
-  minFee: 20,
-  taxRate: 0.003,
+  TWSE: {
+    feeRate: 0.001425,
+    feeDiscount: 0.6,
+    minFee: 20,
+    taxRate: 0.003,
+    currency: 'TWD',
+  },
+  US: {
+    feeRate: 0, // Many US brokers have zero commission for stocks
+    feeDiscount: 1, // Full discount if feeRate is 0
+    minFee: 0,
+    taxRate: 0, // No transaction tax for selling US stocks (federal level)
+    currency: 'USD',
+  },
 };
 
 export default function RootLayoutClient({ children }) {
@@ -315,12 +325,18 @@ export default function RootLayoutClient({ children }) {
     setAssets(assets.filter((_, i) => i !== index));
   };
   
-  const handleSaveSettings = useCallback((newSettings) => {
+  const handleSaveSettings = useCallback((market, newSettingsForMarket) => {
     setIsSettingsSaving(true);
     try {
-      const updatedSettings = { ...stockFeeSettings, ...newSettings };
-      setStockFeeSettings(updatedSettings);
-      window.localStorage.setItem(STOCK_FEE_SETTINGS_KEY, JSON.stringify(updatedSettings));
+      const updatedStockFeeSettings = {
+        ...stockFeeSettings,
+        [market]: {
+          ...stockFeeSettings[market],
+          ...newSettingsForMarket
+        }
+      };
+      setStockFeeSettings(updatedStockFeeSettings);
+      window.localStorage.setItem(STOCK_FEE_SETTINGS_KEY, JSON.stringify(updatedStockFeeSettings));
       displayToast('交易設定已更新！', 'success');
       setShowSettingsModal(false);
       if (settingsModalSource === 'fromTransactionModal') {
