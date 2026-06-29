@@ -518,7 +518,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-500">每股單價</label>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">每股成本</label>
               <input
                 type="number"
                 value={price}

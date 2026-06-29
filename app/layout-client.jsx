@@ -332,8 +332,8 @@ export default function RootLayoutClient({ children }) {
       {
         id: 'new_' + Date.now(),
         category,
-        name: isLiability ? '新負債項目' : '新銀行/新資產',
-        balance: 0,
+        name: '',
+        balance: '',
         isLiability,
         ...(isForeign ? { currency: 'USD', amount: 0 } : {}),
       },

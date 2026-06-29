@@ -127,7 +127,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
-      <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl flex h-[70vh] flex-col max-h-[70vh]">
+      <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl flex h-[90vh] flex-col max-h-[90vh]">
         <div className="flex items-center justify-between border-b border-rose-100 px-6 py-4 shrink-0">
           <div>
             <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
