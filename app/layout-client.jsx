@@ -72,6 +72,7 @@ export default function RootLayoutClient({ children }) {
   const [stockMarketPrices, setStockMarketPrices] = useState({});
   const [lastMonthNetWorth, setLastMonthNetWorth] = useState(0);
   const [stockFeeSettings, setStockFeeSettings] = useState(DEFAULT_STOCK_FEE_SETTINGS);
+  const [usdToTwdRate, setUsdToTwdRate] = useState(null);
 
   // 真實月度資產（連線 Google Sheets 後才會有內容；未連線時維持空物件）
   const [realMonthlyAssets, setRealMonthlyAssets] = useState(initialMonthlyAssets);
@@ -92,6 +93,22 @@ export default function RootLayoutClient({ children }) {
   const displayDialog = useCallback((title, message, buttons) => {
     setDialog({ title, message, buttons });
     setShowDialog(true);
+  }, []);
+
+  const fetchUsdToTwdRate = useCallback(async () => {
+    try {
+      const response = await fetch('/api/exchange-rate');
+      if (response.ok) {
+        const data = await response.json();
+        setUsdToTwdRate(data.usdToTwd);
+      } else {
+        console.error('Failed to fetch USD to TWD exchange rate');
+        setUsdToTwdRate(null);
+      }
+    } catch (error) {
+      console.error('Error fetching USD to TWD exchange rate:', error);
+      setUsdToTwdRate(null);
+    }
   }, []);
 
   const syncFromSheets = useCallback(async (apiUrl, { silent = false } = {}) => {
@@ -160,7 +177,9 @@ export default function RootLayoutClient({ children }) {
         console.error('Failed to parse stock fee settings from localStorage', e);
       }
     }
-  }, [syncFromSheets]);
+
+    fetchUsdToTwdRate();
+  }, [syncFromSheets, fetchUsdToTwdRate]);
 
   const connectSheets = useCallback(async (apiUrl) => {
     const nextUrl = String(apiUrl || '').trim();
@@ -237,15 +256,15 @@ export default function RootLayoutClient({ children }) {
   const handleTransactionSubmit = async (txData) => {
     setIsTransactionSaving(true);
     try {
-      if (txData.id) { // If txData has an ID, it's an edit
+      if (txData.id) {
           await editTransaction(txData);
           displayToast(`已成功更新 ${txData.stock} 交易！`, 'success');
-      } else { // Otherwise, it's a new transaction
+      } else {
           await addTransaction(txData);
           displayToast(`已成功記錄 ${txData.stock} 交易！`, 'success');
       }
       setShowTransactionModal(false);
-      setEditingTransaction(null); // Clear editing transaction after submit
+      setEditingTransaction(null);
     } catch (error) {
       displayToast(`交易儲存失敗：${error.message || '請稍後再試'}`, 'error');
     } finally {
@@ -267,7 +286,7 @@ export default function RootLayoutClient({ children }) {
   };
 
   const handleSaveAssets = async () => {
-    setIsSaveLoading(true); // Start loading
+    setIsSaveLoading(true);
     try {
       const { year, month } = manageModalContext;
       if (year && month) {
@@ -294,7 +313,7 @@ export default function RootLayoutClient({ children }) {
     } catch (error) {
       displayToast(`資產同步失敗：${error.message || '請稍後再試'}`, 'error');
     } finally {
-      setIsSaveLoading(false); // End loading
+      setIsSaveLoading(false);
     }
   };
 
@@ -324,7 +343,7 @@ export default function RootLayoutClient({ children }) {
   const handleRemoveAsset = (index) => {
     setAssets(assets.filter((_, i) => i !== index));
   };
-  
+
   const handleSaveSettings = useCallback((market, newSettingsForMarket) => {
     setIsSettingsSaving(true);
     try {
@@ -340,22 +359,22 @@ export default function RootLayoutClient({ children }) {
       displayToast('交易設定已更新！', 'success');
       setShowSettingsModal(false);
       if (settingsModalSource === 'fromTransactionModal') {
-        setShowTransactionModal(true); // Re-open TransactionModal
+        setShowTransactionModal(true);
       }
     } catch (error) {
       displayToast('設定儲存失敗', 'error');
     } finally {
       setIsSettingsSaving(false);
-      setSettingsModalSource(null); // Clear source
+      setSettingsModalSource(null);
     }
   }, [stockFeeSettings, displayToast, settingsModalSource]);
 
   const handleCloseSettingsModal = useCallback(() => {
     setShowSettingsModal(false);
     if (settingsModalSource === 'fromTransactionModal') {
-      setShowTransactionModal(true); // Re-open TransactionModal
+      setShowTransactionModal(true);
     }
-    setSettingsModalSource(null); // Clear source
+    setSettingsModalSource(null);
   }, [settingsModalSource]);
 
   return (
@@ -415,10 +434,11 @@ export default function RootLayoutClient({ children }) {
       addTransaction={addTransaction}
       removeTransaction={removeTransaction}
       saveStockFeeSettings={handleSaveSettings}
+      usdToTwdRate={usdToTwdRate}
     >
       <div className="mx-auto max-w-7xl px-4 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-6" suppressHydrationWarning>{children}</div>
 
-      {/* 懸浮記帳按鈕 */}
+      {/* 記帳按鈕 */}
       <button
         onClick={() => setShowTransactionModal(true)}
         className="fixed bottom-6 right-6 flex items-center gap-2 rounded-full bg-rose-500 px-5 py-4 text-sm font-extrabold text-white shadow-lg transition hover:scale-105 hover:bg-rose-600 hover:shadow-rose-300 z-40"

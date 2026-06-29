@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useApp } from '@/lib/app-context';
 import { INDUSTRY_COLORS, INDUSTRY_MAP } from '@/components/common/constants';
-import { demoTransactions, demoInitialPrices } from '@/lib/demo-stock-data'; // 引入假資料
+import { demoInitialPrices } from '@/lib/demo-stock-data';
 
 function getIndustry(symbol) {
   return INDUSTRY_MAP[symbol] || '其他';
@@ -55,12 +55,20 @@ function fmt(num) {
   return Math.round(num).toLocaleString('zh-TW');
 }
 
-// "2026-03-02" → "2026/3/2" or "2026-03-02T10:00:00Z" → "2026/03/02"
+function fmtCurrency(num, currency, showSign = false) {
+  const symbol = currency === 'TWD' ? 'NT$' : '$';
+  const formattedNum = Math.round(num).toLocaleString('zh-TW');
+  if (showSign) {
+    return `${num >= 0 ? '+' : '-'}${symbol}${Math.abs(num).toLocaleString('zh-TW')}`;
+  }
+  return `${symbol}${formattedNum}`;
+}
+
 function fmtDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   const year = d.getFullYear();
-  const month = (d.getMonth() + 1).toString().padStart(2, '0'); // Month is 0-indexed
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
   const day = d.getDate().toString().padStart(2, '0');
   return `${year}/${month}/${day}`;
 }
@@ -72,17 +80,17 @@ function fmtTime(isoStr) {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-// ─── component ────────────────────────────────────────────────────────────────
-
 export function StocksContent({ initialPrices = {} }) {
   const {
     transactions: realTransactions,
     removeTransaction: realRemoveTransaction,
     openTransactionModal,
     isSheetsConnected,
+    usdToTwdRate,
   } = useApp();
 
-  // 統一採用 Context 中的 transactions 數據，並進行標準化處理
+  const [displayCurrency, setDisplayCurrency] = useState('USD');
+
   const transactions = useMemo(() => {
     const txs = realTransactions || [];
     return txs.map((tx) => ({
@@ -97,9 +105,9 @@ export function StocksContent({ initialPrices = {} }) {
   const removeTransaction = realRemoveTransaction;
 
   const [priceMap, setPriceMap] = useState(isSheetsConnected ? initialPrices : demoInitialPrices);
-  const [deleteId, setDeleteId] = useState(null); // 儲存準備刪除的 ID
-  const [isDeleting, setIsDeleting] = useState(false); // 刪除中的 loading 狀態
-  const [showChart, setShowChart] = useState(false); // 圓餅圖顯示/隱藏
+  const [deleteId, setDeleteId] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showChart, setShowChart] = useState(false);
 
   const [isFetchingPrices, setIsFetchingPrices] = useState(false);
   const [posTab, setPosTab] = useState('TWSE');
@@ -137,10 +145,8 @@ export function StocksContent({ initialPrices = {} }) {
     if (toFetch.length === 0) return;
     setIsFetchingPrices(true);
 
-    // 在演示模式下，不發送實際的 API 請求
     if (!isSheetsConnected) {
       console.log('Demo mode: Skipping price fetch API call.');
-      // 可以模擬一個延遲
       await new Promise(resolve => setTimeout(resolve, 500));
       setIsFetchingPrices(false);
       return;
@@ -180,7 +186,7 @@ export function StocksContent({ initialPrices = {} }) {
     const toFetch = basePositions.filter((p) => !fetchedRef.current.has(p.name));
     fetchPrices(toFetch);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionKeys, isSheetsConnected]); // 增加 isSheetsConnected 作為依賴
+  }, [positionKeys, isSheetsConnected]);
 
   // 手動重新整理目前分頁的報價
   const handleManualRefresh = () => {
@@ -197,14 +203,53 @@ export function StocksContent({ initialPrices = {} }) {
       p.totalBuyCost > 0 ? (unrealizedProfit / p.totalBuyCost) * 100 : 0;
     return { ...p, marketPrice, marketValue, unrealizedProfit, profitPercent };
   });
-  const totalValue = allPositions.reduce((s, p) => s + p.marketValue, 0);
-  const totalCost = allPositions.reduce((s, p) => s + p.totalBuyCost, 0);
-  const totalUnrealized = totalValue - totalCost;
-  const totalReturnRate = totalCost > 0 ? (totalUnrealized / totalCost) * 100 : 0;
 
   const twsePositions = allPositions.filter((p) => p.market === 'TWSE');
   const usPositions = allPositions.filter((p) => p.market === 'US');
   const activePositions = posTab === 'TWSE' ? twsePositions : usPositions;
+
+  // 台股 + 美股（美股轉換成 TWD）的總和
+  const totalOverallValue = useMemo(() => {
+    return allPositions.reduce((sum, pos) => {
+      const isUSStock = pos.market === 'US';
+      const rate = isUSStock ? (usdToTwdRate || 1) : 1;
+      return sum + (pos.marketValue * rate);
+    }, 0);
+  }, [allPositions, usdToTwdRate]);
+
+  const totalOverallCost = useMemo(() => {
+    return allPositions.reduce((sum, pos) => {
+      const isUSStock = pos.market === 'US';
+      const rate = isUSStock ? (usdToTwdRate || 1) : 1;
+      return sum + (pos.totalBuyCost * rate);
+    }, 0);
+  }, [allPositions, usdToTwdRate]);
+
+  const totalOverallUnrealized = totalOverallValue - totalOverallCost;
+  const totalOverallReturnRate = totalOverallCost > 0 ? (totalOverallUnrealized / totalOverallCost) * 100 : 0;
+
+  // ✅ 修正：当前 tab 的总计（用于表格显示）
+  // 当在美股 tab 且选择 TWD 时，美股数据转换成 TWD
+  const summaryPositions = activePositions.map(pos => {
+    const isUSStock = pos.market === 'US';
+    const rate = isUSStock ? (usdToTwdRate || 1) : 1;
+
+    if (isUSStock && displayCurrency === 'TWD') {
+      return {
+        ...pos,
+        marketValue: pos.marketValue * rate,
+        totalBuyCost: pos.totalBuyCost * rate,
+        unrealizedProfit: pos.unrealizedProfit * rate,
+      };
+    }
+    return pos;
+  });
+
+  const currentTabTotalValue = summaryPositions.reduce((s, p) => s + p.marketValue, 0);
+  const currentTabTotalCost = summaryPositions.reduce((s, p) => s + p.totalBuyCost, 0);
+  const currentTabTotalUnrealized = currentTabTotalValue - currentTabTotalCost;
+  const currentTabTotalReturnRate = currentTabTotalCost > 0 ? (currentTabTotalUnrealized / currentTabTotalCost) * 100 : 0;
+  const currentTabDisplayCurrency = posTab === 'TWSE' ? 'TWD' : displayCurrency;
 
   // 顯示限制：一開始最多顯示 20 筆（第 21 筆起透過滾動查看）
   const MAX_VISIBLE = 20;
@@ -226,12 +271,17 @@ export function StocksContent({ initialPrices = {} }) {
       industryMap[industry] += pos.marketValue;
     });
 
-    return Object.entries(industryMap)
-      .map(([name, value]) => ({
-        name,
-        value: Math.round(value),
-      }))
+    const finalIndustryData = Object.entries(industryMap)
+      .map(([name, value]) => {
+        let displayValue = value;
+        if (posTab === 'US' && displayCurrency === 'TWD' && usdToTwdRate) {
+          displayValue = value * usdToTwdRate;
+        }
+        return { name, value: Math.round(displayValue) };
+      })
       .sort((a, b) => b.value - a.value);
+
+    return finalIndustryData;
   })();
 
   const handlePriceChange = (name, value) => {
@@ -239,13 +289,11 @@ export function StocksContent({ initialPrices = {} }) {
     setPriceMap((prev) => ({ ...prev, [name]: isNaN(num) ? 0 : num }));
   };
 
-  // ── 執行確認刪除 ──────────────────────────────────────────────────────────
-
   const confirmDelete = async () => {
     if (!deleteId) return;
     setIsDeleting(true);
     try {
-      await removeTransaction(deleteId); // 這裡會呼叫 API 並同步 Google Sheets
+      await removeTransaction(deleteId); // 呼叫 API 並同步 Google Sheets
       setDeleteId(null);
     } finally {
       setIsDeleting(false);
@@ -270,32 +318,34 @@ export function StocksContent({ initialPrices = {} }) {
     setCurrentTxPage(1);
   }, [histTab, selectedYear]);
 
-
   // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <>
-      {/* ── Summary Stats ── */}
-      {/* 手機版使用 2x2 網格 (grid-cols-2)，電腦版使用 4 欄 (md:grid-cols-4) */}
+      {/* ── Summary Stats（台股+美股總和） ── */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <div className="card p-3 md:p-5">
           <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">持股現值總計</p>
-          <p className="mt-1 md:mt-2 text-lg md:text-2xl font-black text-slate-900">${fmt(totalValue)}</p>
+          <p className="mt-1 md:mt-2 text-lg md:text-2xl font-black text-slate-900">
+            {fmtCurrency(totalOverallValue, 'TWD')}
+          </p>
         </div>
         <div className="card p-3 md:p-5">
           <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">總投資成本</p>
-          <p className="mt-1 md:mt-2 text-lg md:text-2xl font-black text-slate-900">${fmt(totalCost)}</p>
+          <p className="mt-1 md:mt-2 text-lg md:text-2xl font-black text-slate-900">
+            {fmtCurrency(totalOverallCost, 'TWD')}
+          </p>
         </div>
         <div className="card p-3 md:p-5">
           <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">未實現損益</p>
-          <p className={`mt-1 md:mt-2 text-lg md:text-2xl font-black ${totalUnrealized >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            {totalUnrealized >= 0 ? '+' : '-'}${fmt(Math.abs(totalUnrealized))}
+          <p className={`mt-1 md:mt-2 text-lg md:text-2xl font-black ${totalOverallUnrealized >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            {fmtCurrency(totalOverallUnrealized, 'TWD', true)}
           </p>
         </div>
         <div className="card p-3 md:p-5">
           <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">總報酬率</p>
-          <p className={`mt-1 md:mt-2 text-lg md:text-2xl font-black ${totalReturnRate >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            {totalReturnRate >= 0 ? '+' : ''}{totalReturnRate.toFixed(2)}%
+          <p className={`mt-1 md:mt-2 text-lg md:text-2xl font-black ${totalOverallReturnRate >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+            {totalOverallReturnRate >= 0 ? '+' : ''}{totalOverallReturnRate.toFixed(2)}%
           </p>
         </div>
       </div>
@@ -315,20 +365,44 @@ export function StocksContent({ initialPrices = {} }) {
             </div>
           </div>
           <div className="mt-2 flex items-center justify-between">
-            <button
-              onClick={handleManualRefresh}
-              disabled={isFetchingPrices}
-              className="group flex items-center gap-1.5 rounded-full bg-rose-50/50 px-3 py-1 text-[11px] font-bold text-rose-500 transition-all hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-            >
-              {isFetchingPrices ? (
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-rose-600" />
-              ) : (
-                <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 transition-transform group-hover:rotate-180 duration-500">
-                  <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.45a.75.75 0 000-1.5H4.147a.75.75 0 00-.75.75v4.103a.75.75 0 001.5 0v-2.151l.33.33a7 7 0 0011.778-3.391.75.75 0 00-1.693-.44zM4.688 8.576a5.5 5.5 0 019.201-2.466l.312.311h-2.45a.75.75 0 000-1.5h4.103a.75.75 0 00.75-.75V3.068a.75.75 0 00-1.5 0v2.151l-.33-.33a7 7 0 00-11.778 3.391.75.75 0 001.693.44z" clipRule="evenodd" />
-                </svg>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleManualRefresh}
+                disabled={isFetchingPrices}
+                className="group flex items-center gap-1.5 rounded-full bg-rose-50/50 px-3 py-1 text-[11px] font-bold text-rose-500 transition-all hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+              >
+                {isFetchingPrices ? (
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-rose-600" />
+                ) : (
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 transition-transform group-hover:rotate-180 duration-500">
+                    <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.45a.75.75 0 000-1.5H4.147a.75.75 0 00-.75.75v4.103a.75.75 0 001.5 0v-2.151l.33.33a7 7 0 0011.778-3.391.75.75 0 00-1.693-.44zM4.688 8.576a5.5 5.5 0 019.201-2.466l.312.311h-2.45a.75.75 0 000-1.5h4.103a.75.75 0 00.75-.75V3.068a.75.75 0 00-1.5 0v2.151l-.33-.33a7 7 0 00-11.778 3.391.75.75 0 001.693.44z" clipRule="evenodd" />
+                  </svg>
+                )}
+                更新現價
+              </button>
+
+              {posTab === 'US' && (
+                <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5">
+                  <button
+                    onClick={() => setDisplayCurrency('USD')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      displayCurrency === 'USD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    USD
+                  </button>
+                  <button
+                    onClick={() => setDisplayCurrency('TWD')}
+                    disabled={!usdToTwdRate}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                      displayCurrency === 'TWD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    } ${!usdToTwdRate ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    TWD
+                  </button>
+                </div>
               )}
-              更新現價
-            </button>
+            </div>
             <button
               onClick={() => setShowChart(!showChart)}
               className={`inline-flex items-center gap-1 pb-0.5 text-xs font-bold transition border-b-2 ${
@@ -401,100 +475,122 @@ export function StocksContent({ initialPrices = {} }) {
               目前沒有「{posTab === 'TWSE' ? '台股' : '美股'}」持股明細
             </div>
           ) : (
-          <div className="overflow-x-auto" style={{ maxHeight: `${posContainerMaxHeight}px`, overflowY: 'auto' }}>
-            <table className="w-full min-w-[960px] text-center">
-              <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 sticky top-0 z-10 shadow-sm">
-                <tr className="h-12">
-                  <th className="px-4 py-3 align-middle text-left whitespace-nowrap">股票</th>
-                  <th className="px-4 py-3 align-middle whitespace-nowrap">持有股數</th>
-                  <th className="px-4 py-3 align-middle whitespace-nowrap">成本價</th>
-                  <th className="px-4 py-3 align-middle whitespace-nowrap">現價（可修改）</th>
-                  <th className="px-4 py-3 align-middle whitespace-nowrap">投資成本</th>
-                  <th className="px-4 py-3 align-middle whitespace-nowrap">帳面現值</th>
-                  <th className="px-4 py-3 align-middle whitespace-nowrap">未實現損益</th>
-                  <th className="px-4 py-3 align-middle whitespace-nowrap">損益率</th>
-                  <th className="px-4 py-3 align-middle whitespace-nowrap">市值佔比</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activePositions.map((pos) => {
-                  const sharePercent =
-                    totalValue > 0 ? (pos.marketValue / totalValue) * 100 : 0;
-                  const nameParts = pos.name.split(' ');
-                  const displayName = nameParts.slice(1).join(' ') || nameParts[0];
+            <div className="overflow-x-auto" style={{ maxHeight: `${posContainerMaxHeight}px`, overflowY: 'auto' }}>
+              <table className="w-full min-w-[960px] text-center">
+                <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 sticky top-0 z-10 shadow-sm">
+                  <tr className="h-12">
+                    <th className="px-4 py-3 align-middle text-left whitespace-nowrap">股票</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">持有股數</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">成本價 {posTab === 'US' && `(${displayCurrency})`}</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">現價（可修改） {posTab === 'US' && `(${displayCurrency})`}</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">投資成本 {posTab === 'US' && `(${displayCurrency})`}</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">帳面現值 {posTab === 'US' && `(${displayCurrency})`}</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">未實現損益 {posTab === 'US' && `(${displayCurrency})`}</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">損益率</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">市值佔比</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activePositions.map((pos) => {
+                    const sharePercent =
+                      currentTabTotalValue > 0 ? (pos.marketValue / currentTabTotalValue) * 100 : 0;
+                    const nameParts = pos.name.split(' ');
+                    const displayName = nameParts.slice(1).join(' ') || nameParts[0];
 
-                  return (
-                    <tr key={pos.name} className="h-14 border-t border-slate-100 hover:bg-slate-50/60 transition">
-                      {/* 股票 */}
-                      <td className="px-4 py-3 align-middle text-left">
-                        <div className="text-xs font-bold text-slate-400">{pos.symbol}</div>
-                        <div className="max-w-[180px] truncate text-sm text-slate-800">{displayName}</div>
-                      </td>
+                    const isUSStock = pos.market === 'US';
+                    const rate = isUSStock ? (usdToTwdRate || 1) : 1;
+                    const currentDisplayCurrency = isUSStock ? displayCurrency : 'TWD';
 
-                      {/* 持有股數 */}
-                      <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                        {pos.holdingQty.toLocaleString()}
-                      </td>
+                    const convertedAvgCost = isUSStock && displayCurrency === 'TWD' ? pos.avgCost * rate : pos.avgCost;
+                    const convertedMarketPrice = isUSStock && displayCurrency === 'TWD' ? pos.marketPrice * rate : pos.marketPrice;
+                    const convertedTotalBuyCost = isUSStock && displayCurrency === 'TWD' ? pos.totalBuyCost * rate : pos.totalBuyCost;
+                    const convertedMarketValue = isUSStock && displayCurrency === 'TWD' ? pos.marketValue * rate : pos.marketValue;
+                    const convertedUnrealizedProfit = isUSStock && displayCurrency === 'TWD' ? pos.unrealizedProfit * rate : pos.unrealizedProfit;
 
-                      {/* 成本價 */}
-                      <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                        {pos.avgCost.toFixed(2)}
-                      </td>
+                    const profitPercent = pos.profitPercent;
 
-                      {/* 現價 (editable) */}
-                      <td className="px-4 py-3 align-middle">
-                        <div className="flex justify-center">
-                          <input
-                            type="number"
-                            value={pos.marketPrice || pos.avgCost || ''}
-                            onChange={(e) => handlePriceChange(pos.name, e.target.value)}
-                            className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-center font-mono text-sm text-slate-800 transition focus:border-rose-300 focus:outline-none"
-                            step="0.01"
-                            min="0"
-                          />
-                        </div>
-                      </td>
+                    return (
+                      <tr key={pos.name} className="h-14 border-t border-slate-100 hover:bg-slate-50/60 transition">
+                        {/* 股票 */}
+                        <td className="px-4 py-3 align-middle text-left">
+                          <div className="text-xs font-bold text-slate-400">{pos.symbol}</div>
+                          <div className="max-w-[180px] truncate text-sm text-slate-800">{displayName}</div>
+                        </td>
 
-                      {/* 投資成本 */}
-                      <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                        ${fmt(pos.totalBuyCost)}
-                      </td>
+                        {/* 持有股數 */}
+                        <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
+                          {pos.holdingQty.toLocaleString()}
+                        </td>
 
-                      {/* 帳面現值 */}
-                      <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                        ${fmt(pos.marketValue)}
-                      </td>
+                        {/* 成本價 */}
+                        <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
+                          {fmtCurrency(convertedAvgCost, currentDisplayCurrency)}
+                        </td>
 
-                      {/* 未實現損益 */}
-                      <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${pos.unrealizedProfit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {pos.unrealizedProfit >= 0 ? '+' : '-'}${fmt(Math.abs(pos.unrealizedProfit))}
-                      </td>
-
-                      {/* 損益率 */}
-                      <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${pos.profitPercent >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                        {pos.profitPercent >= 0 ? '+' : ''}{pos.profitPercent.toFixed(2)}%
-                      </td>
-
-                      {/* 市值佔比 + bar */}
-                      <td className="px-4 py-3 align-middle">
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="w-10 text-right font-mono text-xs text-slate-600">
-                            {sharePercent.toFixed(1)}%
-                          </span>
-                          <div className="relative h-1 w-12 overflow-hidden rounded-full bg-slate-200">
-                            <div
-                              className="absolute left-0 top-0 h-full rounded-full bg-rose-400 transition-all duration-300"
-                              style={{ width: `${Math.min(sharePercent, 100)}%` }}
+                        {/* 現價 (editable) */}
+                        <td className="px-4 py-3 align-middle">
+                          <div className="flex justify-center">
+                            <input
+                              type="number"
+                              value={
+                                isUSStock && displayCurrency === 'TWD'
+                                  ? (convertedMarketPrice).toFixed(2)
+                                  : (pos.marketPrice || pos.avgCost || '')
+                              }
+                              onChange={(e) => {
+                                let value = parseFloat(e.target.value);
+                                if (isUSStock && displayCurrency === 'TWD' && rate !== 0 && !isNaN(value)) {
+                                  value = value / rate;
+                                }
+                                handlePriceChange(pos.name, value);
+                              }}
+                              className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-center font-mono text-sm text-slate-800 transition focus:border-rose-300 focus:outline-none"
+                              step="0.01"
+                              min="0"
                             />
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+
+                        {/* 投資成本 */}
+                        <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
+                          {fmtCurrency(convertedTotalBuyCost, currentDisplayCurrency)}
+                        </td>
+
+                        {/* 帳面現值 */}
+                        <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
+                          {fmtCurrency(convertedMarketValue, currentDisplayCurrency)}
+                        </td>
+
+                        {/* 未實現損益 */}
+                        <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${convertedUnrealizedProfit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          {fmtCurrency(convertedUnrealizedProfit, currentDisplayCurrency, true)}
+                        </td>
+
+                        {/* 損益率 */}
+                        <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${profitPercent >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
+                        </td>
+
+                        {/* 市值佔比 + bar */}
+                        <td className="px-4 py-3 align-middle">
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="w-10 text-right font-mono text-xs text-slate-600">
+                              {sharePercent.toFixed(1)}%
+                            </span>
+                            <div className="relative h-1 w-12 overflow-hidden rounded-full bg-slate-200">
+                              <div
+                                className="absolute left-0 top-0 h-full rounded-full bg-rose-400 transition-all duration-300"
+                                style={{ width: `${Math.min(sharePercent, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
@@ -570,158 +666,158 @@ export function StocksContent({ initialPrices = {} }) {
               目前沒有「{histTab === 'TWSE' ? '台股' : '美股'}」歷史交易紀錄
             </div>
           ) : (
-          <div className="">
-            <div className="overflow-x-auto"> {/* New div for horizontal scrolling */}
-              <table className="w-full min-w-[760px] text-center border-separate border-spacing-0 relative">
-                <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 shadow-sm">
-                  <tr className="h-12">
-                    <th className="px-4 py-3 align-middle text-left">日期 / 時間</th>
-                    <th className="px-0 py-3 align-middle text-left">股票</th>
-                    <th className="px-4 py-3 align-middle">類型</th>
-                    <th className="px-4 py-3 align-middle">股數</th>
-                    <th className="px-4 py-3 align-middle">成交單價</th>
-                    <th className="px-4 py-3 align-middle">實際收支</th>
-                    <th className="px-4 py-3 align-middle">備註</th>
-                    <th className="px-4 py-3 align-middle">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedTx.map((tx) => {
-                    const txSymbol = tx.stock.split(' ')[0];
-                    const txName = tx.stock.split(' ').slice(1).join(' ');
-                    const txTime = fmtTime(tx.recordedAt);
-                    return (
-                      <tr key={tx.id} className="h-16 border-t border-slate-100 hover:bg-slate-50/60 transition">
-                        {/* 日期 / 時間 */}
-                        <td className="px-4 py-3 align-middle text-left">
-                          <div className="font-mono text-xs text-slate-700">{fmtDate(tx.date)}</div>
-                          {txTime && <div className="font-mono text-xs text-slate-400">{txTime}</div>}
-                        </td>
-                        {/* 股票 */}
-                        <td className="px-0 py-3 align-middle text-left">
-                          <div className="text-xs font-bold text-slate-400">{txSymbol}</div>
-                          {txName && <div className="text-sm text-slate-800">{txName}</div>}
-                        </td>
-                        {/* 類型 */}
-                        <td className="px-4 py-3 align-middle">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap ${tx.type === 'buy' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                            {tx.type === 'buy' ? '買進' : '賣出'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                          {Number(tx.qty).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                          ${Number(tx.price).toLocaleString()}
-                        </td>
-                        <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${tx.type === 'buy' ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          {tx.type === 'buy' ? '-' : '+'}${Number(tx.actualAmount).toLocaleString()}
-                        </td>
-                        <td className="max-w-[220px] truncate whitespace-nowrap px-4 py-3 align-middle text-left text-xs text-slate-500">{tx.note || '—'}</td>
-                        <td className="px-4 py-3 align-middle">
-                          <div className="flex justify-center gap-1">
-                            <button
-                              onClick={() => openTransactionModal(tx)}
-                              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-amber-50 hover:text-amber-500"
-                              title="編輯此筆紀錄"
-                            >
-                              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                                <path d="M5.433 13.917l-1.5 1.5A.75.75 0 003.5 16.03l1.5-1.5zM11.778 4.291a.75.75 0 00-1.06 0L5.918 9.1C5.558 9.46 5.378 9.775 5.258 10.02l-.938 2.062a.75.75 0 00.957.957l2.062-.938c.245-.12.56-.3.92-.66l4.79-4.79a.75.75 0 000-1.06l-.04-.04zM16.125 1.75a.75.75 0 011.06 0l1.25 1.25a.75.75 0 010 1.06L17.06 5.44l-2.31-2.31 1.37-1.38z" />
-                                <path fillRule="evenodd" d="M1.75 1.75a.75.75 0 00-.75.75v14.5c0 .414.336.75.75.75h14.5a.75.75 0 00.75-.75V8.5a.75.75 0 011.5 0v7.75a2.25 2.25 0 01-2.25 2.25H2.5a2.25 2.25 0 01-2.25-2.25V2.5C.25 2.086.586 1.75 1 1.75h-.001z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => setDeleteId(tx.id)}
-                              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
-                              title="刪除此筆紀錄"
-                            >
-                              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                                <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination UI */}
-            {totalTxPages > 1 && (
-              <div className="border-t border-slate-100 bg-slate-50/30 px-5 py-4">
-                <div className="flex flex-col items-center justify-center gap-3">
-                  {/* 分頁按鈕 */}
-                  <div className="flex items-center gap-1">
-                    {/* 上一頁 */}
-                    <button
-                      onClick={() => setCurrentTxPage((p) => Math.max(1, p - 1))}
-                      disabled={currentTxPage === 1}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-                      title="上一頁"
-                    >
-                      <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                        <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-
-                    {/* 頁碼按鈕 */}
-                    <div className="flex items-center gap-1">
-                      {Array.from({ length: totalTxPages }, (_, i) => i + 1).map((page) => {
-                        // 智慧顯示：只顯示前後2頁 + 當前頁，其他用 ... 省略
-                        const showPage = page === 1 || page === totalTxPages || Math.abs(page - currentTxPage) <= 1;
-                        const showEllipsisBefore = page === currentTxPage - 2 && currentTxPage > 3;
-                        const showEllipsisAfter = page === currentTxPage + 2 && currentTxPage < totalTxPages - 2;
-
-                        if (!showPage && !showEllipsisBefore && !showEllipsisAfter) return null;
-
-                        if (showEllipsisBefore || showEllipsisAfter) {
-                          return (
-                            <span key={`ellipsis-${page}`} className="px-2 text-slate-400">
-                              ...
+            <div className="">
+              <div className="overflow-x-auto"> {/* New div for horizontal scrolling */}
+                <table className="w-full min-w-[760px] text-center border-separate border-spacing-0 relative">
+                  <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 shadow-sm">
+                    <tr className="h-12">
+                      <th className="px-4 py-3 align-middle text-left">日期 / 時間</th>
+                      <th className="px-0 py-3 align-middle text-left">股票</th>
+                      <th className="px-4 py-3 align-middle">類型</th>
+                      <th className="px-4 py-3 align-middle">股數</th>
+                      <th className="px-4 py-3 align-middle">成交單價</th>
+                      <th className="px-4 py-3 align-middle">實際收支</th>
+                      <th className="px-4 py-3 align-middle">備註</th>
+                      <th className="px-4 py-3 align-middle">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedTx.map((tx) => {
+                      const txSymbol = tx.stock.split(' ')[0];
+                      const txName = tx.stock.split(' ').slice(1).join(' ');
+                      const txTime = fmtTime(tx.recordedAt);
+                      return (
+                        <tr key={tx.id} className="h-16 border-t border-slate-100 hover:bg-slate-50/60 transition">
+                          {/* 日期 / 時間 */}
+                          <td className="px-4 py-3 align-middle text-left">
+                            <div className="font-mono text-xs text-slate-700">{fmtDate(tx.date)}</div>
+                            {txTime && <div className="font-mono text-xs text-slate-400">{txTime}</div>}
+                          </td>
+                          {/* 股票 */}
+                          <td className="px-0 py-3 align-middle text-left">
+                            <div className="text-xs font-bold text-slate-400">{txSymbol}</div>
+                            {txName && <div className="text-sm text-slate-800">{txName}</div>}
+                          </td>
+                          {/* 類型 */}
+                          <td className="px-4 py-3 align-middle">
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold whitespace-nowrap ${tx.type === 'buy' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                              {tx.type === 'buy' ? '買進' : '賣出'}
                             </span>
-                          );
-                        }
+                          </td>
+                          <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
+                            {Number(tx.qty).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
+                            ${Number(tx.price).toLocaleString()}
+                          </td>
+                          <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${tx.type === 'buy' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {tx.type === 'buy' ? '-' : '+'}${Number(tx.actualAmount).toLocaleString()}
+                          </td>
+                          <td className="max-w-[220px] truncate whitespace-nowrap px-4 py-3 align-middle text-left text-xs text-slate-500">{tx.note || '—'}</td>
+                          <td className="px-4 py-3 align-middle">
+                            <div className="flex justify-center gap-1">
+                              <button
+                                onClick={() => openTransactionModal(tx)}
+                                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-amber-50 hover:text-amber-500"
+                                title="編輯此筆紀錄"
+                              >
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                  <path d="M5.433 13.917l-1.5 1.5A.75.75 0 003.5 16.03l1.5-1.5zM11.778 4.291a.75.75 0 00-1.06 0L5.918 9.1C5.558 9.46 5.378 9.775 5.258 10.02l-.938 2.062a.75.75 0 00.957.957l2.062-.938c.245-.12.56-.3.92-.66l4.79-4.79a.75.75 0 000-1.06l-.04-.04zM16.125 1.75a.75.75 0 011.06 0l1.25 1.25a.75.75 0 010 1.06L17.06 5.44l-2.31-2.31 1.37-1.38z" />
+                                  <path fillRule="evenodd" d="M1.75 1.75a.75.75 0 00-.75.75v14.5c0 .414.336.75.75.75h14.5a.75.75 0 00.75-.75V8.5a.75.75 0 011.5 0v7.75a2.25 2.25 0 01-2.25 2.25H2.5a2.25 2.25 0 01-2.25-2.25V2.5C.25 2.086.586 1.75 1 1.75h-.001z" clipRule="evenodd" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => setDeleteId(tx.id)}
+                                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+                                title="刪除此筆紀錄"
+                              >
+                                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                                  <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-                        return (
-                          <button
-                            key={page}
-                            onClick={() => setCurrentTxPage(page)}
-                            className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg border px-2 text-xs font-bold transition ${
-                              currentTxPage === page
-                                ? 'border-rose-200 bg-rose-500 text-white shadow-sm'
-                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        );
-                      })}
+              {/* Pagination UI */}
+              {totalTxPages > 1 && (
+                <div className="border-t border-slate-100 bg-slate-50/30 px-5 py-4">
+                  <div className="flex flex-col items-center justify-center gap-3">
+                    {/* 分頁按鈕 */}
+                    <div className="flex items-center gap-1">
+                      {/* 上一頁 */}
+                      <button
+                        onClick={() => setCurrentTxPage((p) => Math.max(1, p - 1))}
+                        disabled={currentTxPage === 1}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                        title="上一頁"
+                      >
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                          <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+
+                      {/* 頁碼按鈕 */}
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: totalTxPages }, (_, i) => i + 1).map((page) => {
+                          // 只顯示前後2頁 + 當前頁，其他用 ... 省略
+                          const showPage = page === 1 || page === totalTxPages || Math.abs(page - currentTxPage) <= 1;
+                          const showEllipsisBefore = page === currentTxPage - 2 && currentTxPage > 3;
+                          const showEllipsisAfter = page === currentTxPage + 2 && currentTxPage < totalTxPages - 2;
+
+                          if (!showPage && !showEllipsisBefore && !showEllipsisAfter) return null;
+
+                          if (showEllipsisBefore || showEllipsisAfter) {
+                            return (
+                              <span key={`ellipsis-${page}`} className="px-2 text-slate-400">
+                                ...
+                              </span>
+                            );
+                          }
+
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => setCurrentTxPage(page)}
+                              className={`flex h-8 min-w-[2rem] items-center justify-center rounded-lg border px-2 text-xs font-bold transition ${
+                                currentTxPage === page
+                                  ? 'border-rose-200 bg-rose-500 text-white shadow-sm'
+                                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* 下一頁 */}
+                      <button
+                        onClick={() => setCurrentTxPage((p) => Math.min(totalTxPages, p + 1))}
+                        disabled={currentTxPage === totalTxPages}
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                        title="下一頁"
+                      >
+                        <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+                        </svg>
+                      </button>
                     </div>
 
-                    {/* 下一頁 */}
-                    <button
-                      onClick={() => setCurrentTxPage((p) => Math.min(totalTxPages, p + 1))}
-                      disabled={currentTxPage === totalTxPages}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-                      title="下一頁"
-                    >
-                      <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                        <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* 顯示目前頁數資訊 */}
-                  <div className="text-xs text-slate-500">
-                    第 <span className="font-bold text-slate-700">{currentTxPage}</span> 頁，共 <span className="font-bold text-slate-700">{totalTxPages}</span> 頁
-                    <span className="ml-2 text-slate-400">（共 {activeTx.length} 筆交易）</span>
+                    {/* 顯示目前頁數資訊 */}
+                    <div className="text-xs text-slate-500">
+                      第 <span className="font-bold text-slate-700">{currentTxPage}</span> 頁，共 <span className="font-bold text-slate-700">{totalTxPages}</span> 頁
+                      <span className="ml-2 text-slate-400">（共 {activeTx.length} 筆交易）</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
           )}
         </div>
       </div>
