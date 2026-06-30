@@ -55,11 +55,16 @@ function fmt(num) {
   return Math.round(num).toLocaleString('zh-TW');
 }
 
-function fmtCurrency(num, currency, showSign = false) {
+function fmtCurrency(num, currency, showSign = false, decimalPlaces = 0) {
   const symbol = currency === 'TWD' ? 'NT$' : '$';
-  const formattedNum = Math.round(num).toLocaleString('zh-TW');
+  const val = Number(num) || 0;
+  const options = {
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces,
+  };
+  const formattedNum = val.toLocaleString('zh-TW', options);
   if (showSign) {
-    return `${num >= 0 ? '+' : '-'}${symbol}${Math.abs(num).toLocaleString('zh-TW')}`;
+    return `${val >= 0 ? '+' : '-'}${symbol}${Math.abs(val).toLocaleString('zh-TW', options)}`;
   }
   return `${symbol}${formattedNum}`;
 }
@@ -248,8 +253,6 @@ export function StocksContent({ initialPrices = {} }) {
   const currentTabTotalValue = summaryPositions.reduce((s, p) => s + p.marketValue, 0);
   const currentTabTotalCost = summaryPositions.reduce((s, p) => s + p.totalBuyCost, 0);
   const currentTabTotalUnrealized = currentTabTotalValue - currentTabTotalCost;
-  const currentTabTotalReturnRate = currentTabTotalCost > 0 ? (currentTabTotalUnrealized / currentTabTotalCost) * 100 : 0;
-  const currentTabDisplayCurrency = posTab === 'TWSE' ? 'TWD' : displayCurrency;
 
   // 顯示限制：一開始最多顯示 20 筆（第 21 筆起透過滾動查看）
   const MAX_VISIBLE = 20;
@@ -524,7 +527,7 @@ export function StocksContent({ initialPrices = {} }) {
 
                         {/* 成本價 */}
                         <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                          {fmtCurrency(convertedAvgCost, currentDisplayCurrency)}
+                          {fmtCurrency(convertedAvgCost, currentDisplayCurrency, false, 2)}
                         </td>
 
                         {/* 現價 (editable) */}

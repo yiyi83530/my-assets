@@ -148,7 +148,7 @@ export function AssetsContent() {
     };
   }, [isSheetsConnected, realTransactions, contextStockMarketPrices, demoPrices]);
 
-  const activeMonthlyAssets = isSheetsConnected ? realMonthlyAssets : demoMonthlyAssets;
+  const activeMonthlyAssets = realMonthlyAssets;
 
   // 確保不管是真實交易或 Demo 交易，都有標準化的欄位可供計算持股
   const activeTransactions = useMemo(() => {
