@@ -296,6 +296,12 @@ export default function RootLayoutClient({ children }) {
 
         if (isSheetsConnected) {
           await saveMonthlyAssetsToSheets(sheetsApiUrl, monthKey, assets);
+          
+          // 如果儲存的是當前月份，也同步更新 master assets 表，確保最新狀態一致，這樣重新載入時才不會因為 getAll 回傳空值而蓋掉欄位
+          const today = new Date();
+          if (Number(year) === today.getFullYear() && Number(month) === (today.getMonth() + 1)) {
+            await saveAssetsToSheets(assets);
+          }
         }
         displayToast(
           isSheetsConnected
@@ -411,7 +417,29 @@ export default function RootLayoutClient({ children }) {
         // 載入對應月份的資料到 assets state
         // monthlyAssets 會依連線狀態自動指向 realMonthlyAssets 或 localDemoMonthlyAssets，兩邊與畫面顯示的資料來源保持一致
         const monthKey = `${yearToSet}-${String(monthToSet).padStart(2, '0')}`;
-        const monthAssets = monthlyAssets[monthKey] || [];
+        
+        let monthAssets = [];
+        if (monthlyAssets[monthKey] && monthlyAssets[monthKey].length > 0) {
+          monthAssets = JSON.parse(JSON.stringify(monthlyAssets[monthKey]));
+        } else {
+          // 找不到該月資料時，一路往前找最近一筆「真正有資料」的月份當作預設值（最多往前找 60 個月）
+          let tempYear = yearToSet;
+          let tempMonth = monthToSet;
+          for (let i = 0; i < 60; i++) {
+            if (tempMonth === 1) {
+              tempYear -= 1;
+              tempMonth = 12;
+            } else {
+              tempMonth -= 1;
+            }
+            const prevKey = `${tempYear}-${String(tempMonth).padStart(2, '0')}`;
+            if (monthlyAssets[prevKey] && monthlyAssets[prevKey].length > 0) {
+              // 複製上一月份的科目名稱做為模版，方便使用者填寫，不需要重頭新增欄位
+              monthAssets = JSON.parse(JSON.stringify(monthlyAssets[prevKey]));
+              break;
+            }
+          }
+        }
         setAssets(monthAssets);
 
         setShowManageModal(true);

@@ -75,7 +75,7 @@ function normalizeAsset_(asset) {
     category: category,
     name: String(asset.name || ''),
     balance: isForeign ? amount : balance,
-    isLiability: Boolean(asset.isLiability || category === '負債項目'),
+    isLiability: asset.isLiability === true || String(asset.isLiability).toLowerCase() === 'true' || category === '負債項目',
     currency: isForeign ? String(asset.currency || 'USD').toUpperCase() : '',
     amount: isForeign ? amount : '',
   };
@@ -205,7 +205,26 @@ function getMonthlyAssets_() {
   // 依 monthKey 分組，還原成前端期待的 { "2026-06": [asset, asset, ...], ... } 格式
   const grouped = {};
   objects.forEach((row) => {
-    const monthKey = String(row.monthKey || '').trim();
+    let monthKey = row.monthKey;
+    if (monthKey instanceof Date) {
+      const y = monthKey.getFullYear();
+      const m = String(monthKey.getMonth() + 1).padStart(2, '0');
+      monthKey = `${y}-${m}`;
+    } else {
+      monthKey = String(monthKey || '').trim();
+      // 標準化 "YYYY/MM" 或 "YYYY-M" 為 "YYYY-MM"
+      if (monthKey.includes('/')) {
+        const parts = monthKey.split('/');
+        if (parts.length >= 2) {
+          monthKey = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+        }
+      } else if (monthKey.includes('-')) {
+        const parts = monthKey.split('-');
+        if (parts.length >= 2) {
+          monthKey = `${parts[0]}-${parts[1].padStart(2, '0')}`;
+        }
+      }
+    }
     if (!monthKey) return;
 
     const asset = {};
