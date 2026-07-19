@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '@/lib/app-context';
+import { getAutomaticTransactionTaxRate, TWSE_COMMISSION_RATE } from '@/lib/trading-fees';
 
 export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSaving }) {
   const { stockFeeSettings, openSettingsModal } = useApp();
@@ -72,13 +73,19 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
   useEffect(() => {
     if (initialData) {
       const rawTotal = Number(initialData.qty) * Number(initialData.price);
-      const { fee: calculatedFee } = calculateFee(
+      const isTwseTransaction = (initialData.market || 'TWSE') === 'TWSE';
+      const { totalFee: calculatedFee } = calculateFee(
         rawTotal,
         initialData.type,
-        currentMarketFeeSettings.feeRate,
-        currentMarketFeeSettings.feeDiscount,
+        isTwseTransaction ? TWSE_COMMISSION_RATE : currentMarketFeeSettings.feeRate,
+        isTwseTransaction ? currentMarketFeeSettings.feeDiscount : 1,
         currentMarketFeeSettings.minFee,
-        currentMarketFeeSettings.taxRate
+        getAutomaticTransactionTaxRate({
+          market: initialData.market || 'TWSE',
+          symbol: initialData.symbol,
+          stock: initialData.stock,
+          tradeDate: initialData.date,
+        })
       );
 
       const savedTotal = Number(initialData.actualAmount);
@@ -109,17 +116,25 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
   };
 
   const rawTotal = Number(qty) * Number(price) || 0;
-  const { fee: autoFee, tax: autoTax, totalFee: autoTotalFee } = calculateFee(
+  const effectiveFeeRate = market === 'TWSE' ? TWSE_COMMISSION_RATE : currentMarketFeeSettings.feeRate;
+  const effectiveFeeDiscount = market === 'TWSE' ? currentMarketFeeSettings.feeDiscount : 1;
+  const automaticTaxRate = getAutomaticTransactionTaxRate({
+    market,
+    symbol: selectedSymbol,
+    stock,
+    tradeDate: date,
+  });
+  const { fee: autoFee, tax: autoTax } = calculateFee(
     rawTotal,
     type,
-    currentMarketFeeSettings.feeRate,
-    currentMarketFeeSettings.feeDiscount,
+    effectiveFeeRate,
+    effectiveFeeDiscount,
     currentMarketFeeSettings.minFee,
-    currentMarketFeeSettings.taxRate
+    automaticTaxRate
   );
 
   const finalFee = isFeeManual ? Number(manualFee) || 0 : autoFee;
-  const finalTax = type === 'sell' ? (isFeeManual ? 0 : autoTax) : 0; // Tax is only auto-calculated
+  const finalTax = type === 'sell' ? (isFeeManual ? 0 : autoTax) : 0;
   const finalTotal = type === 'buy' ? rawTotal + finalFee : rawTotal - finalFee - finalTax;
 
   const handleSubmit = (e) => {
@@ -571,12 +586,12 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                 <span className="font-mono font-medium text-slate-800">{currencySymbol}{rawTotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-[11px]">
-                <span className="text-slate-500">手續費：</span>
+                <span className="text-slate-500">{isFeeManual ? '總費用：' : '手續費：'}</span>
                 <span className="font-mono text-slate-600">{currencySymbol}{finalFee.toLocaleString()}</span>
               </div>
-              {type === 'sell' && (
+              {type === 'sell' && !isFeeManual && (
                 <div className="flex justify-between text-[11px]">
-                  <span className="text-slate-500">交易稅：</span>
+                  <span className="text-slate-500">交易稅 ({(automaticTaxRate * 100).toFixed(2)}%)：</span>
                   <span className="font-mono text-slate-600">{currencySymbol}{finalTax.toLocaleString()}</span>
                 </div>
               )}
@@ -590,7 +605,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                   onChange={(e) => setIsFeeManual(e.target.checked)}
                   className="h-4 w-4 rounded text-rose-500 focus:ring-rose-500/50 border-slate-300"
                 />
-                手動填寫手續費 (如：券商特殊優惠)
+                手動填寫總費用（含手續費與交易稅）
               </label>
               {isFeeManual && (
                 <div className="mt-2">
@@ -599,14 +614,10 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                     value={manualFee}
                     onChange={(e) => setManualFee(e.target.value)}
                     className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
-                    placeholder={`請輸入此筆交易的總手續費 (${currentMarketFeeSettings.currency})`}
+                    placeholder={`請輸入此筆交易的總費用 (${currentMarketFeeSettings.currency})`}
                     inputMode="numeric"
                   />
-                  {type === 'sell' && (
-                     <p className="mt-1 text-[11px] text-slate-400">
-                      賣出時，手動填寫的手續費<span className="text-slate-600">不包含</span> 0.3% 交易稅，交易稅將會另外計算並扣除。
-                    </p>
-                  )}
+                  <p className="mt-1 text-[11px] text-slate-400">手動模式不會再另外加計交易稅，適合當沖或券商特殊費率。</p>
                 </div>
               )}
             </div>

@@ -1,24 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { TWSE_COMMISSION_RATE, TWSE_STOCK_TAX_RATE } from '@/lib/trading-fees';
 
 export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSaving }) {
   const [selectedMarket, setSelectedMarket] = useState('TWSE');
   const [feeRate, setFeeRate] = useState('0.001425');
   const [feeDiscount, setFeeDiscount] = useState('0.6');
   const [minFee, setMinFee] = useState('20');
-  const [taxRate, setTaxRate] = useState('0.003');
 
   useEffect(() => {
     if (initialSettings) {
       const currentMarketSettings = initialSettings[selectedMarket] || {};
       const defaults = selectedMarket === 'US'
-        ? { feeRate: 0, feeDiscount: 1, minFee: 0, taxRate: 0 }
-        : { feeRate: 0.001425, feeDiscount: 0.6, minFee: 20, taxRate: 0.003 };
+        ? { feeRate: 0, feeDiscount: 1, minFee: 0 }
+        : { feeRate: TWSE_COMMISSION_RATE, feeDiscount: 0.6, minFee: 20 };
       setFeeRate(String(currentMarketSettings.feeRate ?? defaults.feeRate));
       setFeeDiscount(String(currentMarketSettings.feeDiscount ?? defaults.feeDiscount));
       setMinFee(String(currentMarketSettings.minFee ?? defaults.minFee));
-      setTaxRate(String(currentMarketSettings.taxRate ?? defaults.taxRate));
     }
   }, [initialSettings, selectedMarket]);
 
@@ -35,11 +34,11 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(selectedMarket, { // Pass selectedMarket and new settings
-      feeRate: Number(feeRate) || 0,
-      feeDiscount: Number(feeDiscount) || 0,
+    onSave(selectedMarket, {
+      feeRate: selectedMarket === 'TWSE' ? TWSE_COMMISSION_RATE : (Number(feeRate) || 0),
+      feeDiscount: selectedMarket === 'TWSE' ? (Number(feeDiscount) || 0) : 1,
       minFee: Number(minFee) || 0,
-      taxRate: Number(taxRate) || 0,
+      taxRate: selectedMarket === 'TWSE' ? TWSE_STOCK_TAX_RATE : 0,
     });
   };
 
@@ -79,24 +78,25 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 p-6">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-500">
-              預設券商手續費率 (%)
-            </label>
-            <input
-              type="number"
-              value={feeRate}
-              onChange={(e) => setFeeRate(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
-              step="0.000001"
-              min="0"
-              required
-              inputMode="decimal"
-            />
-            <p className="mt-1 text-[11px] text-slate-400">
-              請輸入你的券商手續費率，例如 0.1425% 請輸入 0.001425。
-            </p>
-          </div>
+          {selectedMarket === 'US' && (
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-500">
+                券商手續費率
+              </label>
+              <input
+                type="number"
+                value={feeRate}
+                onChange={(e) => setFeeRate(e.target.value)}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+                step="0.000001"
+                min="0"
+                required
+                inputMode="decimal"
+              />
+              <p className="mt-1 text-[11px] text-slate-400">免手續費請填 0；若券商按成交金額計費，可輸入對應費率。</p>
+            </div>
+          )}
+          {selectedMarket === 'TWSE' && (
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">
               預設手續費折扣
@@ -115,6 +115,7 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
               請輸入券商給的折扣，例如 6 折請輸入 0.6，38 折請輸入 0.38，無折扣請輸入 1。
             </p>
           </div>
+          )}
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">
               預設最低手續費 {selectedMarket === 'TWSE' ? '(台幣)' : '(USD)'}
@@ -133,23 +134,12 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
             </p>
           </div>
           {selectedMarket === 'TWSE' && (
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-500">
-                預設交易稅率 (%) (僅台股賣出有)
-              </label>
-              <input
-                type="number"
-                value={taxRate}
-                onChange={(e) => setTaxRate(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
-                step="0.000001"
-                min="0"
-                required
-                inputMode="decimal"
-              />
-              <p className="mt-1 text-[11px] text-slate-400">
-                請輸入交易稅率，例如 0.3% 請輸入 0.003。僅適用於台股賣出交易。
+            <div className="rounded-xl border border-rose-100 bg-rose-50/60 px-4 py-3">
+              <p className="text-xs font-bold text-rose-700">系統自動套用</p>
+              <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                台股手續費基準為 0.1425%；賣出交易稅會依一般股票、ETF／ETN 與符合條件的債券 ETF 自動計算。
               </p>
+              <p className="mt-1 text-[10px] leading-4 text-slate-400">當沖或其他特殊費率，可在單筆交易使用「手動填寫總費用」。</p>
             </div>
           )}
 

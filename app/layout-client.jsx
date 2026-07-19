@@ -8,6 +8,7 @@ import { assetBalances as initialAssets, transactions as initialTransactions, mo
 import { demoMonthlyAssets, demoPortfolio } from '@/lib/demo-data';
 import { AppProvider } from '@/lib/app-context';
 import { fetchForeignExchangeRates } from '@/lib/calculations';
+import { TWSE_COMMISSION_RATE, TWSE_STOCK_TAX_RATE } from '@/lib/trading-fees';
 import {
   appendTransactionToSheets,
   fetchMonthlyAssetsFromSheets,
@@ -27,10 +28,10 @@ const LIVE_DATA_CACHE_MS = 5 * 60 * 1000;
 
 const DEFAULT_STOCK_FEE_SETTINGS = {
   TWSE: {
-    feeRate: 0.001425,
+    feeRate: TWSE_COMMISSION_RATE,
     feeDiscount: 0.6,
     minFee: 20,
-    taxRate: 0.003,
+    taxRate: TWSE_STOCK_TAX_RATE,
     currency: 'TWD',
   },
   US: {

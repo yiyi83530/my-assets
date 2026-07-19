@@ -129,6 +129,22 @@ function quoteStatusLabel(status) {
   return null;
 }
 
+function SummaryValueSkeleton() {
+  return <span className="mt-2 block h-7 w-24 animate-pulse rounded-lg bg-slate-200/80 md:h-8 md:w-28" aria-label="資料載入中" />;
+}
+
+function StockDataLoading() {
+  return (
+    <div className="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center">
+      <div className="relative flex items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-rose-100 border-t-rose-500" />
+        <span className="absolute text-sm" aria-hidden="true">🐷</span>
+      </div>
+      <p className="mt-3 animate-pulse text-xs font-bold text-slate-500">正在搬運您的資產...</p>
+    </div>
+  );
+}
+
 export function StocksContent() {
   const {
     transactions: realTransactions,
@@ -550,17 +566,8 @@ export function StocksContent() {
     if (mobileSectionScrollTimerRef.current) clearTimeout(mobileSectionScrollTimerRef.current);
   }, []);
 
-  if (isAppInitializing || (isSheetsConnected && !hasRequiredPrices)) {
-    return (
-      <div className="flex min-h-[55vh] w-full flex-col items-center justify-center rounded-2xl border border-rose-100 bg-white/70 px-6 text-center shadow-sm">
-        <div className="relative flex items-center justify-center">
-          <div className="h-14 w-14 animate-spin rounded-full border-4 border-rose-100 border-t-rose-500" />
-          <span className="absolute text-xl" aria-hidden="true">🐷</span>
-        </div>
-        <p className="mt-4 animate-pulse text-sm font-bold text-slate-600">正在搬運您的資產...</p>
-      </div>
-    );
-  }
+  const isPortfolioLoading = isAppInitializing || (isSheetsConnected && !hasRequiredPrices);
+  const isTransactionsLoading = isAppInitializing;
 
   return (
     <>
@@ -568,27 +575,31 @@ export function StocksContent() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <div className="card p-3 md:p-5">
           <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">持股現值總計 (TWD)</p>
-          <p className="mt-1 md:mt-2 text-lg md:text-2xl font-black text-slate-900">
-            {fmtCurrency(totalOverallValue, 'TWD')}
-          </p>
+          {isPortfolioLoading ? <SummaryValueSkeleton /> : (
+            <p className="mt-1 text-lg font-black text-slate-900 md:mt-2 md:text-2xl">{fmtCurrency(totalOverallValue, 'TWD')}</p>
+          )}
         </div>
         <div className="card p-3 md:p-5">
           <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">總投資成本 (TWD)</p>
-          <p className="mt-1 md:mt-2 text-lg md:text-2xl font-black text-slate-900">
-            {fmtCurrency(totalOverallCost, 'TWD')}
-          </p>
+          {isPortfolioLoading ? <SummaryValueSkeleton /> : (
+            <p className="mt-1 text-lg font-black text-slate-900 md:mt-2 md:text-2xl">{fmtCurrency(totalOverallCost, 'TWD')}</p>
+          )}
         </div>
         <div className="card p-3 md:p-5">
           <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">未實現損益 (TWD)</p>
-          <p className={`mt-1 md:mt-2 text-lg md:text-2xl font-black ${totalOverallUnrealized >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            {fmtCurrency(totalOverallUnrealized, 'TWD', true)}
-          </p>
+          {isPortfolioLoading ? <SummaryValueSkeleton /> : (
+            <p className={`mt-1 text-lg font-black md:mt-2 md:text-2xl ${totalOverallUnrealized >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {fmtCurrency(totalOverallUnrealized, 'TWD', true)}
+            </p>
+          )}
         </div>
         <div className="card p-3 md:p-5">
           <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">總報酬率</p>
-          <p className={`mt-1 md:mt-2 text-lg md:text-2xl font-black ${totalOverallReturnRate >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            {totalOverallReturnRate >= 0 ? '+' : ''}{totalOverallReturnRate.toFixed(2)}%
-          </p>
+          {isPortfolioLoading ? <SummaryValueSkeleton /> : (
+            <p className={`mt-1 text-lg font-black md:mt-2 md:text-2xl ${totalOverallReturnRate >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {totalOverallReturnRate >= 0 ? '+' : ''}{totalOverallReturnRate.toFixed(2)}%
+            </p>
+          )}
         </div>
       </div>
 
@@ -622,7 +633,7 @@ export function StocksContent() {
               </span>
               <h2 className="text-base font-black text-slate-900">持股明細</h2>
               <span className="ml-auto rounded-full bg-white px-2 py-1 text-[10px] font-bold text-rose-500 shadow-sm">
-                {allPositions.length} 檔
+                {isAppInitializing ? '—' : `${allPositions.length} 檔`}
               </span>
             </div>
           </button>
@@ -713,10 +724,10 @@ export function StocksContent() {
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
             <button
               onClick={handleManualRefresh}
-              disabled={isFetchingPrices}
+              disabled={isFetchingPrices || isPortfolioLoading}
               className="group order-1 inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md bg-transparent px-1 text-[11px] font-bold text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-wait disabled:opacity-50"
             >
-                {isFetchingPrices ? (
+                {isFetchingPrices || isPortfolioLoading ? (
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-rose-600" />
                 ) : (
                   <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 transition-transform duration-500 group-hover:rotate-180">
@@ -728,7 +739,8 @@ export function StocksContent() {
             <button
               onClick={() => setShowChart(!showChart)}
               aria-expanded={showChart}
-              className={`order-3 ml-auto inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-2 text-[10px] font-semibold transition ${
+              disabled={isPortfolioLoading}
+              className={`order-3 ml-auto inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-2 text-[10px] font-semibold transition disabled:cursor-wait disabled:opacity-50 ${
                 showChart
                   ? 'border-rose-200 bg-rose-50 text-rose-600'
                   : 'border-rose-100 bg-white text-rose-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600'
@@ -783,16 +795,20 @@ export function StocksContent() {
                   <p className="mt-0.5 text-[9px] text-slate-400">依目前可用報價加總</p>
                 </div>
               </div>
-              <p className="shrink-0 text-right font-mono text-base font-black text-slate-800">
-                {displayCurrency === 'TWD'
-                  ? `${fmtCurrency(currentTabTotalValue, 'TWD')} TWD`
-                  : `${fmtCurrency(currentTabTotalValue, 'USD', false, 2)} USD`}
-              </p>
+              {isPortfolioLoading ? (
+                <span className="h-5 w-24 animate-pulse rounded-md bg-blue-100" aria-label="美股資產載入中" />
+              ) : (
+                <p className="shrink-0 text-right font-mono text-base font-black text-slate-800">
+                  {displayCurrency === 'TWD'
+                    ? `${fmtCurrency(currentTabTotalValue, 'TWD')} TWD`
+                    : `${fmtCurrency(currentTabTotalValue, 'USD', false, 2)} USD`}
+                </p>
+              )}
             </div>
           )}
         </div>
 
-        {showChart && industryData.length > 0 && (
+        {!isPortfolioLoading && showChart && industryData.length > 0 && (
           <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-5 md:px-5">
             <div className="mb-4 flex items-end justify-between gap-3">
               <div>
@@ -915,7 +931,9 @@ export function StocksContent() {
         )}
 
         <div key={posTab} className="animate-in fade-in duration-500">
-          {activePositions.length === 0 ? (
+          {isPortfolioLoading ? (
+            <StockDataLoading />
+          ) : activePositions.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
               目前沒有「{posTab === 'TWSE' ? '台股' : '美股'}」持股明細
             </div>
@@ -1343,7 +1361,9 @@ export function StocksContent() {
         </div>
 
         <div key={histTab} className="animate-in fade-in duration-500">
-          {activeTx.length === 0 ? (
+          {isTransactionsLoading ? (
+            <StockDataLoading />
+          ) : activeTx.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-slate-400">
               目前沒有「{histTab === 'TWSE' ? '台股' : '美股'}」歷史交易紀錄
             </div>

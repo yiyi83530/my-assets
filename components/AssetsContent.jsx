@@ -436,18 +436,20 @@ export function AssetsContent() {
           </div>
           <p className="mt-3 mb-3 hidden text-left text-[11px] text-slate-400 md:block">將滑鼠移動到圓餅圖上，即可顯示該資產名稱及餘額！</p>
           <div className="h-40 w-full flex items-center justify-center">
-            {allocationData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={allocationData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={5} dataKey="value">
-                    {allocationData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />)}
-                  </Pie>
-                  <Tooltip formatter={(value) => `$${value.toLocaleString()}`} contentStyle={{ borderRadius: '0.5rem', fontSize: '12px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="text-sm text-slate-400">尚無資產配置資料</p>
-            )}
+            <div className="h-full w-full scale-[0.78] transition-transform md:scale-100">
+              {allocationData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={allocationData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={5} dataKey="value">
+                      {allocationData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />)}
+                    </Pie>
+                    <Tooltip formatter={(value) => `$${value.toLocaleString()}`} contentStyle={{ borderRadius: '0.5rem', fontSize: '12px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="flex h-full items-center justify-center text-sm text-slate-400">尚無資產配置資料</p>
+              )}
+            </div>
           </div>
 
           {/* 簡易圖例與數值 */}
@@ -478,12 +480,12 @@ export function AssetsContent() {
             <span className="text-sm font-bold text-slate-700">查看月份：</span>
             <span className="text-xs text-slate-500">選擇年月查看該月資產及負債</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 md:flex">
+          <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
+            <div className="order-2 col-span-2 flex items-center justify-end gap-3 md:order-none md:justify-start md:gap-2">
               <button
                 type="button"
                 onClick={selectPreviousMonth}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                className="rounded-md px-1 py-0.5 text-[10px] font-medium text-slate-400 transition hover:bg-slate-50 hover:text-rose-600 md:rounded-xl md:border md:border-slate-200 md:bg-white md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-slate-700 md:hover:border-rose-200 md:hover:bg-rose-50"
               >
                 ← 上個月
               </button>
@@ -491,15 +493,16 @@ export function AssetsContent() {
                 type="button"
                 onClick={selectCurrentMonth}
                 disabled={selectedYear === currentYearReal && selectedMonth === currentMonthReal}
-                className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-default disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                className="rounded-md px-1 py-0.5 text-[10px] font-medium text-rose-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-default disabled:bg-transparent disabled:text-slate-300 md:rounded-xl md:border md:border-rose-200 md:bg-rose-50 md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-rose-700 md:hover:bg-rose-100 md:disabled:border-slate-200 md:disabled:bg-slate-100 md:disabled:text-slate-400"
               >
-                回到本月
+                <span className="md:hidden">回本月</span>
+                <span className="hidden md:inline">回到本月</span>
               </button>
             </div>
 
             {/* 年份下拉 */}
-            <div className="relative">
-              <button type="button" onClick={() => { setShowYearDropdown(!showYearDropdown); setShowMonthDropdown(false); if (!showYearDropdown) setYearHighlightedIndex(availableYears.indexOf(selectedYear)); }} onBlur={() => setTimeout(() => setShowYearDropdown(false), 120)} className="flex min-w-[90px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none">
+            <div className="relative order-1 md:order-none">
+              <button type="button" onClick={() => { setShowYearDropdown(!showYearDropdown); setShowMonthDropdown(false); if (!showYearDropdown) setYearHighlightedIndex(availableYears.indexOf(selectedYear)); }} onBlur={() => setTimeout(() => setShowYearDropdown(false), 120)} className="flex w-full min-w-[90px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none md:w-auto">
                 <span>{selectedYear} 年</span>
                 <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showYearDropdown ? 'rotate-180' : ''}`}><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
               </button>
@@ -513,8 +516,8 @@ export function AssetsContent() {
             </div>
 
             {/* 月份下拉 */}
-            <div className="relative">
-              <button type="button" onClick={() => { setShowMonthDropdown(!showMonthDropdown); setShowYearDropdown(false); if (!showMonthDropdown) setMonthHighlightedIndex(availableMonths.indexOf(selectedMonth)); }} onBlur={() => setTimeout(() => setShowMonthDropdown(false), 120)} className="flex min-w-[80px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none">
+            <div className="relative order-1 md:order-none">
+              <button type="button" onClick={() => { setShowMonthDropdown(!showMonthDropdown); setShowYearDropdown(false); if (!showMonthDropdown) setMonthHighlightedIndex(availableMonths.indexOf(selectedMonth)); }} onBlur={() => setTimeout(() => setShowMonthDropdown(false), 120)} className="flex w-full min-w-[80px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none md:w-auto">
                 <span>{selectedMonth} 月</span>
                 <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showMonthDropdown ? 'rotate-180' : ''}`}><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
               </button>
