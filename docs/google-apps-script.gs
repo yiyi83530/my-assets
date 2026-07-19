@@ -1,6 +1,8 @@
+// 更新日期：2026-07-20（修改本檔案時請同步更新）
 const SHEET_ASSETS = 'assets';
 const SHEET_TRANSACTIONS = 'transactions';
 const SHEET_MONTHLY_ASSETS = 'monthly_assets';
+const SHEET_COST_BASIS_ADJUSTMENTS = 'cost_basis_adjustments';
 
 const ASSET_HEADERS = ['id', 'category', 'name', 'balance', 'isLiability', 'currency', 'amount'];
 const TX_HEADERS = [
@@ -18,6 +20,7 @@ const TX_HEADERS = [
 ];
 // monthKey 額外放在第一欄，後面欄位跟 ASSET_HEADERS 一致，方便沿用既有的 normalize 邏輯
 const MONTHLY_ASSET_HEADERS = ['monthKey'].concat(ASSET_HEADERS);
+const COST_BASIS_ADJUSTMENT_HEADERS = ['id', 'stock', 'market', 'effectiveAt', 'avgCost', 'holdingQty', 'totalCostBasis'];
 
 function jsonResponse(payload) {
   return ContentService
@@ -97,12 +100,26 @@ function normalizeTx_(tx) {
   };
 }
 
+function normalizeCostBasisAdjustment_(adjustment) {
+  return {
+    id: String(adjustment.id || `cost_${new Date().getTime()}`),
+    stock: String(adjustment.stock || ''),
+    market: String(adjustment.market || 'TWSE').toUpperCase() === 'US' ? 'US' : 'TWSE',
+    effectiveAt: String(adjustment.effectiveAt || new Date().toISOString()),
+    avgCost: Number(adjustment.avgCost || 0),
+    holdingQty: Number(adjustment.holdingQty || 0),
+    totalCostBasis: Number(adjustment.totalCostBasis || 0),
+  };
+}
+
 function getAll_() {
   const assetsSheet = getOrCreateSheet_(SHEET_ASSETS, ASSET_HEADERS);
   const txSheet = getOrCreateSheet_(SHEET_TRANSACTIONS, TX_HEADERS);
+  const costSheet = getOrCreateSheet_(SHEET_COST_BASIS_ADJUSTMENTS, COST_BASIS_ADJUSTMENT_HEADERS);
 
   const assetLastRow = assetsSheet.getLastRow();
   const txLastRow = txSheet.getLastRow();
+  const costLastRow = costSheet.getLastRow();
 
   const assetsRows = assetLastRow > 1
     ? assetsSheet.getRange(2, 1, assetLastRow - 1, ASSET_HEADERS.length).getValues()
@@ -110,11 +127,36 @@ function getAll_() {
   const txRows = txLastRow > 1
     ? txSheet.getRange(2, 1, txLastRow - 1, TX_HEADERS.length).getValues()
     : [];
+  const costRows = costLastRow > 1
+    ? costSheet.getRange(2, 1, costLastRow - 1, COST_BASIS_ADJUSTMENT_HEADERS.length).getValues()
+    : [];
 
   return {
     assets: rowsToObjects_(assetsRows, ASSET_HEADERS),
     transactions: rowsToObjects_(txRows, TX_HEADERS),
+    costBasisAdjustments: rowsToObjects_(costRows, COST_BASIS_ADJUSTMENT_HEADERS),
   };
+}
+
+function upsertCostBasisAdjustment_(adjustment) {
+  const sheet = getOrCreateSheet_(SHEET_COST_BASIS_ADJUSTMENTS, COST_BASIS_ADJUSTMENT_HEADERS);
+  const normalized = normalizeCostBasisAdjustment_(adjustment || {});
+  const lastRow = sheet.getLastRow();
+  const idIndex = COST_BASIS_ADJUSTMENT_HEADERS.indexOf('id');
+  const row = COST_BASIS_ADJUSTMENT_HEADERS.map((header) => normalized[header] !== undefined ? normalized[header] : '');
+
+  if (lastRow > 1) {
+    const ids = sheet.getRange(2, idIndex + 1, lastRow - 1, 1).getValues();
+    for (let index = 0; index < ids.length; index++) {
+      if (String(ids[index][0]) === normalized.id) {
+        sheet.getRange(index + 2, 1, 1, COST_BASIS_ADJUSTMENT_HEADERS.length).setValues([row]);
+        return { id: normalized.id, status: 'updated' };
+      }
+    }
+  }
+
+  sheet.appendRow(row);
+  return { id: normalized.id, status: 'created' };
 }
 
 function upsertAssets_(assets) {
@@ -316,6 +358,10 @@ function doPost(e) {
 
     if (action === 'removeTransaction') {
       return jsonResponse({ ok: true, data: removeTransaction_(payload.id) });
+    }
+
+    if (action === 'upsertCostBasisAdjustment') {
+      return jsonResponse({ ok: true, data: upsertCostBasisAdjustment_(payload.adjustment || {}) });
     }
 
     if (action === 'getMonthlyAssets') {

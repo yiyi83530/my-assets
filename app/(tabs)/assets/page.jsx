@@ -19,7 +19,7 @@ const AssetsContent = nextDynamic(
 );
 
 export default function AssetsPage() {
-  const { assets = initialAssets, transactions = [], monthlyNetWorth = [] } = useApp();
+  const { assets = initialAssets, transactions = [], monthlyNetWorth = [], costBasisAdjustments = [] } = useApp();
   const [fxRates, setFxRates] = useState({});
 
   useEffect(() => {
@@ -46,8 +46,8 @@ export default function AssetsPage() {
 
   const assetsWithFx = useMemo(() => decorateAssetsWithFx(assets || [], fxRates), [assets, fxRates]);
   const portfolio = useMemo(
-    () => calculateStockPortfolio(transactions || [], stockMarketPrices),
-    [transactions]
+    () => calculateStockPortfolio(transactions || [], stockMarketPrices, costBasisAdjustments, fxRates),
+    [transactions, costBasisAdjustments, fxRates]
   );
 
   const summary = useMemo(

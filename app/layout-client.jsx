@@ -15,11 +15,13 @@ import {
   saveMonthlyAssetsToSheets,
   testSheetsConnection,
   updateTransactionInSheets,
+  upsertCostBasisAdjustmentInSheets,
   upsertAssetsToSheets,
 } from '@/lib/sheets-client';
 
 const SHEETS_URL_STORAGE_KEY = 'my_assets_google_sheets_api_url';
 const STOCK_FEE_SETTINGS_KEY = 'my_assets_stock_fee_settings';
+const COST_BASIS_ADJUSTMENTS_KEY = 'my_assets_cost_basis_adjustments';
 
 const DEFAULT_STOCK_FEE_SETTINGS = {
   TWSE: {
@@ -70,6 +72,7 @@ export default function RootLayoutClient({ children }) {
   const [sheetsApiUrl, setSheetsApiUrl] = useState('');
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
   const [stockMarketPrices, setStockMarketPrices] = useState({});
+  const [costBasisAdjustments, setCostBasisAdjustments] = useState([]);
   const [lastMonthNetWorth, setLastMonthNetWorth] = useState(0);
   const [stockFeeSettings, setStockFeeSettings] = useState(DEFAULT_STOCK_FEE_SETTINGS);
   const [usdToTwdRate, setUsdToTwdRate] = useState(null);
@@ -119,6 +122,10 @@ export default function RootLayoutClient({ children }) {
       setAssets(latestAssets);
       if (Array.isArray(data.transactions)) {
         setTransactions(data.transactions);
+      }
+      if (Array.isArray(data.costBasisAdjustments)) {
+        setCostBasisAdjustments(data.costBasisAdjustments);
+        window.localStorage.setItem(COST_BASIS_ADJUSTMENTS_KEY, JSON.stringify(data.costBasisAdjustments));
       }
       if (data.stockMarketPrices && typeof data.stockMarketPrices === 'object') {
         setStockMarketPrices(data.stockMarketPrices);
@@ -187,14 +194,65 @@ export default function RootLayoutClient({ children }) {
     if (storedSettings) {
       try {
         const parsed = JSON.parse(storedSettings);
-        setStockFeeSettings((prev) => ({ ...prev, ...parsed }));
+        const storedUs = parsed?.US || {};
+        const hasLegacyUsDefaultsBug = Number(storedUs.feeRate) === 0.001425
+          && Number(storedUs.feeDiscount) === 0.6
+          && Number(storedUs.minFee) === 20
+          && Number(storedUs.taxRate) === 0.003;
+        const normalizedSettings = hasLegacyUsDefaultsBug
+          ? { ...parsed, US: DEFAULT_STOCK_FEE_SETTINGS.US }
+          : parsed;
+        setStockFeeSettings((prev) => ({ ...prev, ...normalizedSettings }));
+        if (hasLegacyUsDefaultsBug) {
+          window.localStorage.setItem(STOCK_FEE_SETTINGS_KEY, JSON.stringify(normalizedSettings));
+        }
       } catch (e) {
         console.error('Failed to parse stock fee settings from localStorage', e);
       }
     }
 
+    const storedAdjustments = window.localStorage.getItem(COST_BASIS_ADJUSTMENTS_KEY);
+    if (storedAdjustments) {
+      try {
+        const parsed = JSON.parse(storedAdjustments);
+        setCostBasisAdjustments(Array.isArray(parsed) ? parsed : []);
+      } catch (error) {
+        console.error('Failed to parse cost basis adjustments', error);
+      }
+    }
+
     fetchUsdToTwdRate();
   }, [syncFromSheets, fetchUsdToTwdRate]);
+
+  const addCostBasisAdjustment = useCallback(async (adjustment) => {
+    const value = Number(adjustment?.avgCost);
+    if (!adjustment?.stock || !Number.isFinite(value) || value < 0) {
+      throw new Error('請輸入有效的平均成本');
+    }
+    const nextAdjustment = {
+      ...adjustment,
+      id: adjustment.id || `cost_${Date.now()}`,
+      effectiveAt: adjustment.effectiveAt || new Date().toISOString(),
+      avgCost: value,
+      holdingQty: Number(adjustment.holdingQty) || 0,
+      totalCostBasis: value * (Number(adjustment.holdingQty) || 0),
+    };
+    const snapshot = costBasisAdjustments;
+    const nextAdjustments = [...snapshot, nextAdjustment];
+    setCostBasisAdjustments(nextAdjustments);
+    window.localStorage.setItem(COST_BASIS_ADJUSTMENTS_KEY, JSON.stringify(nextAdjustments));
+    try {
+      if (isSheetsConnected && sheetsApiUrl) {
+        await upsertCostBasisAdjustmentInSheets(sheetsApiUrl, nextAdjustment);
+      }
+      displayToast('成本基準已更新，後續交易將接續計算', 'success');
+      return nextAdjustment;
+    } catch (error) {
+      setCostBasisAdjustments(snapshot);
+      window.localStorage.setItem(COST_BASIS_ADJUSTMENTS_KEY, JSON.stringify(snapshot));
+      throw error;
+    }
+  }, [costBasisAdjustments, displayToast, isSheetsConnected, sheetsApiUrl]);
 
   const connectSheets = useCallback(async (apiUrl) => {
     const nextUrl = String(apiUrl || '').trim();
@@ -468,6 +526,7 @@ export default function RootLayoutClient({ children }) {
       monthlyNetWorth={monthlyNetWorth}
       monthlyAssets={monthlyAssets}
       stockMarketPrices={stockMarketPrices}
+      costBasisAdjustments={costBasisAdjustments}
       lastMonthNetWorth={lastMonthNetWorth}
       stockFeeSettings={stockFeeSettings}
       setMonthlyAssets={setMonthlyAssets}
@@ -476,6 +535,7 @@ export default function RootLayoutClient({ children }) {
       saveAssetsToSheets={saveAssetsToSheets}
       addTransaction={addTransaction}
       removeTransaction={removeTransaction}
+      addCostBasisAdjustment={addCostBasisAdjustment}
       saveStockFeeSettings={handleSaveSettings}
       usdToTwdRate={usdToTwdRate}
     >

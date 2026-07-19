@@ -12,10 +12,13 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
   useEffect(() => {
     if (initialSettings) {
       const currentMarketSettings = initialSettings[selectedMarket] || {};
-      setFeeRate(String(currentMarketSettings.feeRate || '0.001425')); // Default for TWSE
-      setFeeDiscount(String(currentMarketSettings.feeDiscount || '0.6'));
-      setMinFee(String(currentMarketSettings.minFee || '20'));
-      setTaxRate(String(currentMarketSettings.taxRate || '0.003')); // Default for TWSE
+      const defaults = selectedMarket === 'US'
+        ? { feeRate: 0, feeDiscount: 1, minFee: 0, taxRate: 0 }
+        : { feeRate: 0.001425, feeDiscount: 0.6, minFee: 20, taxRate: 0.003 };
+      setFeeRate(String(currentMarketSettings.feeRate ?? defaults.feeRate));
+      setFeeDiscount(String(currentMarketSettings.feeDiscount ?? defaults.feeDiscount));
+      setMinFee(String(currentMarketSettings.minFee ?? defaults.minFee));
+      setTaxRate(String(currentMarketSettings.taxRate ?? defaults.taxRate));
     }
   }, [initialSettings, selectedMarket]);
 

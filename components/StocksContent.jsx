@@ -20,11 +20,32 @@ function getIndustry(symbol, stockName = '') {
   return INDUSTRY_MAP[symbol] || '其他';
 }
 
-function buildBasePositions(txList) {
+function buildBasePositions(txList, costBasisAdjustments = []) {
   const map = {};
-  const sorted = [...txList].sort((a, b) => new Date(a.date) - new Date(b.date));
+  const sorted = [
+    ...(txList || []).map((tx) => ({
+      kind: 'transaction',
+      timestamp: new Date(String(tx.recordedAt || '').startsWith(String(tx.date || '')) ? tx.recordedAt : `${tx.date}T12:00:00`).getTime(),
+      data: tx,
+    })),
+    ...(costBasisAdjustments || []).map((adjustment) => ({
+      kind: 'cost_adjustment',
+      timestamp: new Date(adjustment.effectiveAt).getTime(),
+      data: adjustment,
+    })),
+  ].sort((a, b) => a.timestamp - b.timestamp || (a.kind === 'transaction' ? -1 : 1));
 
-  sorted.forEach((tx) => {
+  sorted.forEach((event) => {
+    if (event.kind === 'cost_adjustment') {
+      const adjustment = event.data;
+      const pos = map[adjustment.stock];
+      const avgCost = Number(adjustment.avgCost);
+      if (pos?.holdingQty > 0 && Number.isFinite(avgCost) && avgCost >= 0) {
+        pos.totalBuyCost = avgCost * pos.holdingQty;
+      }
+      return;
+    }
+    const tx = event.data;
     const key = tx.stock;
     if (!map[key]) {
       map[key] = {
@@ -99,12 +120,12 @@ function fmtTime(isoStr) {
 }
 
 function quoteStatusLabel(status) {
-  if (status === 'realtime') return '即時';
-  if (status === 'previous_close') return '昨收';
+  if (status === 'realtime') return '即時股價';
+  if (status === 'previous_close') return '昨日收盤價';
   if (status === 'daily_close') return '最新收盤價';
-  if (status === 'esb_quote') return '興櫃行情';
-  if (status === 'manual') return '手動';
-  if (status === 'unavailable') return '等待報價';
+  if (status === 'esb_quote') return '興櫃參考價';
+  if (status === 'manual') return '手動設定價格';
+  if (status === 'unavailable') return '目前無報價';
   return null;
 }
 
@@ -115,9 +136,12 @@ export function StocksContent({ initialPrices = {} }) {
     openTransactionModal,
     isSheetsConnected,
     usdToTwdRate,
+    costBasisAdjustments,
+    addCostBasisAdjustment,
+    displayToast,
   } = useApp();
 
-  const [displayCurrency, setDisplayCurrency] = useState('USD');
+  const [displayCurrency, setDisplayCurrency] = useState('TWD');
 
   const transactions = useMemo(() => {
     const txs = realTransactions || [];
@@ -138,6 +162,11 @@ export function StocksContent({ initialPrices = {} }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showChart, setShowChart] = useState(false);
   const [selectedIndustry, setSelectedIndustry] = useState(null);
+  const [editingCostName, setEditingCostName] = useState(null);
+  const [costDraft, setCostDraft] = useState('');
+  const [originalCostDraft, setOriginalCostDraft] = useState(null);
+  const [pendingCostChange, setPendingCostChange] = useState(null);
+  const [isSavingCost, setIsSavingCost] = useState(false);
 
   const [isFetchingPrices, setIsFetchingPrices] = useState(false);
   const [posTab, setPosTab] = useState('TWSE');
@@ -147,6 +176,10 @@ export function StocksContent({ initialPrices = {} }) {
   const [yearHighlightedIndex, setYearHighlightedIndex] = useState(-1);
   const [currentTxPage, setCurrentTxPage] = useState(1); // 交易紀錄分頁
   const fetchedRef = useRef(new Set());
+
+  useEffect(() => {
+    if (posTab === 'US') setDisplayCurrency('TWD');
+  }, [posTab]);
 
   const availableYears = [...new Set(
     transactions
@@ -168,7 +201,7 @@ export function StocksContent({ initialPrices = {} }) {
     : transactions.filter((tx) => String(tx.date || '').slice(0, 4) === selectedYear);
 
   // ── derive positions (必須在報價抓取邏輯之前，因為報價邏輯依賴這些數據) ──────────────────────────────────────────────────────
-  const basePositions = buildBasePositions(transactions);
+  const basePositions = buildBasePositions(transactions, costBasisAdjustments);
   const positionKeys = basePositions.map((p) => p.name).join('|');
 
   const fetchPrices = async (toFetch) => {
@@ -258,6 +291,63 @@ export function StocksContent({ initialPrices = {} }) {
     fetchPrices(currentTabPositions);
   };
 
+  const startEditingCost = (pos, displayedCost) => {
+    const roundedCost = Number(Number(displayedCost).toFixed(2));
+    setEditingCostName(pos.name);
+    setCostDraft(roundedCost.toFixed(2));
+    setOriginalCostDraft(roundedCost);
+  };
+
+  const saveEditedCost = async ({ pos, rate, displayedValue }) => {
+    if (!Number.isFinite(displayedValue) || displayedValue < 0) return;
+    const nativeValue = pos.market === 'US' && displayCurrency === 'TWD'
+      ? displayedValue / rate
+      : displayedValue;
+    setIsSavingCost(true);
+    try {
+      await addCostBasisAdjustment({
+        stock: pos.name,
+        market: pos.market,
+        avgCost: nativeValue,
+        holdingQty: pos.holdingQty,
+      });
+      setEditingCostName(null);
+      setCostDraft('');
+      setOriginalCostDraft(null);
+      setPendingCostChange(null);
+    } catch (error) {
+      displayToast(`成本基準儲存失敗：${error.message || '請稍後再試'}`, 'error');
+    } finally {
+      setIsSavingCost(false);
+    }
+  };
+
+  const cancelEditingCost = () => {
+    setEditingCostName(null);
+    setCostDraft('');
+    setOriginalCostDraft(null);
+    setPendingCostChange(null);
+  };
+
+  const requestCostSave = (pos, rate, currency, displayName) => {
+    const displayedValue = Number(costDraft);
+    if (!Number.isFinite(displayedValue) || displayedValue < 0) return;
+    setPendingCostChange({ pos, rate, currency, displayName, displayedValue });
+  };
+
+  const hasCostChanged = editingCostName !== null
+    && Number.isFinite(Number(costDraft))
+    && Math.abs(Number(costDraft) - Number(originalCostDraft)) > 0.000001;
+
+  useEffect(() => {
+    if (!editingCostName || pendingCostChange) return undefined;
+    const handlePointerDown = (event) => {
+      if (!event.target.closest('[data-cost-editor]')) cancelEditingCost();
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [editingCostName, pendingCostChange]);
+
   const allPositions = basePositions.map((p) => {
     const marketPrice = priceMap[p.name] ?? null;
     const hasQuote = marketPrice !== null;
@@ -313,6 +403,8 @@ export function StocksContent({ initialPrices = {} }) {
   });
 
   const currentTabTotalValue = summaryPositions.reduce((s, p) => s + p.marketValue, 0);
+  // 占比固定使用原始市值計算，幣別切換只影響金額顯示。
+  const currentTabRawTotalValue = activePositions.reduce((sum, pos) => sum + pos.marketValue, 0);
   const currentTabTotalCost = summaryPositions.reduce((s, p) => s + (p.hasQuote ? p.totalBuyCost : 0), 0);
   const currentTabTotalUnrealized = currentTabTotalValue - currentTabTotalCost;
   const lastQuoteUpdatedAt = Object.values(quoteMeta).reduce(
@@ -504,15 +596,6 @@ export function StocksContent({ initialPrices = {} }) {
               {posTab === 'US' && (
                 <div className="ml-auto grid shrink-0 grid-cols-2 rounded-lg bg-slate-200/60 p-0.5" role="group" aria-label="選擇顯示幣別">
                   <button
-                    onClick={() => setDisplayCurrency('USD')}
-                    aria-pressed={displayCurrency === 'USD'}
-                    className={`min-w-[54px] rounded-md px-2.5 py-1.5 text-[11px] font-bold transition ${
-                      displayCurrency === 'USD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    USD
-                  </button>
-                  <button
                     onClick={() => setDisplayCurrency('TWD')}
                     disabled={!usdToTwdRate}
                     aria-pressed={displayCurrency === 'TWD'}
@@ -522,10 +605,37 @@ export function StocksContent({ initialPrices = {} }) {
                   >
                     TWD
                   </button>
+                  <button
+                    onClick={() => setDisplayCurrency('USD')}
+                    aria-pressed={displayCurrency === 'USD'}
+                    className={`min-w-[54px] rounded-md px-2.5 py-1.5 text-[11px] font-bold transition ${
+                      displayCurrency === 'USD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    USD
+                  </button>
                 </div>
               )}
             </div>
           </div>
+          {posTab === 'US' && (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3.5 py-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white font-mono text-[10px] font-black tracking-tight text-blue-500 shadow-sm ring-1 ring-blue-100" aria-hidden="true">
+                  US$
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold text-slate-600">美股總資產</p>
+                  <p className="mt-0.5 text-[9px] text-slate-400">依目前可用報價加總</p>
+                </div>
+              </div>
+              <p className="shrink-0 text-right font-mono text-base font-black text-slate-800">
+                {displayCurrency === 'TWD'
+                  ? `${fmtCurrency(currentTabTotalValue, 'TWD')} TWD`
+                  : `${fmtCurrency(currentTabTotalValue, 'USD', false, 2)} USD`}
+              </p>
+            </div>
+          )}
         </div>
 
         {showChart && industryData.length > 0 && (
@@ -658,8 +768,8 @@ export function StocksContent({ initialPrices = {} }) {
           ) : (
             <>
             <div className="divide-y divide-slate-100 md:hidden">
-              {activePositions.map((pos) => {
-                const sharePercent = currentTabTotalValue > 0 ? (pos.marketValue / currentTabTotalValue) * 100 : 0;
+              {activePositions.map((pos, positionIndex) => {
+                const sharePercent = currentTabRawTotalValue > 0 ? (pos.marketValue / currentTabRawTotalValue) * 100 : 0;
                 const displayName = pos.name.split(' ').slice(1).join(' ') || pos.name;
                 const isUSStock = pos.market === 'US';
                 const rate = isUSStock ? (usdToTwdRate || 1) : 1;
@@ -683,7 +793,10 @@ export function StocksContent({ initialPrices = {} }) {
                         <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-400">
                           <span>持有 {pos.holdingQty.toLocaleString()} 股</span>
                           <span aria-hidden="true">・</span>
-                          <span>市值占比 {pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}</span>
+                          <span className="inline-flex items-center gap-1">
+                            市值占比 {pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
+                            {positionIndex === 0 && pos.hasQuote && <span className="text-xs" title="市值占比第一名" aria-label="市值占比第一名">👑</span>}
+                          </span>
                           <span className="relative ml-0.5 h-1.5 w-12 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
                             <span
                               className="absolute inset-y-0 left-0 rounded-full bg-rose-400 transition-all duration-300"
@@ -693,32 +806,63 @@ export function StocksContent({ initialPrices = {} }) {
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-[10px] font-medium text-slate-400">帳面現值 (TWD)</p>
+                        <p className="text-[10px] font-medium text-slate-400">帳面現值 ({currency})</p>
                         <p className="mt-0.5 font-mono text-sm font-black text-slate-800">{pos.hasQuote ? fmtCurrency(marketValue, currency) : '—'}</p>
                       </div>
                     </div>
 
                     <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 rounded-xl bg-slate-50 p-3">
                       <div>
-                        <p className="text-[10px] font-medium text-slate-400">未實現損益 (TWD)</p>
+                        <p className="text-[10px] font-medium text-slate-400">未實現損益 ({currency})</p>
                         <p className={`mt-1 font-mono text-sm font-black ${profit == null ? 'text-slate-400' : profit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                           {profit == null ? '—' : fmtCurrency(profit, currency, true)}
                           {pos.profitPercent != null && <span className="ml-1 text-[10px]">({pos.profitPercent >= 0 ? '+' : ''}{pos.profitPercent.toFixed(2)}%)</span>}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-medium text-slate-400">投資成本 (TWD)</p>
+                        <p className="text-[10px] font-medium text-slate-400">投資成本 ({currency})</p>
                         <p className="mt-1 font-mono text-sm font-bold text-slate-700">{fmtCurrency(totalCost, currency)}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] font-medium text-slate-400">平均成本 (TWD)</p>
-                        <p className="mt-1 font-mono text-xs font-bold text-slate-700">{fmtCurrency(avgCost, currency, false, 2)}</p>
+                        <p className="text-[10px] font-medium text-slate-400">平均成本 ({currency})</p>
+                        {editingCostName === pos.name ? (
+                          <div className="mt-1 flex items-center gap-1" data-cost-editor>
+                            <input
+                              type="number"
+                              value={costDraft}
+                              onChange={(event) => setCostDraft(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' && hasCostChanged) requestCostSave(pos, rate, currency, displayName);
+                                if (event.key === 'Escape') cancelEditingCost();
+                              }}
+                              className="min-w-0 flex-1 rounded-md border border-rose-200 bg-white px-2 py-1 font-mono text-xs text-slate-700 outline-none focus:ring-2 focus:ring-rose-100"
+                              min="0"
+                              step="0.01"
+                              autoFocus
+                              aria-label={`${displayName}平均成本`}
+                            />
+                            {hasCostChanged && (
+                              <button
+                                type="button"
+                                disabled={isSavingCost}
+                                onClick={() => requestCostSave(pos, rate, currency, displayName)}
+                                className="shrink-0 px-1 py-1 text-[10px] font-bold text-rose-500 transition hover:text-rose-600 disabled:opacity-50"
+                              >
+                                儲存
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => startEditingCost(pos, avgCost)} className="mt-1 inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-700" aria-label={`修改 ${displayName} 平均成本`}>
+                            {fmtCurrency(avgCost, currency, false, 2)}
+                            <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 text-slate-400" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5-3.75.922.922-3.75 8.5-8.5z" /></svg>
+                          </button>
+                        )}
                       </div>
                       <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-[10px] font-medium text-slate-400">目前股價</p>
-                          {statusLabel && <span className="text-[9px] font-bold text-slate-400">{statusLabel}</span>}
-                        </div>
+                        <p className="text-[10px] font-medium text-slate-400">
+                          {statusLabel || '目前股價'}
+                        </p>
                         <p className="mt-1 font-mono text-xs font-bold text-slate-700">
                           {marketPrice == null ? '—' : fmtCurrency(marketPrice, currency, false, 2)}
                         </p>
@@ -746,7 +890,7 @@ export function StocksContent({ initialPrices = {} }) {
                 <tbody>
                   {activePositions.map((pos) => {
                     const sharePercent =
-                      currentTabTotalValue > 0 ? (pos.marketValue / currentTabTotalValue) * 100 : 0;
+                      currentTabRawTotalValue > 0 ? (pos.marketValue / currentTabRawTotalValue) * 100 : 0;
                     const nameParts = pos.name.split(' ');
                     const displayName = nameParts.slice(1).join(' ') || nameParts[0];
 
@@ -783,7 +927,38 @@ export function StocksContent({ initialPrices = {} }) {
 
                         {/* 成本價 */}
                         <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                          {fmtCurrency(convertedAvgCost, currentDisplayCurrency, false, 2)}
+                          {editingCostName === pos.name ? (
+                            <div className="flex items-center justify-center gap-1" data-cost-editor>
+                              <input
+                                type="number"
+                                value={costDraft}
+                                onChange={(event) => setCostDraft(event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' && hasCostChanged) requestCostSave(pos, rate, currentDisplayCurrency, displayName);
+                                  if (event.key === 'Escape') cancelEditingCost();
+                                }}
+                                className="w-24 rounded-lg border border-rose-200 bg-white px-2 py-1 text-center font-mono text-sm outline-none focus:ring-2 focus:ring-rose-100"
+                                min="0"
+                                step="0.01"
+                                autoFocus
+                              />
+                              {hasCostChanged && (
+                                <button
+                                  type="button"
+                                  disabled={isSavingCost}
+                                  onClick={() => requestCostSave(pos, rate, currentDisplayCurrency, displayName)}
+                                  className="shrink-0 px-1 py-1 text-[10px] font-bold text-rose-500 transition hover:text-rose-600 disabled:opacity-50"
+                                >
+                                  儲存
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <button type="button" onClick={() => startEditingCost(pos, convertedAvgCost)} className="inline-flex items-center gap-1 font-mono text-sm text-slate-700" aria-label={`修改 ${displayName} 平均成本`}>
+                              {fmtCurrency(convertedAvgCost, currentDisplayCurrency, false, 2)}
+                              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 text-slate-400" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5-3.75.922.922-3.75 8.5-8.5z" /></svg>
+                            </button>
+                          )}
                         </td>
 
                         {/* 現價（唯讀） */}
@@ -795,7 +970,7 @@ export function StocksContent({ initialPrices = {} }) {
                             {statusLabel && (
                               <span
                                 title={meta?.source ? `來源：${meta.source}` : '官方行情暫無回應，系統會自動重試'}
-                                className={`text-[9px] font-bold ${meta.status === 'unavailable' ? 'text-amber-600' : meta.status === 'realtime' ? 'text-emerald-600' : 'text-slate-400'}`}
+                                className="text-[9px] font-bold text-slate-400"
                               >
                                 {statusLabel}
                               </span>
@@ -1123,6 +1298,50 @@ export function StocksContent({ initialPrices = {} }) {
           )}
         </div>
       </div>
+
+      {/* ── 平均成本修改確認 ── */}
+      {pendingCostChange && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => !isSavingCost && setPendingCostChange(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl">
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 text-rose-500">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">確定修改平均成本？</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                確定要將「{pendingCostChange.pos.market === 'US' ? '美股' : '台股'}・{pendingCostChange.displayName}」的平均成本修改為
+                <span className="mx-1 whitespace-nowrap font-mono font-bold text-slate-800">
+                  {pendingCostChange.displayedValue.toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {pendingCostChange.currency}
+                </span>
+                嗎？
+              </p>
+              <p className="mt-2 text-xs leading-5 text-slate-400">儲存後會重新計算所有月份的投資成本與未實現損益，後續交易將接續新成本計算。</p>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                disabled={isSavingCost}
+                onClick={() => setPendingCostChange(null)}
+                className="flex-1 rounded-xl bg-slate-100 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-200 disabled:opacity-50"
+              >
+                返回修改
+              </button>
+              <button
+                type="button"
+                disabled={isSavingCost}
+                onClick={() => saveEditedCost(pendingCostChange)}
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-500 py-2.5 text-sm font-bold text-white shadow-sm shadow-rose-200 transition hover:bg-rose-600 disabled:opacity-50"
+              >
+                {isSavingCost && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+                {isSavingCost ? '儲存中' : '確認儲存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 刪除確認 Modal ── */}
       {deleteId && (

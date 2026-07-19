@@ -76,6 +76,7 @@ export function AssetsContent() {
     monthlyNetWorth: realMonthlyNetWorth,
     transactions: realTransactions,
     stockMarketPrices: contextStockMarketPrices,
+    costBasisAdjustments,
     lastMonthNetWorth: contextLastMonthNetWorth,
   } = useApp();
 
@@ -189,7 +190,7 @@ export function AssetsContent() {
 
       const lastDayOfMonth = `${monthKey}-31`;
       const txUpToMonth = (activeTransactions || []).filter((tx) => tx.date <= lastDayOfMonth);
-      const portfolioAtMonth = calculateStockPortfolio(txUpToMonth, prices);
+      const portfolioAtMonth = calculateStockPortfolio(txUpToMonth, prices, costBasisAdjustments, fxRates);
       const stockValue = portfolioAtMonth.currentPortfolioValue || 0;
 
       const netWorth = Math.round(bankSavings + stockValue - liabilities);
@@ -200,7 +201,7 @@ export function AssetsContent() {
         yearMonth: monthKey
       };
     });
-  }, [activeMonthlyAssets, activeTransactions, prices, fxRates]);
+  }, [activeMonthlyAssets, activeTransactions, prices, fxRates, costBasisAdjustments]);
 
   const setMonthlyAssets = isSheetsConnected ? realSetMonthlyAssets : () => {
     console.warn("Demo mode: Operation ignored.");
@@ -300,6 +301,9 @@ export function AssetsContent() {
         .map((item) => item.currency)
         .filter(Boolean)
     )];
+    if ((realTransactions || []).some((tx) => tx.market === 'US') && !currencies.includes('USD')) {
+      currencies.push('USD');
+    }
 
     setIsAssetDataLoading(true); // Start loading
     let active = true;
@@ -309,7 +313,7 @@ export function AssetsContent() {
       .finally(() => { if (active) setIsAssetDataLoading(false); });
 
     return () => { active = false; };
-  }, [isSheetsConnected, selectedMonthKey, displayAssetsRaw]);
+  }, [isSheetsConnected, selectedMonthKey, displayAssetsRaw, realTransactions]);
 
   // 真實模式才需要重新跑匯率換算；demo 資料本身已經算好 convertedBalance
   const displayAssets = useMemo(() => {
@@ -327,8 +331,8 @@ export function AssetsContent() {
 
   const portfolioAtSelectedMonth = useMemo(() => {
     const txUpToMonth = (activeTransactions || []).filter((tx) => tx.date <= lastDayOfSelectedMonth);
-    return calculateStockPortfolio(txUpToMonth, prices);
-  }, [activeTransactions, lastDayOfSelectedMonth, prices]);
+    return calculateStockPortfolio(txUpToMonth, prices, costBasisAdjustments, fxRates);
+  }, [activeTransactions, lastDayOfSelectedMonth, prices, costBasisAdjustments, fxRates]);
 
   const previousMonthKey = getPreviousMonthKey(selectedYear, selectedMonth);
   const previousMonthSummaryNetWorth = useMemo(() => {
