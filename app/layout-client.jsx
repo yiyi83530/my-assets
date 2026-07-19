@@ -16,7 +16,6 @@ import {
   fetchSheetsData,
   removeTransactionFromSheets,
   saveMonthlyAssetsToSheets,
-  testSheetsConnection,
   updateTransactionInSheets,
   upsertCostBasisAdjustmentInSheets,
   upsertAssetsToSheets,
@@ -26,6 +25,19 @@ const SHEETS_URL_STORAGE_KEY = 'my_assets_google_sheets_api_url';
 const STOCK_FEE_SETTINGS_KEY = 'my_assets_stock_fee_settings';
 const COST_BASIS_ADJUSTMENTS_KEY = 'my_assets_cost_basis_adjustments';
 const LIVE_DATA_CACHE_MS = 5 * 60 * 1000;
+const STOCK_QUOTE_TIMEOUT_MS = 8000;
+
+async function fetchJsonWithTimeout(url, timeoutMs = STOCK_QUOTE_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const DEFAULT_STOCK_FEE_SETTINGS = {
   TWSE: {
@@ -103,17 +115,11 @@ export default function RootLayoutClient({ children }) {
 
   const fetchUsdToTwdRate = useCallback(async () => {
     try {
-      const response = await fetch('/api/exchange-rate');
-      if (response.ok) {
-        const data = await response.json();
-        setUsdToTwdRate(data.usdToTwd);
-        if (Number(data.usdToTwd) > 0) {
-          setExchangeRates((prev) => ({ ...prev, USD: Number(data.usdToTwd) }));
-          exchangeRateFetchedAtRef.current.set('USD', Date.now());
-        }
-      } else {
-        console.error('Failed to fetch USD to TWD exchange rate');
-        setUsdToTwdRate(null);
+      const data = await fetchJsonWithTimeout('/api/exchange-rate');
+      setUsdToTwdRate(data.usdToTwd);
+      if (Number(data.usdToTwd) > 0) {
+        setExchangeRates((prev) => ({ ...prev, USD: Number(data.usdToTwd) }));
+        exchangeRateFetchedAtRef.current.set('USD', Date.now());
       }
     } catch (error) {
       console.error('Error fetching USD to TWD exchange rate:', error);
@@ -159,8 +165,7 @@ export default function RootLayoutClient({ children }) {
       const requestQuote = async (target) => {
         let data = null;
         for (let attempt = 0; attempt < 2; attempt += 1) {
-          const response = await fetch(`/api/stocks/quote?symbol=${encodeURIComponent(target.symbol)}&market=${target.market}`, { cache: 'no-store' });
-          data = await response.json();
+          data = await fetchJsonWithTimeout(`/api/stocks/quote?symbol=${encodeURIComponent(target.symbol)}&market=${target.market}`);
           if (data.price != null) break;
         }
         return { name: target.name, ...data };
@@ -250,14 +255,9 @@ export default function RootLayoutClient({ children }) {
     const storedUrl = window.localStorage.getItem(SHEETS_URL_STORAGE_KEY) || '';
     if (storedUrl) {
       setSheetsApiUrl(storedUrl);
-      testSheetsConnection(storedUrl)
-        .then(async (isConnected) => {
-          if (isConnected) {
-            setIsSheetsConnected(true);
-            await syncFromSheets(storedUrl, { silent: true });
-          } else {
-            setIsSheetsConnected(false);
-          }
+      syncFromSheets(storedUrl, { silent: true })
+        .then(() => {
+          setIsSheetsConnected(true);
         })
         .catch((error) => {
           console.error('Initial Sheets connection test failed:', error);
@@ -334,16 +334,10 @@ export default function RootLayoutClient({ children }) {
 
   const connectSheets = useCallback(async (apiUrl) => {
     const nextUrl = String(apiUrl || '').trim();
-    const isConnected = await testSheetsConnection(nextUrl);
-
-    if (!isConnected) {
-      throw new Error('Google Sheets 連線測試失敗，請檢查 URL 或部署權限。');
-    }
-
+    await syncFromSheets(nextUrl, { silent: true });
     window.localStorage.setItem(SHEETS_URL_STORAGE_KEY, nextUrl);
     setSheetsApiUrl(nextUrl);
     setIsSheetsConnected(true);
-    await syncFromSheets(nextUrl, { silent: true });
     return true;
   }, [syncFromSheets]);
 

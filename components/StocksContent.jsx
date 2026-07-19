@@ -566,7 +566,8 @@ export function StocksContent() {
     if (mobileSectionScrollTimerRef.current) clearTimeout(mobileSectionScrollTimerRef.current);
   }, []);
 
-  const isPortfolioLoading = isAppInitializing || (isSheetsConnected && !hasRequiredPrices);
+  const isPortfolioLoading = isAppInitializing
+    || (isSheetsConnected && isFetchingPrices && !hasRequiredPrices);
   const isTransactionsLoading = isAppInitializing;
 
   return (

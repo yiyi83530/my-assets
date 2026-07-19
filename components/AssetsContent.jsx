@@ -76,7 +76,6 @@ export function AssetsContent() {
     monthlyNetWorth: realMonthlyNetWorth,
     transactions: realTransactions,
     stockMarketPrices: contextStockMarketPrices,
-    stockQuoteMeta,
     refreshStockPrices,
     exchangeRates: fxRates,
     refreshExchangeRates,
@@ -343,12 +342,8 @@ export function AssetsContent() {
   const displayNetGrowth = activeSummary?.netGrowth ?? 0;
   const displayGrowthRate = activeSummary?.growthRate ?? 0;
 
-  const hasRequiredPrices = quoteTargets.every((target) => (
-    prices?.[target.name] != null || stockQuoteMeta?.[target.name]?.status === 'unavailable'
-  ));
-  const hasRequiredFxRates = requiredFxCurrencies.every((currency) => Number(fxRates?.[currency]) > 0);
-  const isAssetScreenLoading = isAppInitializing
-    || (isSheetsConnected && (!hasRequiredPrices || !hasRequiredFxRates));
+  // 外部報價或匯率較慢時沿用既有／fallback 數值，不阻擋整個資產頁面。
+  const isAssetScreenLoading = isAppInitializing;
 
   if (isAssetScreenLoading) {
     return (
