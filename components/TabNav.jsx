@@ -9,17 +9,22 @@ function tabClass(isActive) {
     'w-full rounded-lg px-4 py-2.5 text-center text-xs font-bold transition-all duration-200 md:px-6 md:py-3 md:text-sm',
     isActive
       ? 'bg-white text-slate-700 shadow-sm ring-0'
-      : 'text-slate-500 hover:bg-white/70 hover:text-slate-800',
+      : 'text-slate-500 md:hover:bg-white/70 md:hover:text-slate-800',
   ].join(' ');
 }
 
 export default function TabNav({ activeTab }) {
   const { openConfigModal, isSheetsConnected } = useApp();
   const [mounted, setMounted] = useState(false);
+  const [optimisticTab, setOptimisticTab] = useState(activeTab);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setOptimisticTab(activeTab);
+  }, [activeTab]);
 
   return (
     <header className="rounded-2xl border border-rose-100 bg-white p-4 shadow-sm">
@@ -54,10 +59,20 @@ export default function TabNav({ activeTab }) {
       </div>
 
       <div className="grid w-full grid-cols-2 gap-2 rounded-xl bg-slate-100/90 p-1.5 md:gap-2.5 md:p-2">
-        <Link href="/assets" className={tabClass(activeTab === 'assets')}>
+        <Link
+          href="/assets"
+          onClick={() => setOptimisticTab('assets')}
+          aria-current={optimisticTab === 'assets' ? 'page' : undefined}
+          className={tabClass(optimisticTab === 'assets')}
+        >
           資產與負債
         </Link>
-        <Link href="/stocks" className={tabClass(activeTab === 'stocks')}>
+        <Link
+          href="/stocks"
+          onClick={() => setOptimisticTab('stocks')}
+          aria-current={optimisticTab === 'stocks' ? 'page' : undefined}
+          className={tabClass(optimisticTab === 'stocks')}
+        >
           股票庫存
         </Link>
       </div>

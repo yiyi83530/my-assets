@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useApp } from '@/lib/app-context';
 import { INDUSTRY_COLORS, INDUSTRY_MAP } from '@/components/common/constants';
@@ -129,12 +129,17 @@ function quoteStatusLabel(status) {
   return null;
 }
 
-export function StocksContent({ initialPrices = {} }) {
+export function StocksContent() {
   const {
     transactions: realTransactions,
     removeTransaction: realRemoveTransaction,
     openTransactionModal,
+    isAppInitializing,
     isSheetsConnected,
+    stockMarketPrices,
+    stockQuoteMeta: quoteMeta,
+    isStockPricesLoading: isFetchingPrices,
+    refreshStockPrices,
     usdToTwdRate,
     costBasisAdjustments,
     addCostBasisAdjustment,
@@ -156,8 +161,7 @@ export function StocksContent({ initialPrices = {} }) {
 
   const removeTransaction = realRemoveTransaction;
 
-  const [priceMap, setPriceMap] = useState(isSheetsConnected ? initialPrices : demoInitialPrices);
-  const [quoteMeta, setQuoteMeta] = useState({});
+  const priceMap = isSheetsConnected ? stockMarketPrices : demoInitialPrices;
   const [deleteId, setDeleteId] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showChart, setShowChart] = useState(false);
@@ -168,14 +172,15 @@ export function StocksContent({ initialPrices = {} }) {
   const [pendingCostChange, setPendingCostChange] = useState(null);
   const [isSavingCost, setIsSavingCost] = useState(false);
 
-  const [isFetchingPrices, setIsFetchingPrices] = useState(false);
   const [posTab, setPosTab] = useState('TWSE');
   const [histTab, setHistTab] = useState('TWSE');
   const [selectedYear, setSelectedYear] = useState('ALL');
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
   const [showYearDropdown, setShowYearDropdown] = useState(false);
+  const [showMonthDropdown, setShowMonthDropdown] = useState(false);
   const [yearHighlightedIndex, setYearHighlightedIndex] = useState(-1);
+  const [monthHighlightedIndex, setMonthHighlightedIndex] = useState(-1);
   const [currentTxPage, setCurrentTxPage] = useState(1); // 交易紀錄分頁
-  const fetchedRef = useRef(new Set());
 
   useEffect(() => {
     if (posTab === 'US') setDisplayCurrency('TWD');
@@ -187,8 +192,28 @@ export function StocksContent({ initialPrices = {} }) {
       .filter((year) => Number.isFinite(year) && year > 0)
   )].sort((a, b) => b - a);
 
-  const yearOptions = ['ALL', ...availableYears.map((year) => String(year))];
+  const now = new Date();
+  const currentFilterYear = String(now.getFullYear());
+  const currentFilterMonth = String(now.getMonth() + 1).padStart(2, '0');
+  const yearOptions = ['ALL', ...new Set([currentFilterYear, ...availableYears.map((year) => String(year))])];
   const yearLabel = selectedYear === 'ALL' ? '全部年份' : `${selectedYear} 年`;
+
+  const transactionsInSelectedYear = selectedYear === 'ALL'
+    ? transactions
+    : transactions.filter((tx) => String(tx.date || '').slice(0, 4) === selectedYear);
+  const availableMonths = [...new Set(
+    transactionsInSelectedYear
+      .map((tx) => Number(String(tx.date || '').slice(5, 7)))
+      .filter((month) => Number.isFinite(month) && month >= 1 && month <= 12)
+  )].sort((a, b) => a - b);
+  const monthOptions = [
+    'ALL',
+    ...[...new Set([
+      ...(selectedYear === currentFilterYear ? [currentFilterMonth] : []),
+      ...availableMonths.map((month) => String(month).padStart(2, '0')),
+    ])].sort((a, b) => Number(a) - Number(b)),
+  ];
+  const monthLabel = selectedMonth === 'ALL' ? '全部月份' : `${Number(selectedMonth)} 月`;
 
   useEffect(() => {
     if (selectedYear !== 'ALL' && !yearOptions.includes(selectedYear)) {
@@ -196,76 +221,27 @@ export function StocksContent({ initialPrices = {} }) {
     }
   }, [selectedYear, yearOptions]);
 
-  const filteredTransactions = selectedYear === 'ALL'
-    ? transactions
-    : transactions.filter((tx) => String(tx.date || '').slice(0, 4) === selectedYear);
+  useEffect(() => {
+    if (selectedMonth !== 'ALL' && !monthOptions.includes(selectedMonth)) {
+      setSelectedMonth('ALL');
+    }
+  }, [selectedMonth, monthOptions]);
+
+  const filteredTransactions = transactionsInSelectedYear.filter((tx) => (
+    selectedMonth === 'ALL' || String(tx.date || '').slice(5, 7) === selectedMonth
+  ));
 
   // ── derive positions (必須在報價抓取邏輯之前，因為報價邏輯依賴這些數據) ──────────────────────────────────────────────────────
-  const basePositions = buildBasePositions(transactions, costBasisAdjustments);
+  const basePositions = useMemo(
+    () => buildBasePositions(transactions, costBasisAdjustments),
+    [transactions, costBasisAdjustments]
+  );
   const positionKeys = basePositions.map((p) => p.name).join('|');
-
-  const fetchPrices = async (toFetch) => {
-    if (toFetch.length === 0) return;
-    setIsFetchingPrices(true);
-
-    if (!isSheetsConnected) {
-      console.log('Demo mode: Skipping price fetch API call.');
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setIsFetchingPrices(false);
-      return;
-    }
-
-    try {
-      const requestQuote = async (pos) => {
-        let data = null;
-        for (let attempt = 0; attempt < 2; attempt += 1) {
-          const response = await fetch(
-            `/api/stocks/quote?symbol=${encodeURIComponent(pos.symbol)}&market=${pos.market}`,
-            { cache: 'no-store' }
-          );
-          data = await response.json();
-          if (data.price != null) break;
-        }
-        return { name: pos.name, ...data };
-      };
-      const results = await Promise.allSettled(
-        toFetch.map(requestQuote)
-      );
-
-      const newPrices = {};
-      const newMeta = {};
-      results.forEach((r) => {
-        if (r.status === 'fulfilled' && r.value.price != null) {
-          newPrices[r.value.name] = r.value.price;
-          newMeta[r.value.name] = {
-            status: r.value.status,
-            source: r.value.source,
-            asOf: r.value.asOf,
-            fetchedAt: Date.now(),
-          };
-          fetchedRef.current.add(r.value.name);
-        } else if (r.status === 'fulfilled') {
-          newMeta[r.value.name] = { status: 'unavailable', source: null, asOf: null, fetchedAt: Date.now() };
-        }
-      });
-
-      setQuoteMeta((prev) => ({ ...prev, ...newMeta }));
-      if (Object.keys(newPrices).length > 0) {
-        setPriceMap((prev) => ({ ...prev, ...newPrices }));
-      }
-    } catch (error) {
-      console.error('Failed to fetch prices:', error);
-    } finally {
-      setIsFetchingPrices(false);
-    }
-  };
 
   // 自動抓取新持股的報價
   useEffect(() => {
-    const toFetch = basePositions.filter((p) => !fetchedRef.current.has(p.name));
-    fetchPrices(toFetch);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positionKeys, isSheetsConnected]);
+    if (isSheetsConnected) refreshStockPrices(basePositions);
+  }, [basePositions, isSheetsConnected, positionKeys, refreshStockPrices]);
 
   // 官方來源暫時無回應時持續低頻重試；成功前不納入損益計算。
   const failedQuoteRevision = Object.entries(quoteMeta)
@@ -278,17 +254,18 @@ export function StocksContent({ initialPrices = {} }) {
       const failedPositions = basePositions.filter(
         (pos) => quoteMeta[pos.name]?.status === 'unavailable'
       );
-      if (failedPositions.length > 0 && !isFetchingPrices) fetchPrices(failedPositions);
+      if (failedPositions.length > 0 && !isFetchingPrices) {
+        refreshStockPrices(failedPositions, { force: true });
+      }
     }, 30000);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [failedQuoteRevision, isSheetsConnected, isFetchingPrices]);
+  }, [basePositions, failedQuoteRevision, isSheetsConnected, isFetchingPrices, quoteMeta, refreshStockPrices]);
 
   // 手動重新整理目前分頁的報價
   const handleManualRefresh = () => {
     if (isFetchingPrices) return;
     const currentTabPositions = posTab === 'TWSE' ? twsePositions : usPositions;
-    fetchPrices(currentTabPositions);
+    refreshStockPrices(currentTabPositions, { force: true });
   };
 
   const startEditingCost = (pos, displayedCost) => {
@@ -491,9 +468,25 @@ export function StocksContent({ initialPrices = {} }) {
   // 當切換 tab 或年份時，重置到第 1 頁
   useEffect(() => {
     setCurrentTxPage(1);
-  }, [histTab, selectedYear]);
+  }, [histTab, selectedYear, selectedMonth]);
 
   // ─────────────────────────────────────────────────────────────────────────
+
+  const hasRequiredPrices = basePositions.every((position) => (
+    priceMap?.[position.name] != null || quoteMeta?.[position.name]?.status === 'unavailable'
+  ));
+
+  if (isAppInitializing || (isSheetsConnected && !hasRequiredPrices)) {
+    return (
+      <div className="flex min-h-[55vh] w-full flex-col items-center justify-center rounded-2xl border border-rose-100 bg-white/70 px-6 text-center shadow-sm">
+        <div className="relative flex items-center justify-center">
+          <div className="h-14 w-14 animate-spin rounded-full border-4 border-rose-100 border-t-rose-500" />
+          <span className="absolute text-xl" aria-hidden="true">🐷</span>
+        </div>
+        <p className="mt-4 animate-pulse text-sm font-bold text-slate-600">正在搬運您的資產...</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -526,14 +519,18 @@ export function StocksContent({ initialPrices = {} }) {
       </div>
 
       {/* ── Positions Section ── */}
-      <div className="card overflow-hidden">
-        <div className="border-b border-slate-100 bg-gradient-to-b from-white to-slate-50/40 px-4 py-4 sm:px-5 sm:py-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0 pt-0.5">
-              <h2 className="text-base font-black tracking-tight text-slate-900">個人即時持股</h2>
-              <p className="mt-1 text-[11px] font-medium text-slate-400">查看市值、成本與未實現損益</p>
+      <section className="card overflow-hidden ring-1 ring-rose-100/70" aria-labelledby="positions-heading">
+        <div className="border-b border-slate-200 bg-gradient-to-r from-rose-50/80 via-white to-white px-4 py-5 sm:px-6 sm:py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white shadow-sm shadow-rose-200 sm:h-11 sm:w-11 sm:rounded-2xl" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V9m5 10V5m5 14v-7m5 7V3" />
+                </svg>
+              </span>
+              <h2 id="positions-heading" className="whitespace-nowrap text-xl font-black tracking-tight text-slate-900 sm:text-2xl">持股明細</h2>
             </div>
-            <div className="grid shrink-0 grid-cols-2 rounded-xl bg-slate-200/60 p-1" role="group" aria-label="選擇股票市場">
+            <div className="grid w-full shrink-0 grid-cols-2 rounded-xl bg-slate-200/60 p-1 sm:w-auto" role="group" aria-label="選擇股票市場">
               <button
                 onClick={() => setPosTab('TWSE')}
                 aria-pressed={posTab === 'TWSE'}
@@ -541,7 +538,7 @@ export function StocksContent({ initialPrices = {} }) {
                   posTab === 'TWSE' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <span className="h-2 w-2 rounded-full bg-rose-400" aria-hidden="true" />
+                <span className="text-sm leading-none" aria-hidden="true">🇹🇼</span>
                 台股
               </button>
               <button
@@ -551,21 +548,21 @@ export function StocksContent({ initialPrices = {} }) {
                   posTab === 'US' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <span className="h-2 w-2 rounded-full bg-blue-500" aria-hidden="true" />
+                <span className="text-sm leading-none" aria-hidden="true">🇺🇸</span>
                 美股
               </button>
             </div>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-200/70 pt-3 sm:flex sm:flex-wrap sm:items-center">
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
             <button
               onClick={handleManualRefresh}
               disabled={isFetchingPrices}
-              className="group inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-rose-100 bg-white px-2 text-[11px] font-bold text-rose-500 shadow-sm transition-all hover:border-rose-200 hover:bg-rose-50 disabled:cursor-wait disabled:opacity-50 sm:px-3"
+              className="group order-1 inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md bg-transparent px-1 text-[11px] font-bold text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-wait disabled:opacity-50"
             >
                 {isFetchingPrices ? (
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-rose-600" />
                 ) : (
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 transition-transform group-hover:rotate-180 duration-500">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 transition-transform duration-500 group-hover:rotate-180">
                     <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.45a.75.75 0 000-1.5H4.147a.75.75 0 00-.75.75v4.103a.75.75 0 001.5 0v-2.151l.33.33a7 7 0 0011.778-3.391.75.75 0 00-1.693-.44zM4.688 8.576a5.5 5.5 0 019.201-2.466l.312.311h-2.45a.75.75 0 000-1.5h4.103a.75.75 0 00.75-.75V3.068a.75.75 0 00-1.5 0v2.151l-.33-.33a7 7 0 00-11.778 3.391.75.75 0 001.693.44z" clipRule="evenodd" />
                   </svg>
                 )}
@@ -574,21 +571,21 @@ export function StocksContent({ initialPrices = {} }) {
             <button
               onClick={() => setShowChart(!showChart)}
               aria-expanded={showChart}
-              className={`inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-bold shadow-sm transition-all sm:order-3 sm:px-3 ${
+              className={`order-3 ml-auto inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-2 text-[10px] font-semibold transition ${
                 showChart
-                  ? 'border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-500'
+                  ? 'border-rose-200 bg-rose-50 text-rose-600'
+                  : 'border-rose-100 bg-white text-rose-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600'
               }`}
             >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3" aria-hidden="true">
                 <path d="M10 2.5a.75.75 0 01.75.75v6.25H17a.75.75 0 01.75.75A8.75 8.75 0 1110 1.25a.75.75 0 010 1.5z" />
                 <path d="M12.5 2.08a8.02 8.02 0 014.92 4.92h-4.17a.75.75 0 01-.75-.75V2.08z" />
               </svg>
               {showChart ? '隱藏' : '顯示'}產業分佈
             </button>
-            <div className="col-span-2 flex min-h-7 items-center gap-2 sm:order-2 sm:min-h-0 sm:flex-1">
+            <div className="order-2 flex min-h-7 min-w-0 flex-1 items-center gap-2">
               {lastQuoteUpdatedAt > 0 && (
-                <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
+                <span className="whitespace-nowrap text-[9px] font-normal text-slate-400">
                   已更新・{fmtTime(new Date(lastQuoteUpdatedAt).toISOString())}
                 </span>
               )}
@@ -1021,14 +1018,21 @@ export function StocksContent({ initialPrices = {} }) {
             </>
           )}
         </div>
-      </div>
+      </section>
 
       {/* ── Transaction History ── */}
-      <div className="card overflow-hidden">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800">股票交易歷史紀錄</h2>
-            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5">
+      <section className="card overflow-hidden ring-1 ring-blue-100/70" aria-labelledby="transactions-heading">
+        <div className="border-b border-slate-200 bg-gradient-to-r from-blue-50/80 via-white to-white px-4 py-5 sm:px-6 sm:py-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-200 sm:h-11 sm:w-11 sm:rounded-2xl" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 3h10a2 2 0 012 2v16l-3.5-2-3.5 2-3.5-2L5 21V5a2 2 0 012-2zM9 8h6m-6 4h6" />
+                </svg>
+              </span>
+              <h2 id="transactions-heading" className="whitespace-nowrap text-xl font-black tracking-tight text-slate-900 sm:text-2xl">歷史交易明細</h2>
+            </div>
+            <div className="grid w-full grid-cols-2 items-center gap-1 rounded-xl bg-slate-100 p-0.5 sm:flex sm:w-auto">
               <button onClick={() => setHistTab('TWSE')} className={tabBtnClass(histTab === 'TWSE')}>
                 📈 台股
               </button>
@@ -1038,19 +1042,58 @@ export function StocksContent({ initialPrices = {} }) {
             </div>
           </div>
 
-          <div className="mt-3 flex items-center gap-3">
-            <span className="text-xs font-semibold text-slate-500">篩選年度</span>
-            <div className="relative">
+          <div className="mt-5 border-t border-slate-200/70 pt-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold text-slate-500">篩選期間</span>
+              <div className="flex items-center gap-1.5" aria-label="交易期間快速篩選">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedYear(currentFilterYear);
+                    setSelectedMonth(currentFilterMonth);
+                    setShowYearDropdown(false);
+                    setShowMonthDropdown(false);
+                  }}
+                  className={`rounded-md border px-2 py-0.5 text-[10px] font-bold transition sm:rounded-lg sm:px-2.5 sm:py-1 sm:text-[11px] ${
+                    selectedYear === currentFilterYear && selectedMonth === currentFilterMonth
+                      ? 'border-rose-200 bg-rose-100 text-rose-700 sm:bg-rose-500 sm:text-white sm:shadow-sm sm:shadow-rose-100'
+                      : 'border-rose-200 bg-white text-rose-600 hover:bg-rose-50'
+                  }`}
+                >
+                  顯示本月
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedYear('ALL');
+                    setSelectedMonth('ALL');
+                    setShowYearDropdown(false);
+                    setShowMonthDropdown(false);
+                  }}
+                  className={`rounded-md border px-2 py-0.5 text-[10px] font-bold transition sm:rounded-lg sm:px-2.5 sm:py-1 sm:text-[11px] ${
+                    selectedYear === 'ALL' && selectedMonth === 'ALL'
+                      ? 'border-slate-200 bg-slate-100 text-slate-700 sm:border-slate-700 sm:bg-slate-700 sm:text-white sm:shadow-sm'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  查看全部
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+              <div className="relative">
               <button
                 type="button"
                 onClick={() => {
                   setShowYearDropdown((prev) => !prev);
+                  setShowMonthDropdown(false);
                   if (!showYearDropdown) {
                     setYearHighlightedIndex(Math.max(yearOptions.indexOf(selectedYear), 0));
                   }
                 }}
                 onBlur={() => setTimeout(() => setShowYearDropdown(false), 120)}
-                className="flex min-w-[126px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none"
+                className="flex w-full min-w-0 items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none sm:min-w-[126px]"
+                aria-label="選擇交易年份"
               >
                 <span>{yearLabel}</span>
                 <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showYearDropdown ? 'rotate-180' : ''}`}>
@@ -1084,6 +1127,55 @@ export function StocksContent({ initialPrices = {} }) {
                   })}
                 </div>
               )}
+              </div>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowMonthDropdown((prev) => !prev);
+                    setShowYearDropdown(false);
+                    if (!showMonthDropdown) {
+                      setMonthHighlightedIndex(Math.max(monthOptions.indexOf(selectedMonth), 0));
+                    }
+                  }}
+                  onBlur={() => setTimeout(() => setShowMonthDropdown(false), 120)}
+                  className="flex w-full min-w-0 items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none sm:min-w-[126px]"
+                  aria-label="選擇交易月份"
+                >
+                  <span>{monthLabel}</span>
+                  <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showMonthDropdown ? 'rotate-180' : ''}`}>
+                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {showMonthDropdown && (
+                  <div className="absolute right-0 z-30 mt-1 max-h-64 w-full min-w-[126px] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                    {monthOptions.map((month, index) => {
+                      const active = selectedMonth === month;
+                      const highlighted = monthHighlightedIndex === index;
+                      return (
+                        <button
+                          key={month}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onMouseEnter={() => setMonthHighlightedIndex(index)}
+                          onClick={() => {
+                            setSelectedMonth(month);
+                            setShowMonthDropdown(false);
+                          }}
+                          className={`block w-full px-3 py-2 text-left text-xs font-semibold transition ${
+                            active || highlighted
+                              ? 'bg-rose-50 text-rose-700'
+                              : 'text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          {month === 'ALL' ? '全部月份' : `${Number(month)} 月`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1297,7 +1389,7 @@ export function StocksContent({ initialPrices = {} }) {
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       {/* ── 平均成本修改確認 ── */}
       {pendingCostChange && (

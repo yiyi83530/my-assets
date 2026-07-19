@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
 import { SettingsModal } from '@/components/SettingsModal';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
 import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData, monthlyAssetsSnapshots as initialMonthlyAssets } from '@/lib/data';
 import { demoMonthlyAssets, demoPortfolio } from '@/lib/demo-data';
 import { AppProvider } from '@/lib/app-context';
+import { fetchForeignExchangeRates } from '@/lib/calculations';
 import {
   appendTransactionToSheets,
   fetchMonthlyAssetsFromSheets,
@@ -22,6 +23,7 @@ import {
 const SHEETS_URL_STORAGE_KEY = 'my_assets_google_sheets_api_url';
 const STOCK_FEE_SETTINGS_KEY = 'my_assets_stock_fee_settings';
 const COST_BASIS_ADJUSTMENTS_KEY = 'my_assets_cost_basis_adjustments';
+const LIVE_DATA_CACHE_MS = 5 * 60 * 1000;
 
 const DEFAULT_STOCK_FEE_SETTINGS = {
   TWSE: {
@@ -55,6 +57,7 @@ export default function RootLayoutClient({ children }) {
   const [isSaveLoading, setIsSaveLoading] = useState(false); // For ManageAccountsModal
   const [isTransactionSaving, setIsTransactionSaving] = useState(false); // For TransactionModal
   const [isSettingsSaving, setIsSettingsSaving] = useState(false);
+  const [isAppInitializing, setIsAppInitializing] = useState(true);
 
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
@@ -72,6 +75,13 @@ export default function RootLayoutClient({ children }) {
   const [sheetsApiUrl, setSheetsApiUrl] = useState('');
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
   const [stockMarketPrices, setStockMarketPrices] = useState({});
+  const [stockQuoteMeta, setStockQuoteMeta] = useState({});
+  const [isStockPricesLoading, setIsStockPricesLoading] = useState(false);
+  const [exchangeRates, setExchangeRates] = useState({});
+  const quoteFetchedAtRef = useRef(new Map());
+  const quotePendingRef = useRef(new Set());
+  const exchangeRateFetchedAtRef = useRef(new Map());
+  const exchangeRatePendingRef = useRef(new Set());
   const [costBasisAdjustments, setCostBasisAdjustments] = useState([]);
   const [lastMonthNetWorth, setLastMonthNetWorth] = useState(0);
   const [stockFeeSettings, setStockFeeSettings] = useState(DEFAULT_STOCK_FEE_SETTINGS);
@@ -104,6 +114,10 @@ export default function RootLayoutClient({ children }) {
       if (response.ok) {
         const data = await response.json();
         setUsdToTwdRate(data.usdToTwd);
+        if (Number(data.usdToTwd) > 0) {
+          setExchangeRates((prev) => ({ ...prev, USD: Number(data.usdToTwd) }));
+          exchangeRateFetchedAtRef.current.set('USD', Date.now());
+        }
       } else {
         console.error('Failed to fetch USD to TWD exchange rate');
         setUsdToTwdRate(null);
@@ -113,6 +127,74 @@ export default function RootLayoutClient({ children }) {
       setUsdToTwdRate(null);
     }
   }, []);
+
+  const refreshExchangeRates = useCallback(async (currencies = [], { force = false } = {}) => {
+    const now = Date.now();
+    const normalized = [...new Set(currencies.map((currency) => String(currency || '').trim().toUpperCase()).filter(Boolean))];
+    const toFetch = normalized.filter((currency) => {
+      if (exchangeRatePendingRef.current.has(currency)) return false;
+      const fetchedAt = exchangeRateFetchedAtRef.current.get(currency) || 0;
+      return force || now - fetchedAt >= LIVE_DATA_CACHE_MS;
+    });
+    if (toFetch.length === 0) return;
+
+    toFetch.forEach((currency) => exchangeRatePendingRef.current.add(currency));
+    try {
+      const rates = await fetchForeignExchangeRates(toFetch);
+      setExchangeRates((prev) => ({ ...prev, ...rates }));
+      const fetchedAt = Date.now();
+      toFetch.forEach((currency) => exchangeRateFetchedAtRef.current.set(currency, fetchedAt));
+    } finally {
+      toFetch.forEach((currency) => exchangeRatePendingRef.current.delete(currency));
+    }
+  }, []);
+
+  const refreshStockPrices = useCallback(async (targets = [], { force = false } = {}) => {
+    if (!isSheetsConnected) return;
+    const now = Date.now();
+    const uniqueTargets = [...new Map(targets.filter((target) => target?.name && target?.symbol).map((target) => [target.name, target])).values()];
+    const toFetch = uniqueTargets.filter((target) => {
+      if (quotePendingRef.current.has(target.name)) return false;
+      const fetchedAt = quoteFetchedAtRef.current.get(target.name) || 0;
+      return force || now - fetchedAt >= LIVE_DATA_CACHE_MS;
+    });
+    if (toFetch.length === 0) return;
+
+    toFetch.forEach((target) => quotePendingRef.current.add(target.name));
+    setIsStockPricesLoading(true);
+    try {
+      const requestQuote = async (target) => {
+        let data = null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const response = await fetch(`/api/stocks/quote?symbol=${encodeURIComponent(target.symbol)}&market=${target.market}`, { cache: 'no-store' });
+          data = await response.json();
+          if (data.price != null) break;
+        }
+        return { name: target.name, ...data };
+      };
+      const results = await Promise.allSettled(toFetch.map(requestQuote));
+      const nextPrices = {};
+      const nextMeta = {};
+      const fetchedAt = Date.now();
+      results.forEach((result, index) => {
+        const name = toFetch[index].name;
+        quoteFetchedAtRef.current.set(name, fetchedAt);
+        if (result.status === 'fulfilled' && result.value.price != null) {
+          nextPrices[name] = result.value.price;
+          nextMeta[name] = { status: result.value.status, source: result.value.source, asOf: result.value.asOf, fetchedAt };
+        } else {
+          nextMeta[name] = { status: 'unavailable', source: null, asOf: null, fetchedAt };
+        }
+      });
+      if (Object.keys(nextPrices).length > 0) {
+        setStockMarketPrices((prev) => ({ ...prev, ...nextPrices }));
+      }
+      setStockQuoteMeta((prev) => ({ ...prev, ...nextMeta }));
+    } finally {
+      toFetch.forEach((target) => quotePendingRef.current.delete(target.name));
+      setIsStockPricesLoading(false);
+    }
+  }, [isSheetsConnected]);
 
   const syncFromSheets = useCallback(async (apiUrl, { silent = false } = {}) => {
     if (!apiUrl) return;
@@ -187,7 +269,10 @@ export default function RootLayoutClient({ children }) {
         .catch((error) => {
           console.error('Initial Sheets connection test failed:', error);
           setIsSheetsConnected(false);
-        });
+        })
+        .finally(() => setIsAppInitializing(false));
+    } else {
+      setIsAppInitializing(false);
     }
 
     const storedSettings = window.localStorage.getItem(STOCK_FEE_SETTINGS_KEY);
@@ -458,6 +543,7 @@ export default function RootLayoutClient({ children }) {
 
   return (
     <AppProvider
+      isAppInitializing={isAppInitializing}
       openTransactionModal={(transaction = null) => {
         setEditingTransaction(transaction);
         setShowTransactionModal(true);
@@ -526,6 +612,11 @@ export default function RootLayoutClient({ children }) {
       monthlyNetWorth={monthlyNetWorth}
       monthlyAssets={monthlyAssets}
       stockMarketPrices={stockMarketPrices}
+      stockQuoteMeta={stockQuoteMeta}
+      isStockPricesLoading={isStockPricesLoading}
+      refreshStockPrices={refreshStockPrices}
+      exchangeRates={exchangeRates}
+      refreshExchangeRates={refreshExchangeRates}
       costBasisAdjustments={costBasisAdjustments}
       lastMonthNetWorth={lastMonthNetWorth}
       stockFeeSettings={stockFeeSettings}

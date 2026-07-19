@@ -19,7 +19,6 @@ import {
   calculateAssetsSummary,
   calculateStockPortfolio,
   decorateAssetsWithFx,
-  fetchForeignExchangeRates,
   getForeignAssetTwdValue,
 } from '@/lib/calculations';
 import { demoMonthlyAssets, demoPortfolio } from '@/lib/demo-data';
@@ -70,20 +69,22 @@ export function AssetsContent() {
   const {
     openManageModal,
     openConfigModal,
+    isAppInitializing,
     isSheetsConnected,
     monthlyAssets: realMonthlyAssets,
     setMonthlyAssets: realSetMonthlyAssets,
     monthlyNetWorth: realMonthlyNetWorth,
     transactions: realTransactions,
     stockMarketPrices: contextStockMarketPrices,
+    stockQuoteMeta,
+    refreshStockPrices,
+    exchangeRates: fxRates,
+    refreshExchangeRates,
     costBasisAdjustments,
     lastMonthNetWorth: contextLastMonthNetWorth,
   } = useApp();
 
-  const [isAssetDataLoading, setIsAssetDataLoading] = useState(true);
-
   const [isTrendOpen, setIsTrendOpen] = useState(false);
-  const [fxRates, setFxRates] = useState({});
 
   // ─── 整合 Demo 模式下的股票報價 ───
   const demoPrices = useMemo(() => {
@@ -98,23 +99,10 @@ export function AssetsContent() {
     return pricesMap;
   }, []);
 
-  // ─── 股票報價狀態（即時與快取） ───
-  const [prices, setPrices] = useState({});
-
-  useEffect(() => {
-    if (!isSheetsConnected) {
-      setPrices(demoPrices);
-      return;
-    }
-    
-    // 先用 Sheet 快取報價初始化
-    setPrices(contextStockMarketPrices || {});
-
-    // 取得所有交易中出現的股票代號，拉取最新即時報價
+  const quoteTargets = useMemo(() => {
     const uniqueStocks = [];
     const seen = new Set();
-    const txs = realTransactions || [];
-    txs.forEach((tx) => {
+    (realTransactions || []).forEach((tx) => {
       if (tx.stock && !seen.has(tx.stock)) {
         seen.add(tx.stock);
         uniqueStocks.push({
@@ -124,31 +112,14 @@ export function AssetsContent() {
         });
       }
     });
+    return uniqueStocks;
+  }, [realTransactions]);
 
-    if (uniqueStocks.length === 0) return;
+  const prices = isSheetsConnected ? contextStockMarketPrices : demoPrices;
 
-    let active = true;
-    Promise.allSettled(
-      uniqueStocks.map((pos) =>
-        fetch(`/api/stocks/quote?symbol=${encodeURIComponent(pos.symbol)}&market=${pos.market}`)
-          .then((r) => r.json())
-          .then((data) => ({ name: pos.name, price: data.price }))
-      )
-    ).then((results) => {
-      if (!active) return;
-      const newPrices = {};
-      results.forEach((r) => {
-        if (r.status === 'fulfilled' && r.value.price != null) {
-          newPrices[r.value.name] = r.value.price;
-        }
-      });
-      setPrices((prev) => ({ ...prev, ...newPrices }));
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [isSheetsConnected, realTransactions, contextStockMarketPrices, demoPrices]);
+  useEffect(() => {
+    if (isSheetsConnected) refreshStockPrices(quoteTargets);
+  }, [isSheetsConnected, quoteTargets, refreshStockPrices]);
 
   const activeMonthlyAssets = realMonthlyAssets;
 
@@ -288,13 +259,7 @@ export function AssetsContent() {
 
   const hasNoAssets = displayAssetsRaw.length === 0;
 
-  // 拉取外幣即時匯率（僅在連線模式下才需要打 API；demo 資料已經內建 fxRate/convertedBalance）
-  useEffect(() => {
-    if (!isSheetsConnected) {
-      setFxRates({});
-      setIsAssetDataLoading(false); // No fetching for demo mode
-      return;
-    }
+  const requiredFxCurrencies = useMemo(() => {
     const currencies = [...new Set(
       displayAssetsRaw
         .filter((item) => item.category === '外幣活存')
@@ -304,16 +269,12 @@ export function AssetsContent() {
     if ((realTransactions || []).some((tx) => tx.market === 'US') && !currencies.includes('USD')) {
       currencies.push('USD');
     }
+    return currencies.sort();
+  }, [displayAssetsRaw, realTransactions]);
 
-    setIsAssetDataLoading(true); // Start loading
-    let active = true;
-    fetchForeignExchangeRates(currencies)
-      .then((rates) => { if (active) setFxRates(rates); })
-      .catch(() => { if (active) setFxRates({}); })
-      .finally(() => { if (active) setIsAssetDataLoading(false); });
-
-    return () => { active = false; };
-  }, [isSheetsConnected, selectedMonthKey, displayAssetsRaw, realTransactions]);
+  useEffect(() => {
+    if (isSheetsConnected) refreshExchangeRates(requiredFxCurrencies);
+  }, [isSheetsConnected, requiredFxCurrencies, refreshExchangeRates]);
 
   // 真實模式才需要重新跑匯率換算；demo 資料本身已經算好 convertedBalance
   const displayAssets = useMemo(() => {
@@ -382,6 +343,25 @@ export function AssetsContent() {
   const displayNetGrowth = activeSummary?.netGrowth ?? 0;
   const displayGrowthRate = activeSummary?.growthRate ?? 0;
 
+  const hasRequiredPrices = quoteTargets.every((target) => (
+    prices?.[target.name] != null || stockQuoteMeta?.[target.name]?.status === 'unavailable'
+  ));
+  const hasRequiredFxRates = requiredFxCurrencies.every((currency) => Number(fxRates?.[currency]) > 0);
+  const isAssetScreenLoading = isAppInitializing
+    || (isSheetsConnected && (!hasRequiredPrices || !hasRequiredFxRates));
+
+  if (isAssetScreenLoading) {
+    return (
+      <div className="flex min-h-[55vh] w-full flex-col items-center justify-center rounded-2xl border border-rose-100 bg-white/70 px-6 text-center shadow-sm">
+        <div className="relative flex items-center justify-center">
+          <div className="h-14 w-14 animate-spin rounded-full border-4 border-rose-100 border-t-rose-500" />
+          <span className="absolute text-xl" aria-hidden="true">🐷</span>
+        </div>
+        <p className="mt-4 text-sm font-bold text-slate-600">正在搬運您的資產...</p>
+      </div>
+    );
+  }
+
   return (
     <>
       {!isSheetsConnected && (
@@ -407,19 +387,15 @@ export function AssetsContent() {
             <span className="hidden rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600 md:inline-flex">淨值總覽</span>
             <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">個人淨資產</p>
           </div>
-          {isAssetDataLoading ? (
-            <p className="text-4xl font-black text-slate-900 animate-pulse">計算中...</p>
-          ) : (
-            <p className="text-4xl font-black text-slate-900">
-              {displayNetWorth !== 0 ? (
-                `$${displayNetWorth.toLocaleString()}`
-              ) : (contextLastMonthNetWorth !== 0 && contextLastMonthNetWorth !== undefined) ? (
-                `$${contextLastMonthNetWorth.toLocaleString()} (上月數值)`
-              ) : (
-                `$0`
-              )}
-            </p>
-          )}
+          <p className="text-4xl font-black text-slate-900">
+            {displayNetWorth !== 0 ? (
+              `$${displayNetWorth.toLocaleString()}`
+            ) : (contextLastMonthNetWorth !== 0 && contextLastMonthNetWorth !== undefined) ? (
+              `$${contextLastMonthNetWorth.toLocaleString()} (上月數值)`
+            ) : (
+              `$0`
+            )}
+          </p>
           <p className={`mt-3 flex items-center text-xs font-bold ${displayNetGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
             較上月 <span className="mx-1 text-[10px]">{displayNetGrowth >= 0 ? '▲' : '▼'}</span> ${displayNetGrowth.toLocaleString()} ({displayGrowthRate.toFixed(2)}%)
           </p>
