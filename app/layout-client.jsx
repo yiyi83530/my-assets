@@ -5,7 +5,8 @@ import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
 import { SettingsModal } from '@/components/SettingsModal';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
 import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData, monthlyAssetsSnapshots as initialMonthlyAssets } from '@/lib/data';
-import { demoMonthlyAssets, demoPortfolio } from '@/lib/demo-data';
+import { demoMonthlyAssets } from '@/lib/demo-data';
+import { demoTransactions } from '@/lib/demo-stock-data';
 import { AppProvider } from '@/lib/app-context';
 import { fetchForeignExchangeRates } from '@/lib/calculations';
 import { TWSE_COMMISSION_RATE, TWSE_STOCK_TAX_RATE } from '@/lib/trading-fees';
@@ -62,16 +63,7 @@ export default function RootLayoutClient({ children }) {
 
   const [dialog, setDialog] = useState({ title: '', message: '', buttons: [] });
   const [assets, setAssets] = useState(initialAssets);
-  const [transactions, setTransactions] = useState(() => {
-    // 預設載入富含歷史記錄的 demo 交易資料並進行格式標準化，讓 Demo 模式下也能完整互動
-    return (demoPortfolio?.transactionHistory || []).map((tx) => ({
-      ...tx,
-      stock: tx.stock || tx.name || '',
-      qty: Number(tx.qty ?? tx.shares ?? 0),
-      actualAmount: Number(tx.actualAmount ?? tx.amount ?? 0),
-      price: Number(tx.price ?? 0),
-    }));
-  });
+  const [transactions, setTransactions] = useState(() => demoTransactions.map((tx) => ({ ...tx })));
   const [monthlyNetWorth, setMonthlyNetWorth] = useState(initialMonthlyData);
   const [sheetsApiUrl, setSheetsApiUrl] = useState('');
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
@@ -359,6 +351,7 @@ export default function RootLayoutClient({ children }) {
     window.localStorage.removeItem(SHEETS_URL_STORAGE_KEY);
     setSheetsApiUrl('');
     setIsSheetsConnected(false);
+    setTransactions(demoTransactions.map((tx) => ({ ...tx })));
     displayToast('已成功結束連線！', 'success');
   }, [displayToast]);
 
