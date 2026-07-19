@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useApp } from '@/lib/app-context';
 import { INDUSTRY_COLORS, INDUSTRY_MAP } from '@/components/common/constants';
 import { demoInitialPrices } from '@/lib/demo-stock-data';
+import { normalizeStockSymbol } from '@/lib/stock-symbol';
 
 function getIndustry(symbol, stockName = '') {
   const name = String(stockName);
@@ -28,7 +29,7 @@ function buildBasePositions(txList) {
     if (!map[key]) {
       map[key] = {
         name: tx.stock,
-        symbol: tx.symbol || tx.stock.split(' ')[0],
+        symbol: normalizeStockSymbol(tx.symbol || tx.stock.split(' ')[0], tx.stock, tx.market),
         market: tx.market || 'TWSE',
         holdingQty: 0,
         totalBuyCost: 0,
@@ -94,6 +95,16 @@ function fmtTime(isoStr) {
   return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
+function quoteStatusLabel(status) {
+  if (status === 'realtime') return '即時';
+  if (status === 'previous_close') return '昨收';
+  if (status === 'daily_close') return '最新收盤價';
+  if (status === 'esb_quote') return '興櫃行情';
+  if (status === 'manual') return '手動';
+  if (status === 'unavailable') return '等待報價';
+  return null;
+}
+
 export function StocksContent({ initialPrices = {} }) {
   const {
     transactions: realTransactions,
@@ -119,9 +130,11 @@ export function StocksContent({ initialPrices = {} }) {
   const removeTransaction = realRemoveTransaction;
 
   const [priceMap, setPriceMap] = useState(isSheetsConnected ? initialPrices : demoInitialPrices);
+  const [quoteMeta, setQuoteMeta] = useState({});
   const [deleteId, setDeleteId] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showChart, setShowChart] = useState(false);
+  const [selectedIndustry, setSelectedIndustry] = useState(null);
 
   const [isFetchingPrices, setIsFetchingPrices] = useState(false);
   const [posTab, setPosTab] = useState('TWSE');
@@ -167,24 +180,40 @@ export function StocksContent({ initialPrices = {} }) {
     }
 
     try {
+      const requestQuote = async (pos) => {
+        let data = null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const response = await fetch(
+            `/api/stocks/quote?symbol=${encodeURIComponent(pos.symbol)}&market=${pos.market}`,
+            { cache: 'no-store' }
+          );
+          data = await response.json();
+          if (data.price != null) break;
+        }
+        return { name: pos.name, ...data };
+      };
       const results = await Promise.allSettled(
-        toFetch.map((pos) =>
-          fetch(
-            `/api/stocks/quote?symbol=${encodeURIComponent(pos.symbol)}&market=${pos.market}`
-          )
-            .then((r) => r.json())
-            .then((data) => ({ name: pos.name, price: data.price }))
-        )
+        toFetch.map(requestQuote)
       );
 
       const newPrices = {};
+      const newMeta = {};
       results.forEach((r) => {
         if (r.status === 'fulfilled' && r.value.price != null) {
           newPrices[r.value.name] = r.value.price;
+          newMeta[r.value.name] = {
+            status: r.value.status,
+            source: r.value.source,
+            asOf: r.value.asOf,
+            fetchedAt: Date.now(),
+          };
+          fetchedRef.current.add(r.value.name);
+        } else if (r.status === 'fulfilled') {
+          newMeta[r.value.name] = { status: 'unavailable', source: null, asOf: null, fetchedAt: Date.now() };
         }
       });
 
-      toFetch.forEach((pos) => fetchedRef.current.add(pos.name));
+      setQuoteMeta((prev) => ({ ...prev, ...newMeta }));
       if (Object.keys(newPrices).length > 0) {
         setPriceMap((prev) => ({ ...prev, ...newPrices }));
       }
@@ -202,6 +231,23 @@ export function StocksContent({ initialPrices = {} }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [positionKeys, isSheetsConnected]);
 
+  // 官方來源暫時無回應時持續低頻重試；成功前不納入損益計算。
+  const failedQuoteRevision = Object.entries(quoteMeta)
+    .filter(([, meta]) => meta.status === 'unavailable')
+    .map(([name, meta]) => `${name}:${meta.fetchedAt}`)
+    .join('|');
+  useEffect(() => {
+    if (!isSheetsConnected || !failedQuoteRevision) return undefined;
+    const timer = setTimeout(() => {
+      const failedPositions = basePositions.filter(
+        (pos) => quoteMeta[pos.name]?.status === 'unavailable'
+      );
+      if (failedPositions.length > 0 && !isFetchingPrices) fetchPrices(failedPositions);
+    }, 30000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failedQuoteRevision, isSheetsConnected, isFetchingPrices]);
+
   // 手動重新整理目前分頁的報價
   const handleManualRefresh = () => {
     if (isFetchingPrices) return;
@@ -210,12 +256,13 @@ export function StocksContent({ initialPrices = {} }) {
   };
 
   const allPositions = basePositions.map((p) => {
-    const marketPrice = priceMap[p.name] ?? p.avgCost ?? 0;
-    const marketValue = p.holdingQty * marketPrice;
-    const unrealizedProfit = marketValue - p.totalBuyCost;
+    const marketPrice = priceMap[p.name] ?? null;
+    const hasQuote = marketPrice !== null;
+    const marketValue = hasQuote ? p.holdingQty * marketPrice : 0;
+    const unrealizedProfit = hasQuote ? marketValue - p.totalBuyCost : null;
     const profitPercent =
-      p.totalBuyCost > 0 ? (unrealizedProfit / p.totalBuyCost) * 100 : 0;
-    return { ...p, marketPrice, marketValue, unrealizedProfit, profitPercent };
+      hasQuote && p.totalBuyCost > 0 ? (unrealizedProfit / p.totalBuyCost) * 100 : null;
+    return { ...p, marketPrice, hasQuote, marketValue, unrealizedProfit, profitPercent };
   });
 
   const twsePositions = allPositions.filter((p) => p.market === 'TWSE');
@@ -235,7 +282,7 @@ export function StocksContent({ initialPrices = {} }) {
     return allPositions.reduce((sum, pos) => {
       const isUSStock = pos.market === 'US';
       const rate = isUSStock ? (usdToTwdRate || 1) : 1;
-      return sum + (pos.totalBuyCost * rate);
+      return sum + (pos.hasQuote ? pos.totalBuyCost * rate : 0);
     }, 0);
   }, [allPositions, usdToTwdRate]);
 
@@ -253,15 +300,19 @@ export function StocksContent({ initialPrices = {} }) {
         ...pos,
         marketValue: pos.marketValue * rate,
         totalBuyCost: pos.totalBuyCost * rate,
-        unrealizedProfit: pos.unrealizedProfit * rate,
+        unrealizedProfit: pos.unrealizedProfit == null ? null : pos.unrealizedProfit * rate,
       };
     }
     return pos;
   });
 
   const currentTabTotalValue = summaryPositions.reduce((s, p) => s + p.marketValue, 0);
-  const currentTabTotalCost = summaryPositions.reduce((s, p) => s + p.totalBuyCost, 0);
+  const currentTabTotalCost = summaryPositions.reduce((s, p) => s + (p.hasQuote ? p.totalBuyCost : 0), 0);
   const currentTabTotalUnrealized = currentTabTotalValue - currentTabTotalCost;
+  const lastQuoteUpdatedAt = Object.values(quoteMeta).reduce(
+    (latest, meta) => Math.max(latest, Number(meta?.fetchedAt) || 0),
+    0
+  );
 
   // 顯示限制：一開始最多顯示 20 筆（第 21 筆起透過滾動查看）
   const MAX_VISIBLE = 20;
@@ -278,27 +329,50 @@ export function StocksContent({ initialPrices = {} }) {
     activePositions.forEach((pos) => {
       const industry = getIndustry(pos.symbol, pos.name);
       if (!industryMap[industry]) {
-        industryMap[industry] = 0;
+        industryMap[industry] = { value: 0, holdings: [] };
       }
-      industryMap[industry] += pos.marketValue;
+      let marketValue = pos.marketValue;
+      if (posTab === 'US' && displayCurrency === 'TWD' && usdToTwdRate) {
+        marketValue *= usdToTwdRate;
+      }
+      industryMap[industry].value += marketValue;
+      industryMap[industry].holdings.push({
+        name: pos.name,
+        symbol: pos.symbol,
+        marketValue,
+      });
     });
 
     const finalIndustryData = Object.entries(industryMap)
-      .map(([name, value]) => {
-        let displayValue = value;
-        if (posTab === 'US' && displayCurrency === 'TWD' && usdToTwdRate) {
-          displayValue = value * usdToTwdRate;
-        }
-        return { name, value: Math.round(displayValue) };
+      .filter(([, data]) => data.value > 0)
+      .map(([name, data]) => {
+        const holdings = data.holdings
+          .filter((holding) => holding.marketValue > 0)
+          .map((holding) => ({
+            ...holding,
+            industryPercent: data.value > 0 ? (holding.marketValue / data.value) * 100 : 0,
+          }))
+          .sort((a, b) => b.marketValue - a.marketValue);
+        return { name, value: Math.round(data.value), holdings };
       })
       .sort((a, b) => b.value - a.value);
 
     return finalIndustryData;
   })();
 
+  useEffect(() => {
+    if (selectedIndustry && !industryData.some((item) => item.name === selectedIndustry)) {
+      setSelectedIndustry(null);
+    }
+  }, [industryData, selectedIndustry]);
+
   const handlePriceChange = (name, value) => {
     const num = parseFloat(value);
     setPriceMap((prev) => ({ ...prev, [name]: isNaN(num) ? 0 : num }));
+    setQuoteMeta((prev) => ({
+      ...prev,
+      [name]: { status: 'manual', source: '手動輸入', asOf: null, fetchedAt: Date.now() },
+    }));
   };
 
   const confirmDelete = async () => {
@@ -364,9 +438,9 @@ export function StocksContent({ initialPrices = {} }) {
 
       {/* ── Positions Section ── */}
       <div className="card overflow-hidden">
-        <div className="border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-800">個人即時持股明細</h2>
+        <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="shrink-0 text-sm font-bold text-slate-800">個人即時持股明細</h2>
             <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5">
               <button onClick={() => setPosTab('TWSE')} className={tabBtnClass(posTab === 'TWSE')}>
                 📈 台股
@@ -376,8 +450,9 @@ export function StocksContent({ initialPrices = {} }) {
               </button>
             </div>
           </div>
-          <div className="mt-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="mt-3 flex flex-col gap-3 sm:mt-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-start sm:gap-2">
+              <div className="flex items-center gap-2">
               <button
                 onClick={handleManualRefresh}
                 disabled={isFetchingPrices}
@@ -392,6 +467,12 @@ export function StocksContent({ initialPrices = {} }) {
                 )}
                 更新現價
               </button>
+              {lastQuoteUpdatedAt > 0 && (
+                <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
+                  最後更新 {fmtTime(new Date(lastQuoteUpdatedAt).toISOString())}
+                </span>
+              )}
+              </div>
 
               {posTab === 'US' && (
                 <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5">
@@ -417,7 +498,7 @@ export function StocksContent({ initialPrices = {} }) {
             </div>
             <button
               onClick={() => setShowChart(!showChart)}
-              className={`inline-flex items-center gap-1 pb-0.5 text-xs font-bold transition border-b-2 ${
+              className={`inline-flex self-end items-center gap-1 pb-0.5 text-xs font-bold transition border-b-2 sm:self-auto ${
                 showChart
                   ? 'text-slate-400 border-slate-400 hover:text-slate-500'
                   : 'text-rose-300 border-rose-300 hover:text-rose-500'
@@ -433,16 +514,25 @@ export function StocksContent({ initialPrices = {} }) {
         </div>
 
         {showChart && industryData.length > 0 && (
-          <div className="border-b border-slate-100 bg-slate-50/50 px-5 py-4">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">持股產業分佈</h3>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
+          <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-5 md:px-5">
+            <div className="mb-4 flex items-end justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">持股產業分佈</h3>
+                <p className="mt-1 text-[11px] text-slate-400">點選產業，查看你的持股成分</p>
+              </div>
+              <span className="shrink-0 text-[11px] font-medium text-slate-400">共 {industryData.length} 個產業</span>
+            </div>
+            <div className="grid gap-5 lg:grid-cols-[minmax(280px,0.9fr)_minmax(340px,1.1fr)] lg:items-start">
+              <div className="rounded-2xl border border-slate-100 bg-white p-2 shadow-sm">
+                <ResponsiveContainer width="100%" height={240}>
+                  <PieChart>
                 <Pie
                   data={industryData}
                   cx="50%"
                   cy="50%"
                   labelLine={true}
                   label={({ cx, cy, midAngle, outerRadius, percent, name }) => {
+                    if (percent * 100 < 0.5) return null;
                     const radius = outerRadius + 12;
                     const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
                     const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
@@ -462,13 +552,21 @@ export function StocksContent({ initialPrices = {} }) {
                   outerRadius={60}
                   fill="#8884d8"
                   dataKey="value"
+                  onClick={(entry) => setSelectedIndustry(entry.name)}
+                  className="cursor-pointer outline-none"
                 >
                   {industryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={INDUSTRY_COLORS[entry.name] || INDUSTRY_COLORS.default} />
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={INDUSTRY_COLORS[entry.name] || INDUSTRY_COLORS.default}
+                      opacity={!selectedIndustry || selectedIndustry === entry.name ? 1 : 0.35}
+                      stroke={selectedIndustry === entry.name ? '#fff' : 'transparent'}
+                      strokeWidth={selectedIndustry === entry.name ? 3 : 0}
+                    />
                   ))}
                 </Pie>
                 <Tooltip
-                  formatter={(value) => `$${value.toLocaleString('zh-TW')}`}
+                  formatter={(value) => fmtCurrency(value, posTab === 'US' ? displayCurrency : 'TWD')}
                   contentStyle={{
                     backgroundColor: '#fff',
                     border: '1px solid #e2e8f0',
@@ -476,8 +574,64 @@ export function StocksContent({ initialPrices = {} }) {
                     boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
                   }}
                 />
-              </PieChart>
-            </ResponsiveContainer>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="space-y-2">
+                {industryData.map((entry) => {
+                  const isOpen = selectedIndustry === entry.name;
+                  const industryPercent = currentTabTotalValue > 0
+                    ? (entry.value / currentTabTotalValue) * 100
+                    : 0;
+                  return (
+                    <div key={entry.name} className={`overflow-hidden rounded-xl border bg-white transition ${isOpen ? 'border-rose-200 shadow-sm' : 'border-slate-100'}`}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedIndustry(isOpen ? null : entry.name)}
+                        aria-expanded={isOpen}
+                        className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
+                      >
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: INDUSTRY_COLORS[entry.name] || INDUSTRY_COLORS.default }} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className="truncate text-sm font-bold text-slate-700">{entry.name}</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">{entry.holdings.length} 檔</span>
+                          </span>
+                          <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <span className="block h-full rounded-full" style={{ width: `${Math.min(industryPercent, 100)}%`, backgroundColor: INDUSTRY_COLORS[entry.name] || INDUSTRY_COLORS.default }} />
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className="block text-xs font-black text-slate-700">{industryPercent.toFixed(1)}%</span>
+                          <span className="block text-[10px] text-slate-400">{fmtCurrency(entry.value, posTab === 'US' ? displayCurrency : 'TWD')}</span>
+                        </span>
+                        <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true">
+                          <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      {isOpen && (
+                        <div className="border-t border-slate-100 bg-slate-50/60 px-3.5 py-2">
+                          {entry.holdings.map((holding) => {
+                            const displayName = holding.name.split(' ').slice(1).join(' ') || holding.name;
+                            return (
+                              <div key={`${entry.name}-${holding.symbol}-${holding.name}`} className="flex items-center gap-3 border-b border-slate-100 py-2.5 last:border-0">
+                                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-black text-slate-500 shadow-sm">{holding.symbol}</span>
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-xs font-bold text-slate-700">{displayName}</span>
+                                  <span className="text-[10px] text-slate-400">產業內占比 {holding.industryPercent.toFixed(1)}%</span>
+                                </span>
+                                <span className="text-xs font-bold text-slate-600">{fmtCurrency(holding.marketValue, posTab === 'US' ? displayCurrency : 'TWD')}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
 
@@ -514,12 +668,18 @@ export function StocksContent({ initialPrices = {} }) {
                     const currentDisplayCurrency = isUSStock ? displayCurrency : 'TWD';
 
                     const convertedAvgCost = isUSStock && displayCurrency === 'TWD' ? pos.avgCost * rate : pos.avgCost;
-                    const convertedMarketPrice = isUSStock && displayCurrency === 'TWD' ? pos.marketPrice * rate : pos.marketPrice;
+                    const convertedMarketPrice = pos.marketPrice == null
+                      ? null
+                      : (isUSStock && displayCurrency === 'TWD' ? pos.marketPrice * rate : pos.marketPrice);
                     const convertedTotalBuyCost = isUSStock && displayCurrency === 'TWD' ? pos.totalBuyCost * rate : pos.totalBuyCost;
                     const convertedMarketValue = isUSStock && displayCurrency === 'TWD' ? pos.marketValue * rate : pos.marketValue;
-                    const convertedUnrealizedProfit = isUSStock && displayCurrency === 'TWD' ? pos.unrealizedProfit * rate : pos.unrealizedProfit;
+                    const convertedUnrealizedProfit = pos.unrealizedProfit == null
+                      ? null
+                      : (isUSStock && displayCurrency === 'TWD' ? pos.unrealizedProfit * rate : pos.unrealizedProfit);
 
                     const profitPercent = pos.profitPercent;
+                    const meta = quoteMeta[pos.name];
+                    const statusLabel = quoteStatusLabel(meta?.status);
 
                     return (
                       <tr key={pos.name} className="h-14 border-t border-slate-100 hover:bg-slate-50/60 transition">
@@ -541,13 +701,13 @@ export function StocksContent({ initialPrices = {} }) {
 
                         {/* 現價 (editable) */}
                         <td className="px-4 py-3 align-middle">
-                          <div className="flex justify-center">
+                          <div className="flex flex-col items-center justify-center gap-1">
                             <input
                               type="number"
                               value={
                                 isUSStock && displayCurrency === 'TWD'
-                                  ? (convertedMarketPrice).toFixed(2)
-                                  : (pos.marketPrice || pos.avgCost || '')
+                                  ? (convertedMarketPrice == null ? '' : convertedMarketPrice.toFixed(2))
+                                  : (pos.marketPrice ?? '')
                               }
                               onChange={(e) => {
                                 let value = parseFloat(e.target.value);
@@ -559,7 +719,16 @@ export function StocksContent({ initialPrices = {} }) {
                               className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-center font-mono text-sm text-slate-800 transition focus:border-rose-300 focus:outline-none"
                               step="0.01"
                               min="0"
+                              placeholder="無報價"
                             />
+                            {statusLabel && (
+                              <span
+                                title={meta?.source ? `來源：${meta.source}` : '官方行情暫無回應，系統會自動重試'}
+                                className={`text-[9px] font-bold ${meta.status === 'unavailable' ? 'text-amber-600' : meta.status === 'realtime' ? 'text-emerald-600' : 'text-slate-400'}`}
+                              >
+                                {statusLabel}
+                              </span>
+                            )}
                           </div>
                         </td>
 
@@ -570,29 +739,29 @@ export function StocksContent({ initialPrices = {} }) {
 
                         {/* 帳面現值 */}
                         <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                          {fmtCurrency(convertedMarketValue, currentDisplayCurrency)}
+                          {pos.hasQuote ? fmtCurrency(convertedMarketValue, currentDisplayCurrency) : '—'}
                         </td>
 
                         {/* 未實現損益 */}
-                        <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${convertedUnrealizedProfit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          {fmtCurrency(convertedUnrealizedProfit, currentDisplayCurrency, true)}
+                        <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${convertedUnrealizedProfit == null ? 'text-slate-400' : convertedUnrealizedProfit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          {convertedUnrealizedProfit == null ? '—' : fmtCurrency(convertedUnrealizedProfit, currentDisplayCurrency, true)}
                         </td>
 
                         {/* 損益率 */}
-                        <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${profitPercent >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
+                        <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${profitPercent == null ? 'text-slate-400' : profitPercent >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          {profitPercent == null ? '—' : `${profitPercent >= 0 ? '+' : ''}${profitPercent.toFixed(2)}%`}
                         </td>
 
                         {/* 市值佔比 + bar */}
                         <td className="px-4 py-3 align-middle">
                           <div className="flex items-center justify-center gap-2">
                             <span className="w-10 text-right font-mono text-xs text-slate-600">
-                              {sharePercent.toFixed(1)}%
+                              {pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
                             </span>
                             <div className="relative h-1 w-12 overflow-hidden rounded-full bg-slate-200">
                               <div
                                 className="absolute left-0 top-0 h-full rounded-full bg-rose-400 transition-all duration-300"
-                                style={{ width: `${Math.min(sharePercent, 100)}%` }}
+                                style={{ width: `${pos.hasQuote ? Math.min(sharePercent, 100) : 0}%` }}
                               />
                             </div>
                           </div>

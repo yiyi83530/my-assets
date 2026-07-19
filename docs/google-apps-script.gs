@@ -128,6 +128,8 @@ function appendTransaction_(transaction) {
   const txSheet = getOrCreateSheet_(SHEET_TRANSACTIONS, TX_HEADERS);
   const tx = normalizeTx_(transaction || {});
   const row = TX_HEADERS.map((h) => tx[h] !== undefined ? tx[h] : '');
+  const symbolColumn = TX_HEADERS.indexOf('symbol') + 1;
+  txSheet.getRange(txSheet.getLastRow() + 1, symbolColumn).setNumberFormat('@');
   txSheet.appendRow(row);
   return { id: tx.id };
 }
@@ -181,6 +183,8 @@ function updateTransaction_(transaction) {
   }
 
   if (updated) {
+    const symbolColumn = TX_HEADERS.indexOf('symbol') + 1;
+    txSheet.getRange(2, symbolColumn, values.length, 1).setNumberFormat('@');
     dataRange.setValues(values);
     return { id: txId, status: 'updated' };
   } else {

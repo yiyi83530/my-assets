@@ -24,6 +24,7 @@ import {
 } from '@/lib/calculations';
 import { demoMonthlyAssets, demoPortfolio } from '@/lib/demo-data';
 import { demoInitialPrices } from '@/lib/demo-stock-data';
+import { normalizeStockSymbol } from '@/lib/stock-symbol';
 
 function MonthTick({ x, y, payload, currentMonth }) {
   const month = String(payload?.value ?? '');
@@ -117,7 +118,7 @@ export function AssetsContent() {
         seen.add(tx.stock);
         uniqueStocks.push({
           name: tx.stock,
-          symbol: tx.symbol || tx.stock.split(' ')[0],
+          symbol: normalizeStockSymbol(tx.symbol || tx.stock.split(' ')[0], tx.stock, tx.market),
           market: tx.market || 'TWSE',
         });
       }
