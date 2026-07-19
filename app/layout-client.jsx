@@ -115,9 +115,8 @@ export default function RootLayoutClient({ children }) {
     if (!apiUrl) return;
     try {
       const data = await fetchSheetsData(apiUrl);
-      if (Array.isArray(data.assets)) {
-        setAssets(data.assets);
-      }
+      const latestAssets = Array.isArray(data.assets) ? data.assets : [];
+      setAssets(latestAssets);
       if (Array.isArray(data.transactions)) {
         setTransactions(data.transactions);
       }
@@ -131,10 +130,26 @@ export default function RootLayoutClient({ children }) {
       // 順便拉取月度資產快照，這樣切換年月時才能看到 Google Sheets 上真實儲存過的歷史資料
       try {
         const monthly = await fetchMonthlyAssetsFromSheets(apiUrl);
-        setRealMonthlyAssets(monthly);
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const hasCurrentMonthAssets = Array.isArray(monthly[currentMonthKey])
+          && monthly[currentMonthKey].length > 0;
+
+        // 舊版只把最新資料存在 assets 工作表。若當月尚無月度快照，先用 assets
+        // 作為畫面 fallback；使用者按儲存後才會正式寫入 monthly_assets。
+        setRealMonthlyAssets(
+          !hasCurrentMonthAssets && latestAssets.length > 0
+            ? { ...monthly, [currentMonthKey]: latestAssets }
+            : monthly
+        );
       } catch (monthlyError) {
         console.error('Error syncing monthly assets from sheets:', monthlyError);
-        // 月度快照失敗不影響主要同步流程，僅記錄錯誤
+        // 舊 Apps Script 若尚未支援 monthly_assets，仍顯示 assets 工作表的最新資料。
+        if (latestAssets.length > 0) {
+          const now = new Date();
+          const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+          setRealMonthlyAssets({ [currentMonthKey]: latestAssets });
+        }
       }
 
       if (!silent) {
