@@ -244,8 +244,9 @@ export function AssetsContent() {
   };
 
   const getAssetsForMonth = (yearMonth) => {
-    if (activeMonthlyAssets.hasOwnProperty(yearMonth)) {
-      return activeMonthlyAssets[yearMonth];
+    const currentMonthAssets = activeMonthlyAssets[yearMonth];
+    if (Array.isArray(currentMonthAssets) && currentMonthAssets.length > 0) {
+      return currentMonthAssets;
     }
 
     // 找不到該月資料時，一路往前找最近一筆「真正有資料」的月份當作預設值
@@ -253,9 +254,10 @@ export function AssetsContent() {
     let [year, month] = yearMonth.split('-').map(Number);
     for (let i = 0; i < 60; i++) {
       const prevKey = getPreviousMonthKey(year, month);
-      if (activeMonthlyAssets[prevKey]) {
+      const previousMonthAssets = activeMonthlyAssets[prevKey];
+      if (Array.isArray(previousMonthAssets) && previousMonthAssets.length > 0) {
         // 深拷貝：避免使用者編輯這份「預設值」時，意外動到原始月份的歷史資料
-        return JSON.parse(JSON.stringify(activeMonthlyAssets[prevKey]));
+        return JSON.parse(JSON.stringify(previousMonthAssets));
       }
       [year, month] = prevKey.split('-').map(Number);
     }
