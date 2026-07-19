@@ -233,6 +233,20 @@ export function AssetsContent() {
   const [yearHighlightedIndex, setYearHighlightedIndex] = useState(-1);
   const [monthHighlightedIndex, setMonthHighlightedIndex] = useState(-1);
 
+  const selectPreviousMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedYear((year) => year - 1);
+      setSelectedMonth(12);
+      return;
+    }
+    setSelectedMonth((month) => month - 1);
+  };
+
+  const selectCurrentMonth = () => {
+    setSelectedYear(currentYearReal);
+    setSelectedMonth(currentMonthReal);
+  };
+
   // 只要選擇了年份，月份永遠顯示 1-12 月
   const availableMonths = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -484,6 +498,24 @@ export function AssetsContent() {
             <span className="text-xs text-slate-500">選擇年月查看該月資產及負債</span>
           </div>
           <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 md:flex">
+              <button
+                type="button"
+                onClick={selectPreviousMonth}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+              >
+                ← 上個月
+              </button>
+              <button
+                type="button"
+                onClick={selectCurrentMonth}
+                disabled={selectedYear === currentYearReal && selectedMonth === currentMonthReal}
+                className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-default disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                回到本月
+              </button>
+            </div>
+
             {/* 年份下拉 */}
             <div className="relative">
               <button type="button" onClick={() => { setShowYearDropdown(!showYearDropdown); setShowMonthDropdown(false); if (!showYearDropdown) setYearHighlightedIndex(availableYears.indexOf(selectedYear)); }} onBlur={() => setTimeout(() => setShowYearDropdown(false), 120)} className="flex min-w-[90px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none">

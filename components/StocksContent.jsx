@@ -6,7 +6,16 @@ import { useApp } from '@/lib/app-context';
 import { INDUSTRY_COLORS, INDUSTRY_MAP } from '@/components/common/constants';
 import { demoInitialPrices } from '@/lib/demo-stock-data';
 
-function getIndustry(symbol) {
+function getIndustry(symbol, stockName = '') {
+  const name = String(stockName);
+
+  // Google Sheets 可能把 ETF 代號的前導零移除，因此用名稱辨識 ETF，
+  // 避免把 006208（富邦台50）與真正的個股代號 6208 混在一起。
+  if (name.includes('元大台灣50')) return '大盤型 ETF';
+  if (name.includes('富邦台50')) return '大盤型 ETF';
+  if (name.includes('國泰臺韓科技') || name.includes('國泰台韓科技')) return '科技主題 ETF';
+  if (name.includes('主動統一台股增長')) return '主動式 ETF';
+
   return INDUSTRY_MAP[symbol] || '其他';
 }
 
@@ -267,7 +276,7 @@ export function StocksContent({ initialPrices = {} }) {
   const industryData = (() => {
     const industryMap = {};
     activePositions.forEach((pos) => {
-      const industry = getIndustry(pos.symbol);
+      const industry = getIndustry(pos.symbol, pos.name);
       if (!industryMap[industry]) {
         industryMap[industry] = 0;
       }

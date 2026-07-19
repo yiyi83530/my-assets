@@ -32,6 +32,16 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
 
   // Use useEffect to populate form fields when initialData changes or for new transactions
   useEffect(() => {
+    if (!isOpen) return;
+
+    // 每次開啟都清除上一次搜尋與下拉狀態，避免新增下一筆時殘留舊內容。
+    setSuggestions([]);
+    setIsSearching(false);
+    setShowSuggestions(false);
+    setHighlightedSuggestionIndex(-1);
+    setShowMarketDropdown(false);
+    setMarketHighlightedIndex(-1);
+
     if (initialData) {
       setMarket(initialData.market || 'TWSE');
       setType(initialData.type || 'buy');
@@ -54,8 +64,9 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       setSelectedSymbol('');
       setIsFeeManual(false);
       setManualFee('');
+      setIsPriceManual(false);
     }
-  }, [initialData]); // Only depends on initialData
+  }, [isOpen, initialData]);
 
   // useEffect for manual fee check based on current market settings
   useEffect(() => {

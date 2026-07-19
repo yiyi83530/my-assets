@@ -193,6 +193,29 @@ function updateTransaction_(transaction) {
 // 儲存格式：每一列 = 某個月份的某一筆資產，monthKey 欄位用來分組（例如 "2026-06"）
 // ─────────────────────────────────────────────
 
+function normalizeMonthKey_(value) {
+  if (!value) return '';
+
+  const isDate = value instanceof Date
+    || Object.prototype.toString.call(value) === '[object Date]';
+  if (isDate && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM');
+  }
+
+  const text = String(value).trim();
+  const numericMatch = text.match(/^(\d{4})[\/-](\d{1,2})/);
+  if (numericMatch) {
+    return `${numericMatch[1]}-${numericMatch[2].padStart(2, '0')}`;
+  }
+
+  const parsedDate = new Date(text);
+  if (!isNaN(parsedDate.getTime())) {
+    return Utilities.formatDate(parsedDate, Session.getScriptTimeZone(), 'yyyy-MM');
+  }
+
+  return text;
+}
+
 function getMonthlyAssets_() {
   const sheet = getOrCreateSheet_(SHEET_MONTHLY_ASSETS, MONTHLY_ASSET_HEADERS);
   const lastRow = sheet.getLastRow();
@@ -205,26 +228,7 @@ function getMonthlyAssets_() {
   // 依 monthKey 分組，還原成前端期待的 { "2026-06": [asset, asset, ...], ... } 格式
   const grouped = {};
   objects.forEach((row) => {
-    let monthKey = row.monthKey;
-    if (monthKey instanceof Date) {
-      const y = monthKey.getFullYear();
-      const m = String(monthKey.getMonth() + 1).padStart(2, '0');
-      monthKey = `${y}-${m}`;
-    } else {
-      monthKey = String(monthKey || '').trim();
-      // 標準化 "YYYY/MM" 或 "YYYY-M" 為 "YYYY-MM"
-      if (monthKey.includes('/')) {
-        const parts = monthKey.split('/');
-        if (parts.length >= 2) {
-          monthKey = `${parts[0]}-${parts[1].padStart(2, '0')}`;
-        }
-      } else if (monthKey.includes('-')) {
-        const parts = monthKey.split('-');
-        if (parts.length >= 2) {
-          monthKey = `${parts[0]}-${parts[1].padStart(2, '0')}`;
-        }
-      }
-    }
+    const monthKey = normalizeMonthKey_(row.monthKey);
     if (!monthKey) return;
 
     const asset = {};
