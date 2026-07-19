@@ -65,18 +65,21 @@ function fmt(num) {
   return Math.round(num).toLocaleString('zh-TW');
 }
 
-function fmtCurrency(num, currency, showSign = false, decimalPlaces = 0) {
-  const symbol = currency === 'TWD' ? 'NT$' : '$';
+function fmtCurrency(num, currency = 'TWD', showSign = false, decimalPlaces = 0) {
   const val = Number(num) || 0;
   const options = {
     minimumFractionDigits: decimalPlaces,
     maximumFractionDigits: decimalPlaces,
   };
   const formattedNum = val.toLocaleString('zh-TW', options);
-  if (showSign) {
-    return `${val >= 0 ? '+' : '-'}${symbol}${Math.abs(val).toLocaleString('zh-TW', options)}`;
+  if (currency === 'TWD') {
+    const absoluteNum = Math.abs(val).toLocaleString('zh-TW', options);
+    return `${showSign ? (val >= 0 ? '+' : '-') : ''}${showSign ? absoluteNum : formattedNum}`;
   }
-  return `${symbol}${formattedNum}`;
+  if (showSign) {
+    return `${val >= 0 ? '+' : '-'}$${Math.abs(val).toLocaleString('zh-TW', options)}`;
+  }
+  return `$${formattedNum}`;
 }
 
 function fmtDate(dateStr) {
@@ -267,7 +270,10 @@ export function StocksContent({ initialPrices = {} }) {
 
   const twsePositions = allPositions.filter((p) => p.market === 'TWSE');
   const usPositions = allPositions.filter((p) => p.market === 'US');
-  const activePositions = posTab === 'TWSE' ? twsePositions : usPositions;
+  const activePositions = [...(posTab === 'TWSE' ? twsePositions : usPositions)].sort((a, b) => {
+    if (a.hasQuote !== b.hasQuote) return a.hasQuote ? -1 : 1;
+    return b.marketValue - a.marketValue;
+  });
 
   // 台股 + 美股（美股轉換成 TWD）的總和
   const totalOverallValue = useMemo(() => {
@@ -366,15 +372,6 @@ export function StocksContent({ initialPrices = {} }) {
     }
   }, [industryData, selectedIndustry]);
 
-  const handlePriceChange = (name, value) => {
-    const num = parseFloat(value);
-    setPriceMap((prev) => ({ ...prev, [name]: isNaN(num) ? 0 : num }));
-    setQuoteMeta((prev) => ({
-      ...prev,
-      [name]: { status: 'manual', source: '手動輸入', asOf: null, fetchedAt: Date.now() },
-    }));
-  };
-
   const confirmDelete = async () => {
     if (!deleteId) return;
     setIsDeleting(true);
@@ -411,19 +408,19 @@ export function StocksContent({ initialPrices = {} }) {
       {/* ── Summary Stats（台股+美股總和） ── */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <div className="card p-3 md:p-5">
-          <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">持股現值總計</p>
+          <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">持股現值總計 (TWD)</p>
           <p className="mt-1 md:mt-2 text-lg md:text-2xl font-black text-slate-900">
             {fmtCurrency(totalOverallValue, 'TWD')}
           </p>
         </div>
         <div className="card p-3 md:p-5">
-          <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">總投資成本</p>
+          <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">總投資成本 (TWD)</p>
           <p className="mt-1 md:mt-2 text-lg md:text-2xl font-black text-slate-900">
             {fmtCurrency(totalOverallCost, 'TWD')}
           </p>
         </div>
         <div className="card p-3 md:p-5">
-          <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">未實現損益</p>
+          <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">未實現損益 (TWD)</p>
           <p className={`mt-1 md:mt-2 text-lg md:text-2xl font-black ${totalOverallUnrealized >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
             {fmtCurrency(totalOverallUnrealized, 'TWD', true)}
           </p>
@@ -438,26 +435,41 @@ export function StocksContent({ initialPrices = {} }) {
 
       {/* ── Positions Section ── */}
       <div className="card overflow-hidden">
-        <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="shrink-0 text-sm font-bold text-slate-800">個人即時持股明細</h2>
-            <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5">
-              <button onClick={() => setPosTab('TWSE')} className={tabBtnClass(posTab === 'TWSE')}>
-                📈 台股
+        <div className="border-b border-slate-100 bg-gradient-to-b from-white to-slate-50/40 px-4 py-4 sm:px-5 sm:py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 pt-0.5">
+              <h2 className="text-base font-black tracking-tight text-slate-900">個人即時持股</h2>
+              <p className="mt-1 text-[11px] font-medium text-slate-400">查看市值、成本與未實現損益</p>
+            </div>
+            <div className="grid shrink-0 grid-cols-2 rounded-xl bg-slate-200/60 p-1" role="group" aria-label="選擇股票市場">
+              <button
+                onClick={() => setPosTab('TWSE')}
+                aria-pressed={posTab === 'TWSE'}
+                className={`flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all ${
+                  posTab === 'TWSE' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full bg-rose-400" aria-hidden="true" />
+                台股
               </button>
-              <button onClick={() => setPosTab('US')} className={tabBtnClass(posTab === 'US')}>
-                🇺🇸 美股
+              <button
+                onClick={() => setPosTab('US')}
+                aria-pressed={posTab === 'US'}
+                className={`flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all ${
+                  posTab === 'US' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full bg-blue-500" aria-hidden="true" />
+                美股
               </button>
             </div>
           </div>
-          <div className="mt-3 flex flex-col gap-3 sm:mt-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-start sm:gap-2">
-              <div className="flex items-center gap-2">
-              <button
-                onClick={handleManualRefresh}
-                disabled={isFetchingPrices}
-                className="group flex items-center gap-1.5 rounded-full bg-rose-50/50 px-3 py-1 text-[11px] font-bold text-rose-500 transition-all hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-              >
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-slate-200/70 pt-3 sm:flex sm:flex-wrap sm:items-center">
+            <button
+              onClick={handleManualRefresh}
+              disabled={isFetchingPrices}
+              className="group inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-rose-100 bg-white px-2 text-[11px] font-bold text-rose-500 shadow-sm transition-all hover:border-rose-200 hover:bg-rose-50 disabled:cursor-wait disabled:opacity-50 sm:px-3"
+            >
                 {isFetchingPrices ? (
                   <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-rose-600" />
                 ) : (
@@ -466,42 +478,14 @@ export function StocksContent({ initialPrices = {} }) {
                   </svg>
                 )}
                 更新現價
-              </button>
-              {lastQuoteUpdatedAt > 0 && (
-                <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
-                  最後更新 {fmtTime(new Date(lastQuoteUpdatedAt).toISOString())}
-                </span>
-              )}
-              </div>
-
-              {posTab === 'US' && (
-                <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-0.5">
-                  <button
-                    onClick={() => setDisplayCurrency('USD')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                      displayCurrency === 'USD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    USD
-                  </button>
-                  <button
-                    onClick={() => setDisplayCurrency('TWD')}
-                    disabled={!usdToTwdRate}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                      displayCurrency === 'TWD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    } ${!usdToTwdRate ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    TWD
-                  </button>
-                </div>
-              )}
-            </div>
+            </button>
             <button
               onClick={() => setShowChart(!showChart)}
-              className={`inline-flex self-end items-center gap-1 pb-0.5 text-xs font-bold transition border-b-2 sm:self-auto ${
+              aria-expanded={showChart}
+              className={`inline-flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 text-[11px] font-bold shadow-sm transition-all sm:order-3 sm:px-3 ${
                 showChart
-                  ? 'text-slate-400 border-slate-400 hover:text-slate-500'
-                  : 'text-rose-300 border-rose-300 hover:text-rose-500'
+                  ? 'border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-500'
               }`}
             >
               <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5" aria-hidden="true">
@@ -510,6 +494,37 @@ export function StocksContent({ initialPrices = {} }) {
               </svg>
               {showChart ? '隱藏' : '顯示'}產業分佈
             </button>
+            <div className="col-span-2 flex min-h-7 items-center gap-2 sm:order-2 sm:min-h-0 sm:flex-1">
+              {lastQuoteUpdatedAt > 0 && (
+                <span className="whitespace-nowrap text-[10px] font-medium text-slate-400">
+                  已更新・{fmtTime(new Date(lastQuoteUpdatedAt).toISOString())}
+                </span>
+              )}
+
+              {posTab === 'US' && (
+                <div className="ml-auto grid shrink-0 grid-cols-2 rounded-lg bg-slate-200/60 p-0.5" role="group" aria-label="選擇顯示幣別">
+                  <button
+                    onClick={() => setDisplayCurrency('USD')}
+                    aria-pressed={displayCurrency === 'USD'}
+                    className={`min-w-[54px] rounded-md px-2.5 py-1.5 text-[11px] font-bold transition ${
+                      displayCurrency === 'USD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    USD
+                  </button>
+                  <button
+                    onClick={() => setDisplayCurrency('TWD')}
+                    disabled={!usdToTwdRate}
+                    aria-pressed={displayCurrency === 'TWD'}
+                    className={`min-w-[54px] rounded-md px-2.5 py-1.5 text-[11px] font-bold transition ${
+                      displayCurrency === 'TWD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    } ${!usdToTwdRate ? 'cursor-not-allowed opacity-50' : ''}`}
+                  >
+                    TWD
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -641,14 +656,86 @@ export function StocksContent({ initialPrices = {} }) {
               目前沒有「{posTab === 'TWSE' ? '台股' : '美股'}」持股明細
             </div>
           ) : (
-            <div className="overflow-x-auto" style={{ maxHeight: `${posContainerMaxHeight}px`, overflowY: 'auto' }}>
+            <>
+            <div className="divide-y divide-slate-100 md:hidden">
+              {activePositions.map((pos) => {
+                const sharePercent = currentTabTotalValue > 0 ? (pos.marketValue / currentTabTotalValue) * 100 : 0;
+                const displayName = pos.name.split(' ').slice(1).join(' ') || pos.name;
+                const isUSStock = pos.market === 'US';
+                const rate = isUSStock ? (usdToTwdRate || 1) : 1;
+                const currency = isUSStock ? displayCurrency : 'TWD';
+                const avgCost = isUSStock && displayCurrency === 'TWD' ? pos.avgCost * rate : pos.avgCost;
+                const marketPrice = pos.marketPrice == null ? null : (isUSStock && displayCurrency === 'TWD' ? pos.marketPrice * rate : pos.marketPrice);
+                const totalCost = isUSStock && displayCurrency === 'TWD' ? pos.totalBuyCost * rate : pos.totalBuyCost;
+                const marketValue = isUSStock && displayCurrency === 'TWD' ? pos.marketValue * rate : pos.marketValue;
+                const profit = pos.unrealizedProfit == null ? null : (isUSStock && displayCurrency === 'TWD' ? pos.unrealizedProfit * rate : pos.unrealizedProfit);
+                const meta = quoteMeta[pos.name];
+                const statusLabel = quoteStatusLabel(meta?.status);
+
+                return (
+                  <article key={pos.name} className="px-4 py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold text-slate-500">{pos.symbol}</span>
+                          <h3 className="truncate text-sm font-bold text-slate-800">{displayName}</h3>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-400">
+                          <span>持有 {pos.holdingQty.toLocaleString()} 股</span>
+                          <span aria-hidden="true">・</span>
+                          <span>市值占比 {pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}</span>
+                          <span className="relative ml-0.5 h-1.5 w-12 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                            <span
+                              className="absolute inset-y-0 left-0 rounded-full bg-rose-400 transition-all duration-300"
+                              style={{ width: `${pos.hasQuote ? Math.min(sharePercent, 100) : 0}%` }}
+                            />
+                          </span>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-[10px] font-medium text-slate-400">帳面現值 (TWD)</p>
+                        <p className="mt-0.5 font-mono text-sm font-black text-slate-800">{pos.hasQuote ? fmtCurrency(marketValue, currency) : '—'}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 rounded-xl bg-slate-50 p-3">
+                      <div>
+                        <p className="text-[10px] font-medium text-slate-400">未實現損益 (TWD)</p>
+                        <p className={`mt-1 font-mono text-sm font-black ${profit == null ? 'text-slate-400' : profit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          {profit == null ? '—' : fmtCurrency(profit, currency, true)}
+                          {pos.profitPercent != null && <span className="ml-1 text-[10px]">({pos.profitPercent >= 0 ? '+' : ''}{pos.profitPercent.toFixed(2)}%)</span>}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-medium text-slate-400">投資成本 (TWD)</p>
+                        <p className="mt-1 font-mono text-sm font-bold text-slate-700">{fmtCurrency(totalCost, currency)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-medium text-slate-400">平均成本 (TWD)</p>
+                        <p className="mt-1 font-mono text-xs font-bold text-slate-700">{fmtCurrency(avgCost, currency, false, 2)}</p>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-[10px] font-medium text-slate-400">目前股價</p>
+                          {statusLabel && <span className="text-[9px] font-bold text-slate-400">{statusLabel}</span>}
+                        </div>
+                        <p className="mt-1 font-mono text-xs font-bold text-slate-700">
+                          {marketPrice == null ? '—' : fmtCurrency(marketPrice, currency, false, 2)}
+                        </p>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block" style={{ maxHeight: `${posContainerMaxHeight}px`, overflowY: 'auto' }}>
               <table className="w-full min-w-[960px] text-center">
                 <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 sticky top-0 z-10 shadow-sm">
                   <tr className="h-12">
                     <th className="px-4 py-3 align-middle text-left whitespace-nowrap">股票</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">持有股數</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">成本價 {posTab === 'US' && `(${displayCurrency})`}</th>
-                    <th className="px-4 py-3 align-middle whitespace-nowrap">現價（可修改） {posTab === 'US' && `(${displayCurrency})`}</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">現價 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">投資成本 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">帳面現值 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">未實現損益 {posTab === 'US' && `(${displayCurrency})`}</th>
@@ -699,28 +786,12 @@ export function StocksContent({ initialPrices = {} }) {
                           {fmtCurrency(convertedAvgCost, currentDisplayCurrency, false, 2)}
                         </td>
 
-                        {/* 現價 (editable) */}
+                        {/* 現價（唯讀） */}
                         <td className="px-4 py-3 align-middle">
                           <div className="flex flex-col items-center justify-center gap-1">
-                            <input
-                              type="number"
-                              value={
-                                isUSStock && displayCurrency === 'TWD'
-                                  ? (convertedMarketPrice == null ? '' : convertedMarketPrice.toFixed(2))
-                                  : (pos.marketPrice ?? '')
-                              }
-                              onChange={(e) => {
-                                let value = parseFloat(e.target.value);
-                                if (isUSStock && displayCurrency === 'TWD' && rate !== 0 && !isNaN(value)) {
-                                  value = value / rate;
-                                }
-                                handlePriceChange(pos.name, value);
-                              }}
-                              className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-center font-mono text-sm text-slate-800 transition focus:border-rose-300 focus:outline-none"
-                              step="0.01"
-                              min="0"
-                              placeholder="無報價"
-                            />
+                            <span className="font-mono text-sm font-bold text-slate-700">
+                              {convertedMarketPrice == null ? '—' : fmtCurrency(convertedMarketPrice, currentDisplayCurrency, false, 2)}
+                            </span>
                             {statusLabel && (
                               <span
                                 title={meta?.source ? `來源：${meta.source}` : '官方行情暫無回應，系統會自動重試'}
@@ -772,6 +843,7 @@ export function StocksContent({ initialPrices = {} }) {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>
@@ -848,7 +920,56 @@ export function StocksContent({ initialPrices = {} }) {
             </div>
           ) : (
             <div className="">
-              <div className="overflow-x-auto"> {/* New div for horizontal scrolling */}
+              <div className="divide-y divide-slate-100 md:hidden">
+                {paginatedTx.map((tx) => {
+                  const txSymbol = tx.stock.split(' ')[0];
+                  const txName = tx.stock.split(' ').slice(1).join(' ');
+                  const txTime = fmtTime(tx.recordedAt);
+                  return (
+                    <article key={tx.id} className="px-4 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${tx.type === 'buy' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                              {tx.type === 'buy' ? '買進' : '賣出'}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-slate-500">{txSymbol}</span>
+                          </div>
+                          {txName && <h3 className="mt-1 truncate text-sm font-bold text-slate-800">{txName}</h3>}
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="font-mono text-xs font-medium text-slate-600">{fmtDate(tx.date)}</p>
+                          {txTime && <p className="mt-0.5 font-mono text-[10px] text-slate-400">{txTime}</p>}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-3">
+                        <div>
+                          <p className="text-[10px] text-slate-400">股數</p>
+                          <p className="mt-1 font-mono text-xs font-bold text-slate-700">{Number(tx.qty).toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-400">成交單價</p>
+                          <p className="mt-1 font-mono text-xs font-bold text-slate-700">${Number(tx.price).toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-slate-400">實際收支</p>
+                          <p className={`mt-1 font-mono text-xs font-black ${tx.type === 'buy' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {tx.type === 'buy' ? '-' : '+'}${Number(tx.actualAmount).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center gap-2">
+                        <p className="min-w-0 flex-1 truncate text-[11px] text-slate-400">{tx.note || '無備註'}</p>
+                        <button onClick={() => openTransactionModal(tx)} className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600" aria-label={`編輯 ${tx.stock}`}>編輯</button>
+                        <button onClick={() => setDeleteId(tx.id)} className="rounded-lg border border-rose-100 bg-white px-3 py-1.5 text-[11px] font-bold text-rose-500" aria-label={`刪除 ${tx.stock}`}>刪除</button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[760px] text-center border-separate border-spacing-0 relative">
                   <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 shadow-sm">
                     <tr className="h-12">
