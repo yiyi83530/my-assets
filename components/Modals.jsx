@@ -652,8 +652,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
   const [toastType, setToastType] = useState('success');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Apps Script 程式碼改為開啟 Modal 時即時抓取最新版（來源：GitHub repo 的 docs/google-apps-script.gs），
-  // 不再內嵌於前端常數，避免兩邊版本不同步
+  // 這個靜態檔會在 build 前由 docs/google-apps-script.gs 自動產生。
   const [scriptCode, setScriptCode] = useState('');
   const [isScriptLoading, setIsScriptLoading] = useState(false);
   const [scriptLoadFailed, setScriptLoadFailed] = useState(false);
@@ -668,14 +667,18 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
       setToastType('success');
       setIsLoading(false);
 
-      // 每次打開 Modal 都重新抓一次，確保拿到的是最新版（Next.js fetch cache 會自動處理快取，不會每次都真的打 GitHub）
+      // 加上版本參數，避免瀏覽器或 GitHub Pages 留住舊版檔案。
       setIsScriptLoading(true);
       setScriptLoadFailed(false);
-      fetch('/api/google-apps-script')
-        .then((res) => res.json())
-        .then((json) => {
-          setScriptCode(json.code || '');
-          setScriptLoadFailed(!json.ok);
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+      fetch(`${basePath}/google-apps-script.gs?v=${Date.now()}`, { cache: 'no-store' })
+        .then((res) => {
+          if (!res.ok) throw new Error(`載入失敗 (${res.status})`);
+          return res.text();
+        })
+        .then((code) => {
+          setScriptCode(code);
+          setScriptLoadFailed(false);
         })
         .catch(() => {
           setScriptCode('');
