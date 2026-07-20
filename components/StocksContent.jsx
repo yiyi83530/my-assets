@@ -121,6 +121,8 @@ function fmtTime(isoStr) {
 
 function quoteStatusLabel(status) {
   if (status === 'realtime') return '即時股價';
+  if (status === 'latest_price') return '最新參考價';
+  if (status === 'opening_price') return '開盤參考價';
   if (status === 'previous_close') return '昨日收盤價';
   if (status === 'daily_close') return '最新收盤價';
   if (status === 'esb_quote') return '興櫃參考價';
@@ -129,8 +131,42 @@ function quoteStatusLabel(status) {
   return null;
 }
 
+function LimitStatusBadge({ status }) {
+  if (status === 'limit_up') {
+    return <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-black text-rose-600 ring-1 ring-rose-100">漲停</span>;
+  }
+  if (status === 'limit_down') {
+    return <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black text-emerald-600 ring-1 ring-emerald-100">跌停</span>;
+  }
+  return null;
+}
+
+const TW_LIVE_RETRY_STATUSES = new Set(['opening_price', 'previous_close', 'unavailable']);
+const LIVE_QUOTE_FALLBACK_GRACE_MS = 10000;
+
+function isTwMarketRefreshWindow(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Taipei',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+  const value = (type) => parts.find((part) => part.type === type)?.value;
+  const weekday = value('weekday');
+  if (weekday === 'Sat' || weekday === 'Sun') return false;
+  const hour = Number(value('hour')) % 24;
+  const minute = Number(value('minute'));
+  const minutes = hour * 60 + minute;
+  return minutes >= 8 * 60 + 55 && minutes <= 13 * 60 + 35;
+}
+
 function SummaryValueSkeleton() {
   return <span className="mt-2 block h-7 w-24 animate-pulse rounded-lg bg-slate-200/80 md:h-8 md:w-28" aria-label="資料載入中" />;
+}
+
+function InlineValueSkeleton({ className = '' }) {
+  return <span className={`inline-block h-4 w-16 animate-pulse rounded-md bg-slate-200/80 align-middle ${className}`} aria-label="資料載入中" />;
 }
 
 function StockDataLoading() {
@@ -187,6 +223,8 @@ export function StocksContent() {
   const [originalCostDraft, setOriginalCostDraft] = useState(null);
   const [pendingCostChange, setPendingCostChange] = useState(null);
   const [isSavingCost, setIsSavingCost] = useState(false);
+  const [liveQuoteClock, setLiveQuoteClock] = useState(() => Date.now());
+  const [fallbackQuoteFirstSeenAt, setFallbackQuoteFirstSeenAt] = useState({});
 
   const [posTab, setPosTab] = useState('TWSE');
   const [histTab, setHistTab] = useState('TWSE');
@@ -264,23 +302,42 @@ export function StocksContent() {
     if (isSheetsConnected) refreshStockPrices(basePositions);
   }, [basePositions, isSheetsConnected, positionKeys, refreshStockPrices]);
 
-  // 官方來源暫時無回應時持續低頻重試；成功前不納入損益計算。
-  const failedQuoteRevision = Object.entries(quoteMeta)
-    .filter(([, meta]) => meta.status === 'unavailable')
-    .map(([name, meta]) => `${name}:${meta.fetchedAt}`)
-    .join('|');
   useEffect(() => {
-    if (!isSheetsConnected || !failedQuoteRevision) return undefined;
-    const timer = setTimeout(() => {
-      const failedPositions = basePositions.filter(
-        (pos) => quoteMeta[pos.name]?.status === 'unavailable'
-      );
-      if (failedPositions.length > 0 && !isFetchingPrices) {
-        refreshStockPrices(failedPositions, { force: true });
-      }
-    }, 30000);
+    if (Object.values(quoteMeta).some((meta) => TW_LIVE_RETRY_STATUSES.has(meta?.status))) {
+      setLiveQuoteClock(Date.now());
+    }
+    setFallbackQuoteFirstSeenAt((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      Object.entries(quoteMeta).forEach(([name, meta]) => {
+        if (TW_LIVE_RETRY_STATUSES.has(meta?.status)) {
+          if (!next[name]) {
+            next[name] = Number(meta?.fetchedAt) || Date.now();
+            changed = true;
+          }
+        } else if (next[name]) {
+          delete next[name];
+          changed = true;
+        }
+      });
+      Object.keys(next).forEach((name) => {
+        if (!quoteMeta[name]) {
+          delete next[name];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [quoteMeta]);
+
+  useEffect(() => {
+    const pendingFallbacks = Object.entries(fallbackQuoteFirstSeenAt)
+      .map(([, firstSeenAt]) => LIVE_QUOTE_FALLBACK_GRACE_MS - (liveQuoteClock - firstSeenAt))
+      .filter((remainingMs) => remainingMs > 0);
+    if (pendingFallbacks.length === 0) return undefined;
+    const timer = setTimeout(() => setLiveQuoteClock(Date.now()), Math.min(...pendingFallbacks));
     return () => clearTimeout(timer);
-  }, [basePositions, failedQuoteRevision, isSheetsConnected, isFetchingPrices, quoteMeta, refreshStockPrices]);
+  }, [fallbackQuoteFirstSeenAt, liveQuoteClock]);
 
   // 手動重新整理目前分頁的報價
   const handleManualRefresh = () => {
@@ -349,11 +406,18 @@ export function StocksContent() {
   const allPositions = basePositions.map((p) => {
     const marketPrice = priceMap[p.name] ?? null;
     const hasQuote = marketPrice !== null;
+    const meta = quoteMeta[p.name];
+    const fallbackFirstSeenAt = fallbackQuoteFirstSeenAt[p.name] || Number(meta?.fetchedAt) || 0;
+    const isWaitingForRealtime = isSheetsConnected
+      && p.market === 'TWSE'
+      && hasQuote
+      && TW_LIVE_RETRY_STATUSES.has(meta?.status)
+      && liveQuoteClock - fallbackFirstSeenAt < LIVE_QUOTE_FALLBACK_GRACE_MS;
     const marketValue = hasQuote ? p.holdingQty * marketPrice : 0;
     const unrealizedProfit = hasQuote ? marketValue - p.totalBuyCost : null;
     const profitPercent =
       hasQuote && p.totalBuyCost > 0 ? (unrealizedProfit / p.totalBuyCost) * 100 : null;
-    return { ...p, marketPrice, hasQuote, marketValue, unrealizedProfit, profitPercent };
+    return { ...p, marketPrice, hasQuote, isWaitingForRealtime, marketValue, unrealizedProfit, profitPercent };
   });
 
   const twsePositions = allPositions.filter((p) => p.market === 'TWSE');
@@ -362,6 +426,26 @@ export function StocksContent() {
     if (a.hasQuote !== b.hasQuote) return a.hasQuote ? -1 : 1;
     return b.marketValue - a.marketValue;
   });
+
+  const retryableTwQuoteRevision = activePositions
+    .filter((pos) => pos.market === 'TWSE' && TW_LIVE_RETRY_STATUSES.has(quoteMeta[pos.name]?.status))
+    .map((pos) => `${pos.name}:${quoteMeta[pos.name]?.status}:${quoteMeta[pos.name]?.fetchedAt}`)
+    .join('|');
+
+  useEffect(() => {
+    if (!isSheetsConnected || posTab !== 'TWSE' || !retryableTwQuoteRevision || !isTwMarketRefreshWindow()) {
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      const retryablePositions = activePositions.filter(
+        (pos) => pos.market === 'TWSE' && TW_LIVE_RETRY_STATUSES.has(quoteMeta[pos.name]?.status)
+      );
+      if (retryablePositions.length > 0 && !isFetchingPrices) {
+        refreshStockPrices(retryablePositions, { force: true });
+      }
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [activePositions, isFetchingPrices, isSheetsConnected, posTab, quoteMeta, refreshStockPrices, retryableTwQuoteRevision]);
 
   // 台股 + 美股（美股轉換成 TWD）的總和
   const totalOverallValue = useMemo(() => {
@@ -737,31 +821,30 @@ export function StocksContent() {
                 )}
                 更新現價
             </button>
+            {lastQuoteUpdatedAt > 0 && (
+              <span className="order-1 whitespace-nowrap text-[9px] font-normal text-slate-400">
+                已更新・{fmtTime(new Date(lastQuoteUpdatedAt).toISOString())}
+              </span>
+            )}
             <button
               onClick={() => setShowChart(!showChart)}
               aria-expanded={showChart}
               disabled={isPortfolioLoading}
-              className={`order-3 ml-auto inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md border px-2 text-[10px] font-semibold transition disabled:cursor-wait disabled:opacity-50 ${
+              className={`order-2 ml-auto inline-flex h-6 shrink-0 items-center justify-center gap-0.5 rounded-md border px-1.5 text-[9px] font-semibold transition disabled:cursor-wait disabled:opacity-50 sm:order-3 sm:h-7 sm:gap-1 sm:px-2 sm:text-[10px] ${
                 showChart
                   ? 'border-rose-200 bg-rose-50 text-rose-600'
                   : 'border-rose-100 bg-white text-rose-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600'
               }`}
             >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-2.5 w-2.5 sm:h-3 sm:w-3" aria-hidden="true">
                 <path d="M10 2.5a.75.75 0 01.75.75v6.25H17a.75.75 0 01.75.75A8.75 8.75 0 1110 1.25a.75.75 0 010 1.5z" />
                 <path d="M12.5 2.08a8.02 8.02 0 014.92 4.92h-4.17a.75.75 0 01-.75-.75V2.08z" />
               </svg>
               {showChart ? '隱藏' : '顯示'}產業分佈
             </button>
-            <div className="order-2 flex min-h-7 min-w-0 flex-1 items-center gap-2">
-              {lastQuoteUpdatedAt > 0 && (
-                <span className="whitespace-nowrap text-[9px] font-normal text-slate-400">
-                  已更新・{fmtTime(new Date(lastQuoteUpdatedAt).toISOString())}
-                </span>
-              )}
-
-              {posTab === 'US' && (
-                <div className="ml-auto grid shrink-0 grid-cols-2 rounded-lg bg-slate-200/60 p-0.5" role="group" aria-label="選擇顯示幣別">
+            {posTab === 'US' && (
+              <div className="order-3 flex min-h-7 w-full min-w-0 items-center gap-2 sm:order-2 sm:w-auto sm:flex-1">
+                <div className="relative z-10 ml-auto grid shrink-0 grid-cols-2 rounded-lg bg-slate-200/60 p-0.5" role="group" aria-label="選擇顯示幣別">
                   <button
                     onClick={() => setDisplayCurrency('TWD')}
                     disabled={!usdToTwdRate}
@@ -782,8 +865,8 @@ export function StocksContent() {
                     USD
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
           {posTab === 'US' && (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3.5 py-3">
@@ -954,33 +1037,36 @@ export function StocksContent() {
                 const profit = pos.unrealizedProfit == null ? null : (isUSStock && displayCurrency === 'TWD' ? pos.unrealizedProfit * rate : pos.unrealizedProfit);
                 const meta = quoteMeta[pos.name];
                 const statusLabel = quoteStatusLabel(meta?.status);
+                const isQuoteValueLoading = pos.isWaitingForRealtime;
 
                 return (
                   <article key={pos.name} className="px-4 py-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="rounded-md bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold text-slate-500">{pos.symbol}</span>
+                          <span className="rounded-md bg-rose-50 px-2 py-1 font-mono text-[10px] font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</span>
                           <h3 className="truncate text-sm font-bold text-slate-800">{displayName}</h3>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-400">
                           <span>持有 {pos.holdingQty.toLocaleString()} 股</span>
                           <span aria-hidden="true">・</span>
                           <span className="inline-flex items-center gap-1">
-                            市值占比 {pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
-                            {positionIndex === 0 && pos.hasQuote && <span className="text-xs" title="市值占比第一名" aria-label="市值占比第一名">👑</span>}
+                            市值占比 {isQuoteValueLoading ? <InlineValueSkeleton className="h-3 w-8" /> : pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
+                            {positionIndex === 0 && pos.hasQuote && !isQuoteValueLoading && <span className="text-xs" title="市值占比第一名" aria-label="市值占比第一名">👑</span>}
                           </span>
                           <span className="relative ml-0.5 h-1.5 w-12 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
                             <span
                               className="absolute inset-y-0 left-0 rounded-full bg-rose-400 transition-all duration-300"
-                              style={{ width: `${pos.hasQuote ? Math.min(sharePercent, 100) : 0}%` }}
+                              style={{ width: `${pos.hasQuote && !isQuoteValueLoading ? Math.min(sharePercent, 100) : 0}%` }}
                             />
                           </span>
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="text-[10px] font-medium text-slate-400">帳面現值 ({currency})</p>
-                        <p className="mt-0.5 font-mono text-sm font-black text-slate-800">{pos.hasQuote ? fmtCurrency(marketValue, currency) : '—'}</p>
+                        <p className="mt-0.5 font-mono text-sm font-black text-slate-800">
+                          {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-20" /> : pos.hasQuote ? fmtCurrency(marketValue, currency) : '—'}
+                        </p>
                       </div>
                     </div>
 
@@ -988,8 +1074,8 @@ export function StocksContent() {
                       <div>
                         <p className="text-[10px] font-medium text-slate-400">未實現損益 ({currency})</p>
                         <p className={`mt-1 font-mono text-sm font-black ${profit == null ? 'text-slate-400' : profit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          {profit == null ? '—' : fmtCurrency(profit, currency, true)}
-                          {pos.profitPercent != null && <span className="ml-1 text-[10px]">({pos.profitPercent >= 0 ? '+' : ''}{pos.profitPercent.toFixed(2)}%)</span>}
+                          {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-24" /> : profit == null ? '—' : fmtCurrency(profit, currency, true)}
+                          {!isQuoteValueLoading && pos.profitPercent != null && <span className="ml-1 text-[10px]">({pos.profitPercent >= 0 ? '+' : ''}{pos.profitPercent.toFixed(2)}%)</span>}
                         </p>
                       </div>
                       <div>
@@ -1034,10 +1120,11 @@ export function StocksContent() {
                       </div>
                       <div>
                         <p className="text-[10px] font-medium text-slate-400">
-                          {statusLabel || '目前股價'}
+                          {isQuoteValueLoading ? '取得即時股價' : statusLabel || '目前股價'}
                         </p>
-                        <p className="mt-1 font-mono text-xs font-bold text-slate-700">
-                          {marketPrice == null ? '—' : fmtCurrency(marketPrice, currency, false, 2)}
+                        <p className="mt-1 inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-700">
+                          <span>{isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-16" /> : marketPrice == null ? '—' : fmtCurrency(marketPrice, currency, false, 2)}</span>
+                          {!isQuoteValueLoading && <LimitStatusBadge status={meta?.limitStatus} />}
                         </p>
                       </div>
                     </div>
@@ -1084,12 +1171,13 @@ export function StocksContent() {
                     const profitPercent = pos.profitPercent;
                     const meta = quoteMeta[pos.name];
                     const statusLabel = quoteStatusLabel(meta?.status);
+                    const isQuoteValueLoading = pos.isWaitingForRealtime;
 
                     return (
                       <tr key={pos.name} className="h-14 border-t border-slate-100 hover:bg-slate-50/60 transition">
                         {/* 股票 */}
                         <td className="px-4 py-3 align-middle text-left">
-                          <div className="text-xs font-bold text-slate-400">{pos.symbol}</div>
+                          <div className="inline-flex rounded-md bg-rose-50 px-2 py-0.5 font-mono text-xs font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</div>
                           <div className="max-w-[180px] truncate text-sm text-slate-800">{displayName}</div>
                         </td>
 
@@ -1137,15 +1225,16 @@ export function StocksContent() {
                         {/* 現價（唯讀） */}
                         <td className="px-4 py-3 align-middle">
                           <div className="flex flex-col items-center justify-center gap-1">
-                            <span className="font-mono text-sm font-bold text-slate-700">
-                              {convertedMarketPrice == null ? '—' : fmtCurrency(convertedMarketPrice, currentDisplayCurrency, false, 2)}
+                            <span className="inline-flex items-center gap-1 font-mono text-sm font-bold text-slate-700">
+                              <span>{isQuoteValueLoading ? <InlineValueSkeleton /> : convertedMarketPrice == null ? '—' : fmtCurrency(convertedMarketPrice, currentDisplayCurrency, false, 2)}</span>
+                              {!isQuoteValueLoading && <LimitStatusBadge status={meta?.limitStatus} />}
                             </span>
-                            {statusLabel && (
+                            {(statusLabel || isQuoteValueLoading) && (
                               <span
                                 title={meta?.source ? `來源：${meta.source}` : '官方行情暫無回應，系統會自動重試'}
                                 className="text-[9px] font-bold text-slate-400"
                               >
-                                {statusLabel}
+                                {isQuoteValueLoading ? '取得即時股價' : statusLabel}
                               </span>
                             )}
                           </div>
@@ -1158,29 +1247,29 @@ export function StocksContent() {
 
                         {/* 帳面現值 */}
                         <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
-                          {pos.hasQuote ? fmtCurrency(convertedMarketValue, currentDisplayCurrency) : '—'}
+                          {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-20" /> : pos.hasQuote ? fmtCurrency(convertedMarketValue, currentDisplayCurrency) : '—'}
                         </td>
 
                         {/* 未實現損益 */}
                         <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${convertedUnrealizedProfit == null ? 'text-slate-400' : convertedUnrealizedProfit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          {convertedUnrealizedProfit == null ? '—' : fmtCurrency(convertedUnrealizedProfit, currentDisplayCurrency, true)}
+                          {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-24" /> : convertedUnrealizedProfit == null ? '—' : fmtCurrency(convertedUnrealizedProfit, currentDisplayCurrency, true)}
                         </td>
 
                         {/* 損益率 */}
                         <td className={`px-4 py-3 align-middle font-mono text-sm font-bold ${profitPercent == null ? 'text-slate-400' : profitPercent >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-                          {profitPercent == null ? '—' : `${profitPercent >= 0 ? '+' : ''}${profitPercent.toFixed(2)}%`}
+                          {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-14" /> : profitPercent == null ? '—' : `${profitPercent >= 0 ? '+' : ''}${profitPercent.toFixed(2)}%`}
                         </td>
 
                         {/* 市值佔比 + bar */}
                         <td className="px-4 py-3 align-middle">
                           <div className="flex items-center justify-center gap-2">
                             <span className="w-10 text-right font-mono text-xs text-slate-600">
-                              {pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
+                              {isQuoteValueLoading ? <InlineValueSkeleton className="h-3 w-8" /> : pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
                             </span>
                             <div className="relative h-1 w-12 overflow-hidden rounded-full bg-slate-200">
                               <div
                                 className="absolute left-0 top-0 h-full rounded-full bg-rose-400 transition-all duration-300"
-                                style={{ width: `${pos.hasQuote ? Math.min(sharePercent, 100) : 0}%` }}
+                                style={{ width: `${pos.hasQuote && !isQuoteValueLoading ? Math.min(sharePercent, 100) : 0}%` }}
                               />
                             </div>
                           </div>

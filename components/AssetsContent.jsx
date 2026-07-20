@@ -36,6 +36,14 @@ function MonthTick({ x, y, payload, currentMonth }) {
   );
 }
 
+function ChevronDownIcon({ className = '' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
 function ListBlock({ title, subtitle, items, moneyClass = 'text-slate-800', amountRenderer, detailRenderer, totalValue = 0, totalLabel = '總計', totalClass = 'text-slate-700' }) {
   return (
     <div className="card p-5">
@@ -396,7 +404,7 @@ export function AssetsContent() {
           </p>
 
           <button type="button" onClick={() => setIsTrendOpen((prev) => !prev)} className="mt-3 flex w-full justify-center md:hidden">
-            <svg viewBox="0 0 20 20" fill="currentColor" className={`h-6 w-6 text-slate-400 transition-transform ${isTrendOpen ? 'rotate-180' : ''}`}><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
+            <ChevronDownIcon className={`h-6 w-6 text-slate-400 transition-transform ${isTrendOpen ? 'rotate-180' : ''}`} />
           </button>
 
           <div className={`${isTrendOpen ? 'block' : 'hidden'} md:block`}>
@@ -499,7 +507,7 @@ export function AssetsContent() {
             <div className="relative order-1 md:order-none">
               <button type="button" onClick={() => { setShowYearDropdown(!showYearDropdown); setShowMonthDropdown(false); if (!showYearDropdown) setYearHighlightedIndex(availableYears.indexOf(selectedYear)); }} onBlur={() => setTimeout(() => setShowYearDropdown(false), 120)} className="flex w-full min-w-[90px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none md:w-auto">
                 <span>{selectedYear} 年</span>
-                <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showYearDropdown ? 'rotate-180' : ''}`}><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
+                <ChevronDownIcon className={`h-4 w-4 text-slate-400 transition-transform ${showYearDropdown ? 'rotate-180' : ''}`} />
               </button>
               {showYearDropdown && (
                 <div className="absolute left-0 z-30 mt-1 w-full min-w-[90px] max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
@@ -514,7 +522,7 @@ export function AssetsContent() {
             <div className="relative order-1 md:order-none">
               <button type="button" onClick={() => { setShowMonthDropdown(!showMonthDropdown); setShowYearDropdown(false); if (!showMonthDropdown) setMonthHighlightedIndex(availableMonths.indexOf(selectedMonth)); }} onBlur={() => setTimeout(() => setShowMonthDropdown(false), 120)} className="flex w-full min-w-[80px] items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none md:w-auto">
                 <span>{selectedMonth} 月</span>
-                <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 text-slate-400 transition-transform ${showMonthDropdown ? 'rotate-180' : ''}`}><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
+                <ChevronDownIcon className={`h-4 w-4 text-slate-400 transition-transform ${showMonthDropdown ? 'rotate-180' : ''}`} />
               </button>
               {showMonthDropdown && (
                 <div className="absolute left-0 z-30 mt-1 max-h-60 w-full min-w-[80px] overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">

@@ -4,6 +4,13 @@ function toNumberMaybe(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function getLimitStatus(price, upperLimit, lowerLimit) {
+  if (price === null) return null;
+  if (upperLimit !== null && Math.abs(price - upperLimit) < 0.000001) return 'limit_up';
+  if (lowerLimit !== null && Math.abs(price - lowerLimit) < 0.000001) return 'limit_down';
+  return null;
+}
+
 const TWSE_DAILY_URL = 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL';
 const TPEX_DAILY_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes';
 const TPEX_ESB_STATS_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics';
@@ -28,12 +35,18 @@ async function fetchRealtimeTwQuote(symbol, exchange) {
     if (!row) return null;
 
     const traded = toNumberMaybe(row.z);
+    const opening = toNumberMaybe(row.o);
     const previousClose = toNumberMaybe(row.y);
+    const upperLimit = toNumberMaybe(row.u);
+    const lowerLimit = toNumberMaybe(row.w);
     if (traded !== null) {
-      return { price: traded, status: 'realtime', source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
+      return { price: traded, status: 'realtime', limitStatus: getLimitStatus(traded, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
+    }
+    if (opening !== null) {
+      return { price: opening, status: 'opening_price', limitStatus: getLimitStatus(opening, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
     }
     if (previousClose !== null) {
-      return { price: previousClose, status: 'previous_close', source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
+      return { price: previousClose, status: 'previous_close', limitStatus: getLimitStatus(previousClose, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
     }
     return null;
   } catch {
@@ -86,7 +99,13 @@ async function fetchUsQuote(symbol) {
       const result = json?.chart?.result?.[0];
       const price = toNumberMaybe(result?.meta?.regularMarketPrice);
       if (price !== null) {
-        return { price, status: 'realtime', source: 'Yahoo Finance', asOf: result?.meta?.regularMarketTime || null };
+        const marketState = String(result?.meta?.marketState || '').toUpperCase();
+        return {
+          price,
+          status: marketState === 'REGULAR' ? 'realtime' : 'latest_price',
+          source: 'Yahoo Finance',
+          asOf: result?.meta?.regularMarketTime || null,
+        };
       }
     }
   } catch {}
