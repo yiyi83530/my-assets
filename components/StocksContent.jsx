@@ -812,14 +812,15 @@ export function StocksContent() {
               disabled={isFetchingPrices || isPortfolioLoading}
               className="group order-1 inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md bg-transparent px-1 text-[11px] font-bold text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-wait disabled:opacity-50"
             >
-                {isFetchingPrices || isPortfolioLoading ? (
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-rose-600" />
-                ) : (
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 transition-transform duration-500 group-hover:rotate-180">
-                    <path fillRule="evenodd" d="M15.312 11.424a5.5 5.5 0 01-9.201 2.466l-.312-.311h2.45a.75.75 0 000-1.5H4.147a.75.75 0 00-.75.75v4.103a.75.75 0 001.5 0v-2.151l.33.33a7 7 0 0011.778-3.391.75.75 0 00-1.693-.44zM4.688 8.576a5.5 5.5 0 019.201-2.466l.312.311h-2.45a.75.75 0 000-1.5h4.103a.75.75 0 00.75-.75V3.068a.75.75 0 00-1.5 0v2.151l-.33-.33a7 7 0 00-11.778 3.391.75.75 0 001.693.44z" clipRule="evenodd" />
-                  </svg>
-                )}
-                更新現價
+              {isFetchingPrices || isPortfolioLoading ? (
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-rose-600" />
+              ) : (
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-180" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.5 8.5a5.5 5.5 0 10-1.6 4.4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.5 4.5v4h-4" />
+                </svg>
+              )}
+              更新現價
             </button>
             {lastQuoteUpdatedAt > 0 && (
               <span className="order-1 whitespace-nowrap text-[9px] font-normal text-slate-400">

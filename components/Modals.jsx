@@ -567,12 +567,10 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
               onClick={() => openSettingsModal('fromTransactionModal')}
               className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700"
             >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
-                <path fillRule="evenodd" d="M9.293 2.293a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L10 4.414 6.707 7.707a1 1 0 01-1.414-1.414l4-4z" clipRule="evenodd" />
-                <path fillRule="evenodd" d="M9.293 17.707a1 1 0 011.414 0l4-4a1 1 0 01-1.414-1.414L10 15.586l-3.293-3.293a1 1 0 01-1.414 1.414l4 4z" clipRule="evenodd" />
-                <path fillRule="evenodd" d="M9 12a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z" clipRule="evenodd" />
-                <path fillRule="evenodd" d="M9 7a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z" clipRule="evenodd" />
-                <path fillRule="evenodd" d="M9 17a1 1 0 011-1h4a1 1 0 110 2h-4a1 1 0 01-1-1z" clipRule="evenodd" />
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
+                <path strokeLinecap="round" d="M4 6h12M4 14h12" />
+                <circle cx="8" cy="6" r="2" fill="white" />
+                <circle cx="12" cy="14" r="2" fill="white" />
               </svg>
               手續費設定
             </button>
@@ -673,6 +671,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
   const [showToast, setShowToast] = useState(false);
   const [toastType, setToastType] = useState('success');
   const [isLoading, setIsLoading] = useState(false);
+  const [isSetupStepsExpanded, setIsSetupStepsExpanded] = useState(false);
 
   // 這個靜態檔會在 build 前由 docs/google-apps-script.gs 自動產生。
   const [scriptCode, setScriptCode] = useState('');
@@ -688,6 +687,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
       setShowToast(false);
       setToastType('success');
       setIsLoading(false);
+      setIsSetupStepsExpanded(false);
 
       // 加上版本參數，避免瀏覽器或 GitHub Pages 留住舊版檔案。
       setIsScriptLoading(true);
@@ -792,15 +792,35 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
         </div>
 
         <div className="space-y-4 overflow-y-auto p-6 max-h-[calc(80vh-120px)]">
-          <div className="space-y-2 rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs leading-relaxed text-slate-700">
-            <p className="text-sm font-bold text-rose-950">💡 Google Sheet Apps Script 二分鐘極速架設法：</p>
-            <ol className="list-inside list-decimal space-y-1.5 text-slate-600">
-              <li>登入 Google 試算表點選上方選單的「擴充功能」-&gt; 「Apps Script」。</li>
-              <li>清除所有空白頁面的預設代碼，貼入下方後端 script 代碼。</li>
-              <li>點擊「儲存」，或是按「command + s」再點右上角「部署」 -&gt; 「新增部署版本」。</li>
-              <li>新增完後點擊右上角 -&gt; 「管理部署」。</li>
-              <li>複製產生的「網頁應用程式 URL」網址貼在下方！</li>
-            </ol>
+          <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs leading-relaxed text-slate-700">
+            <p className="text-sm font-bold text-rose-950">💡 Google Sheet Apps Script 三分鐘極速架設法：</p>
+            <div className={`relative mt-2 overflow-hidden transition-all duration-300 ${isSetupStepsExpanded ? 'max-h-[420px]' : 'max-h-[118px]'}`}>
+              <ol className="list-inside list-decimal space-y-1.5 text-slate-600">
+                <li>登入 Google 試算表，點選上方選單「擴充功能」-&gt;「Apps Script」。</li>
+                <li>清除編輯器裡的預設程式碼，貼入下方完整後端 script 代碼。</li>
+                <li>點擊「儲存」，或按「command + s」，並幫專案命名。</li>
+                <li>點擊右上角「部署」-&gt;「新增部署作業」。</li>
+                <li>在「選取類型」旁點齒輪圖示，選擇「網頁應用程式」。</li>
+                <li>「說明」可填寫任意名稱，例如「My Assets Web App」。</li>
+                <li>「執行身分」選「我」。</li>
+                <li>「誰可以存取」選「所有人」。若帳號是公司或學校帳號且沒有此選項，請改用個人 Google 帳號建立。</li>
+                <li>點擊「部署」。第一次部署會跳出權限授權，請依序點「授權存取」-&gt; 選擇自己的 Google 帳號 -&gt;「進階」-&gt;「前往專案」-&gt;「允許」。</li>
+                <li>部署完成後，複製結尾為「/exec」的「網頁應用程式 URL」，貼到下方欄位後點「開始連線」。</li>
+              </ol>
+              <p className="mt-2 text-[11px] font-semibold text-amber-700">
+                日後若有更新 script 代碼，請到「部署」-&gt;「管理部署作業」-&gt; 點鉛筆圖示，版本選「新增版本」後再按「部署」。
+              </p>
+              {!isSetupStepsExpanded && (
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-b from-rose-50/0 to-rose-50" />
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsSetupStepsExpanded((value) => !value)}
+              className="mt-2 text-[11px] font-bold text-rose-600 transition hover:text-rose-700"
+            >
+              {isSetupStepsExpanded ? '收合步驟' : '展開查看完整步驟'}
+            </button>
           </div>
 
           {/* New code block for Google Apps Script */}
