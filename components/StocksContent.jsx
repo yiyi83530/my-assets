@@ -143,6 +143,21 @@ function LimitStatusBadge({ status }) {
 
 const TW_LIVE_RETRY_STATUSES = new Set(['opening_price', 'previous_close', 'unavailable']);
 const LIVE_QUOTE_FALLBACK_GRACE_MS = 10000;
+const POSITION_SORT_OPTIONS = [
+  { value: 'marketValue', label: '市值佔比' },
+  { value: 'unrealizedProfit', label: '未實現損益' },
+  { value: 'profitPercent', label: '損益率' },
+  { value: 'totalBuyCost', label: '投資成本' },
+  { value: 'avgCost', label: '平均成本' },
+  { value: 'holdingQty', label: '持有股數' },
+];
+
+function getPositionSortValue(position, sortKey) {
+  if (sortKey === 'unrealizedProfit' || sortKey === 'profitPercent') {
+    return position.hasQuote ? position[sortKey] : null;
+  }
+  return position[sortKey];
+}
 
 function isTwMarketRefreshWindow(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -227,6 +242,8 @@ export function StocksContent() {
   const [fallbackQuoteFirstSeenAt, setFallbackQuoteFirstSeenAt] = useState({});
 
   const [posTab, setPosTab] = useState('TWSE');
+  const [positionSortKey, setPositionSortKey] = useState('marketValue');
+  const [positionSortDirection, setPositionSortDirection] = useState('desc');
   const [histTab, setHistTab] = useState('TWSE');
   const [selectedYear, setSelectedYear] = useState('ALL');
   const [selectedMonth, setSelectedMonth] = useState('ALL');
@@ -424,8 +441,17 @@ export function StocksContent() {
   const usPositions = allPositions.filter((p) => p.market === 'US');
   const activePositions = [...(posTab === 'TWSE' ? twsePositions : usPositions)].sort((a, b) => {
     if (a.hasQuote !== b.hasQuote) return a.hasQuote ? -1 : 1;
-    return b.marketValue - a.marketValue;
+    const aValue = getPositionSortValue(a, positionSortKey);
+    const bValue = getPositionSortValue(b, positionSortKey);
+    const aHasValue = Number.isFinite(aValue);
+    const bHasValue = Number.isFinite(bValue);
+    if (aHasValue !== bHasValue) return aHasValue ? -1 : 1;
+    if (aHasValue && bHasValue && aValue !== bValue) {
+      return positionSortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+    }
+    return a.symbol.localeCompare(b.symbol, 'zh-Hant');
   });
+  const activePositionSortOption = POSITION_SORT_OPTIONS.find((option) => option.value === positionSortKey);
 
   const retryableTwQuoteRevision = activePositions
     .filter((pos) => pos.market === 'TWSE' && TW_LIVE_RETRY_STATUSES.has(quoteMeta[pos.name]?.status))
@@ -868,6 +894,35 @@ export function StocksContent() {
                 </div>
               </div>
             )}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
+            <label htmlFor="position-sort" className="text-[10px] font-bold text-slate-400">
+              排序
+            </label>
+            <select
+              id="position-sort"
+              value={positionSortKey}
+              onChange={(event) => setPositionSortKey(event.target.value)}
+              disabled={isPortfolioLoading}
+              className="h-8 min-w-[120px] rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 outline-none transition focus:border-rose-200 focus:ring-2 focus:ring-rose-100 disabled:cursor-wait disabled:opacity-50"
+              aria-label="選擇持股排序基準"
+            >
+              {POSITION_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setPositionSortDirection((direction) => (direction === 'desc' ? 'asc' : 'desc'))}
+              disabled={isPortfolioLoading}
+              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-wait disabled:opacity-50"
+              aria-label={`目前依${activePositionSortOption?.label || '選定欄位'}${positionSortDirection === 'desc' ? '由高到低' : '由低到高'}排序，點擊切換`}
+            >
+              <svg viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 transition-transform ${positionSortDirection === 'asc' ? 'rotate-180' : ''}`} aria-hidden="true">
+                <path fillRule="evenodd" d="M10 3.25a.75.75 0 01.75.75v10.19l3.22-3.22a.75.75 0 111.06 1.06l-4.5 4.5a.75.75 0 01-1.06 0l-4.5-4.5a.75.75 0 111.06-1.06l3.22 3.22V4a.75.75 0 01.75-.75z" clipRule="evenodd" />
+              </svg>
+              {positionSortDirection === 'desc' ? '由高到低' : '由低到高'}
+            </button>
           </div>
           {posTab === 'US' && (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3.5 py-3">
