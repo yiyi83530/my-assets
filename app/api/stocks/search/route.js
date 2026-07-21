@@ -1,4 +1,5 @@
 const TWSE_STOCK_ALL_URL = 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL';
+const TPEX_DAILY_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes';
 const TPEX_ESB_STATS_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics';
 const SEC_TICKER_URL = 'https://www.sec.gov/files/company_tickers.json';
 
@@ -19,15 +20,15 @@ function toNumberMaybe(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function normalizeItem(raw) {
-  const symbol = String(raw.Code || raw.code || '').trim();
-  const name = String(raw.Name || raw.name || '').trim();
+function normalizeItem(raw, market = 'TWSE') {
+  const symbol = String(raw.Code || raw.code || raw.SecuritiesCompanyCode || '').trim();
+  const name = String(raw.Name || raw.name || raw.CompanyName || raw.SecuritiesName || '').trim();
   if (!symbol || !name) return null;
 
   return {
     symbol,
     name,
-    market: 'TWSE',
+    market,
     closePrice: toNumberMaybe(raw.ClosingPrice || raw.Close || raw.close),
   };
 }
@@ -63,8 +64,23 @@ async function loadStockList() {
 
   const json = await res.json();
   const twseItems = Array.isArray(json)
-    ? json.map(normalizeItem).filter(Boolean)
+    ? json.map((item) => normalizeItem(item, 'TWSE')).filter(Boolean)
     : [];
+
+  let tpexItems = [];
+  try {
+    const tpexRes = await fetch(TPEX_DAILY_URL, {
+      next: { revalidate: 3600 },
+    });
+    if (tpexRes.ok) {
+      const tpexJson = await tpexRes.json();
+      tpexItems = Array.isArray(tpexJson)
+        ? tpexJson.map((item) => normalizeItem(item, 'TPEx')).filter(Boolean)
+        : [];
+    }
+  } catch (error) {
+    // TPEx source is best-effort; keep TWSE results available.
+  }
 
   // 興櫃清單與前日均價
   let esbItems = [];
@@ -82,9 +98,15 @@ async function loadStockList() {
     // ESB source is best-effort; keep TWSE results available.
   }
 
-  // 同代號優先保留上市/上櫃，再補興櫃
+  // 同代號優先保留上市，再補上櫃與興櫃。
   const merged = [...twseItems];
   const seen = new Set(twseItems.map((item) => item.symbol));
+  for (const item of tpexItems) {
+    if (!seen.has(item.symbol)) {
+      merged.push(item);
+      seen.add(item.symbol);
+    }
+  }
   for (const item of esbItems) {
     if (!seen.has(item.symbol)) {
       merged.push(item);
@@ -217,4 +239,3 @@ export async function GET(request) {
     );
   }
 }
-

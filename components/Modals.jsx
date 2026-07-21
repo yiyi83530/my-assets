@@ -4,6 +4,13 @@ import { useEffect, useRef, useState } from 'react';
 import { useApp } from '@/lib/app-context';
 import { getAutomaticTransactionTaxRate, TWSE_COMMISSION_RATE } from '@/lib/trading-fees';
 
+function inferSymbolFromStockText(stockText, market) {
+  const firstToken = String(stockText || '').trim().split(/\s+/)[0] || '';
+  if (!firstToken) return '';
+  if (market === 'US') return /^[A-Za-z][A-Za-z0-9.-]*$/.test(firstToken) ? firstToken.toUpperCase() : '';
+  return /^0?\d{4,6}[A-Z]?$/.test(firstToken) ? firstToken.toUpperCase() : '';
+}
+
 export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSaving }) {
   const { stockFeeSettings, openSettingsModal } = useApp();
   const [market, setMarket] = useState('TWSE');
@@ -139,6 +146,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const resolvedSymbol = selectedSymbol || inferSymbolFromStockText(stock, market);
     const totalCost = type === 'buy' ? rawTotal + finalFee : rawTotal - finalFee - finalTax;
     onSubmit({
       id: initialData?.id, // Pass the ID if it's an edit
@@ -151,7 +159,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       rawTotal,
       actualAmount: totalCost, // Use the final calculated total
       market,
-      symbol: selectedSymbol,
+      symbol: resolvedSymbol,
       recordedAt: initialData?.recordedAt || new Date().toISOString(), // Keep original recordedAt for edits
     });
     // Form fields are reset by the useEffect when initialData becomes null (onClose)
