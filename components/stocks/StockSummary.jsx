@@ -1,6 +1,7 @@
 'use client';
 
 import { fmtCurrency, SummaryValueSkeleton } from '@/components/stocks/stock-ui';
+import { ValuationModeControl } from '@/components/stocks/ValuationModeControl';
 
 export function StockSummary(props) {
   const {
@@ -8,17 +9,39 @@ export function StockSummary(props) {
     totalOverallValue,
     totalOverallCost,
     totalOverallUnrealized,
-    totalOverallReturnRate
+    totalOverallReturnRate,
+    totalEstimatedSellFees,
+    usesNetLiquidationValue,
+    valuationMode,
+    setStockValuationMode,
   } = props;
 
   return (
     <>
 {/* ── Summary Stats（台股+美股總和） ── */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-black text-slate-700">持股估值口徑</p>
+          <p className="mt-0.5 text-[10px] text-slate-400">
+            {usesNetLiquidationValue ? '已預扣賣出手續費與交易稅' : '賣出時才計入實際費用'}
+          </p>
+        </div>
+        <ValuationModeControl value={valuationMode} onChange={setStockValuationMode} />
+      </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
         <div className="card p-3 md:p-5">
-          <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">持股現值總計 (TWD)</p>
+          <p className="text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-400">
+            {usesNetLiquidationValue ? '預估可取回總計' : '持股現值總計'} (TWD)
+          </p>
           {isPortfolioLoading ? <SummaryValueSkeleton /> : (
-            <p className="mt-1 text-lg font-black text-slate-900 md:mt-2 md:text-2xl">{fmtCurrency(totalOverallValue, 'TWD')}</p>
+            <>
+              <p className="mt-1 text-lg font-black text-slate-900 md:mt-2 md:text-2xl">{fmtCurrency(totalOverallValue, 'TWD')}</p>
+              {usesNetLiquidationValue && (
+                <p className="mt-1 text-[9px] font-medium text-slate-400 md:text-[10px]">
+                  已扣預估賣出費用 {fmtCurrency(totalEstimatedSellFees, 'TWD')}
+                </p>
+              )}
+            </>
           )}
         </div>
         <div className="card p-3 md:p-5">

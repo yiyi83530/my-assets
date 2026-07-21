@@ -26,7 +26,10 @@ export function PositionHoldings(props) {
     cancelEditingCost,
     isSavingCost,
     startEditingCost,
-    posContainerMaxHeight
+    posContainerMaxHeight,
+    valuationLabel,
+    valuationShareLabel,
+    usesNetLiquidationValue,
   } = props;
 
   return (
@@ -51,6 +54,7 @@ export function PositionHoldings(props) {
                 const marketPrice = pos.marketPrice == null ? null : (isUSStock && displayCurrency === 'TWD' ? pos.marketPrice * rate : pos.marketPrice);
                 const totalCost = isUSStock && displayCurrency === 'TWD' ? pos.totalBuyCost * rate : pos.totalBuyCost;
                 const marketValue = isUSStock && displayCurrency === 'TWD' ? pos.marketValue * rate : pos.marketValue;
+                const estimatedSellFees = isUSStock && displayCurrency === 'TWD' ? pos.estimatedSellFees * rate : pos.estimatedSellFees;
                 const profit = pos.unrealizedProfit == null ? null : (isUSStock && displayCurrency === 'TWD' ? pos.unrealizedProfit * rate : pos.unrealizedProfit);
                 const dailyProfit = pos.dailyProfit == null ? null : (isUSStock && displayCurrency === 'TWD' ? pos.dailyProfit * rate : pos.dailyProfit);
                 const meta = quoteMeta[pos.name];
@@ -70,7 +74,7 @@ export function PositionHoldings(props) {
                           <div>持有 {pos.holdingQty.toLocaleString()} 股</div>
                           <div className="mt-0.5 flex items-center gap-1.5">
                             <span className="inline-flex items-center gap-1">
-                              市值占比 {isQuoteValueLoading ? <InlineValueSkeleton className="h-3 w-8" /> : pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
+                              {valuationShareLabel} {isQuoteValueLoading ? <InlineValueSkeleton className="h-3 w-8" /> : pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
                             </span>
                             <span className="relative h-1.5 w-12 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
                               <span
@@ -82,10 +86,13 @@ export function PositionHoldings(props) {
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-[10px] font-medium text-slate-400">帳面現值 ({currency})</p>
+                        <p className="text-[10px] font-medium text-slate-400">{valuationLabel} ({currency})</p>
                         <p className="mt-0.5 font-mono text-[13px] font-black text-slate-800">
                           {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-20" /> : pos.hasQuote ? fmtCurrency(marketValue, currency) : '—'}
                         </p>
+                        {usesNetLiquidationValue && pos.hasQuote && !isQuoteValueLoading && (
+                          <p className="mt-0.5 text-[8px] font-medium text-slate-400">已扣費 {fmtCurrency(estimatedSellFees, currency)}</p>
+                        )}
                         <p className={`mt-0.5 font-mono text-[9px] font-bold ${dailyProfit == null ? 'text-slate-400' : dailyProfit >= 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
                           今日 {isQuoteValueLoading || dailyProfit == null ? '—' : fmtCurrency(dailyProfit, currency, true)}
                           {!isQuoteValueLoading && pos.dailyProfitPercent != null && ` (${pos.dailyProfitPercent >= 0 ? '+' : ''}${pos.dailyProfitPercent.toFixed(2)}%)`}
@@ -165,10 +172,10 @@ export function PositionHoldings(props) {
                     <th className="px-4 py-3 align-middle whitespace-nowrap">現價 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">今日損益 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">投資成本 {posTab === 'US' && `(${displayCurrency})`}</th>
-                    <th className="px-4 py-3 align-middle whitespace-nowrap">帳面現值 {posTab === 'US' && `(${displayCurrency})`}</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">{valuationLabel} {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">未實現損益 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">損益率</th>
-                    <th className="px-4 py-3 align-middle whitespace-nowrap">市值佔比</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">{valuationShareLabel}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -188,6 +195,7 @@ export function PositionHoldings(props) {
                       : (isUSStock && displayCurrency === 'TWD' ? pos.marketPrice * rate : pos.marketPrice);
                     const convertedTotalBuyCost = isUSStock && displayCurrency === 'TWD' ? pos.totalBuyCost * rate : pos.totalBuyCost;
                     const convertedMarketValue = isUSStock && displayCurrency === 'TWD' ? pos.marketValue * rate : pos.marketValue;
+                    const convertedEstimatedSellFees = isUSStock && displayCurrency === 'TWD' ? pos.estimatedSellFees * rate : pos.estimatedSellFees;
                     const convertedUnrealizedProfit = pos.unrealizedProfit == null
                       ? null
                       : (isUSStock && displayCurrency === 'TWD' ? pos.unrealizedProfit * rate : pos.unrealizedProfit);
@@ -290,6 +298,9 @@ export function PositionHoldings(props) {
                         {/* 帳面現值 */}
                         <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
                           {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-20" /> : pos.hasQuote ? fmtCurrency(convertedMarketValue, currentDisplayCurrency) : '—'}
+                          {usesNetLiquidationValue && pos.hasQuote && !isQuoteValueLoading && (
+                            <div className="mt-0.5 font-sans text-[9px] font-medium text-slate-400">已扣費 {fmtCurrency(convertedEstimatedSellFees, currentDisplayCurrency)}</div>
+                          )}
                         </td>
 
                         {/* 未實現損益 */}

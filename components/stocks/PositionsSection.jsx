@@ -43,7 +43,10 @@ export function PositionsSection(props) {
     cancelEditingCost,
     isSavingCost,
     startEditingCost,
-    posContainerMaxHeight
+    posContainerMaxHeight,
+    valuationLabel,
+    valuationShareLabel,
+    usesNetLiquidationValue,
   } = props;
 
   return (
@@ -188,7 +191,9 @@ export function PositionsSection(props) {
                 aria-label="選擇持股排序基準"
               >
                 {POSITION_SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
+                  <option key={option.value} value={option.value}>
+                    {option.value === 'marketValue' ? valuationShareLabel : option.label}
+                  </option>
                 ))}
               </select>
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-700" aria-hidden="true">
@@ -216,7 +221,7 @@ export function PositionsSection(props) {
                 </span>
                 <div className="min-w-0">
                   <p className="text-[11px] font-bold text-slate-600">美股總資產</p>
-                  <p className="mt-0.5 text-[9px] text-slate-400">依目前可用報價加總</p>
+                  <p className="mt-0.5 text-[9px] text-slate-400">{usesNetLiquidationValue ? '已扣預估賣出費用' : '依目前可用報價加總'}</p>
                 </div>
               </div>
               {isPortfolioLoading ? (
@@ -243,6 +248,7 @@ export function PositionsSection(props) {
           usdToTwdRate, displayCurrency, quoteMeta, editingCostName, costDraft,
           setCostDraft, hasCostChanged, requestCostSave, cancelEditingCost,
           isSavingCost, startEditingCost, posContainerMaxHeight,
+          valuationLabel, valuationShareLabel, usesNetLiquidationValue,
         }} />
       </section>
     </>

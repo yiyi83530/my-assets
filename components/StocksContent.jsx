@@ -6,6 +6,7 @@ import { calculateStockPortfolio } from '@/lib/calculations';
 import { INDUSTRY_MAP } from '@/components/common/constants';
 import { demoInitialPrices } from '@/lib/demo-stock-data';
 import { normalizeStockSymbol } from '@/lib/stock-symbol';
+import { calculateEstimatedSellFees } from '@/lib/trading-fees';
 import { StockSummary } from '@/components/stocks/StockSummary';
 import { MobileStockSectionNav } from '@/components/stocks/MobileStockSectionNav';
 import { PositionsSection } from '@/components/stocks/PositionsSection';
@@ -128,6 +129,8 @@ export function StocksContent() {
     industryCategories: savedIndustryCategories,
     saveIndustryCategories: saveIndustryCategoriesToSheet,
     displayToast,
+    stockFeeSettings,
+    setStockValuationMode,
   } = useApp();
 
   const [displayCurrency, setDisplayCurrency] = useState('TWD');
@@ -530,6 +533,10 @@ export function StocksContent() {
     return () => document.removeEventListener('pointerdown', handlePointerDown);
   }, [editingCostName, pendingCostChange]);
 
+  const usesNetLiquidationValue = stockFeeSettings?.valuationMode === 'net_liquidation';
+  const valuationLabel = usesNetLiquidationValue ? '預估可取回' : '帳面現值';
+  const valuationShareLabel = usesNetLiquidationValue ? '淨值占比' : '市值占比';
+
   const allPositions = basePositions.map((p) => {
     const marketPrice = priceMap[p.name] ?? null;
     const hasQuote = marketPrice !== null;
@@ -540,15 +547,50 @@ export function StocksContent() {
       && hasQuote
       && TW_LIVE_RETRY_STATUSES.has(meta?.status)
       && liveQuoteClock - fallbackFirstSeenAt < LIVE_QUOTE_FALLBACK_GRACE_MS;
-    const marketValue = hasQuote ? p.holdingQty * marketPrice : 0;
+    const grossMarketValue = hasQuote ? p.holdingQty * marketPrice : 0;
+    const estimatedSellFees = usesNetLiquidationValue
+      ? calculateEstimatedSellFees({
+          market: p.market,
+          symbol: p.symbol,
+          stock: p.name,
+          marketValue: grossMarketValue,
+          settings: stockFeeSettings?.[p.market] || {},
+        }).total
+      : 0;
+    const marketValue = Math.max(0, grossMarketValue - estimatedSellFees);
     const unrealizedProfit = hasQuote ? marketValue - p.totalBuyCost : null;
     const profitPercent =
       hasQuote && p.totalBuyCost > 0 ? (unrealizedProfit / p.totalBuyCost) * 100 : null;
     const previousClose = Number(meta?.previousClose);
     const hasPreviousClose = Number.isFinite(previousClose) && previousClose > 0;
-    const dailyProfit = hasQuote && hasPreviousClose ? (marketPrice - previousClose) * p.holdingQty : null;
-    const dailyProfitPercent = hasQuote && hasPreviousClose ? ((marketPrice - previousClose) / previousClose) * 100 : null;
-    return { ...p, marketPrice, hasQuote, isWaitingForRealtime, marketValue, unrealizedProfit, profitPercent, dailyProfit, dailyProfitPercent };
+    const previousGrossMarketValue = hasPreviousClose ? previousClose * p.holdingQty : 0;
+    const previousEstimatedSellFees = usesNetLiquidationValue && hasPreviousClose
+      ? calculateEstimatedSellFees({
+          market: p.market,
+          symbol: p.symbol,
+          stock: p.name,
+          marketValue: previousGrossMarketValue,
+          settings: stockFeeSettings?.[p.market] || {},
+        }).total
+      : 0;
+    const previousValuation = Math.max(0, previousGrossMarketValue - previousEstimatedSellFees);
+    const dailyProfit = hasQuote && hasPreviousClose ? marketValue - previousValuation : null;
+    const dailyProfitPercent = hasQuote && hasPreviousClose && previousValuation > 0
+      ? (dailyProfit / previousValuation) * 100
+      : null;
+    return {
+      ...p,
+      marketPrice,
+      hasQuote,
+      isWaitingForRealtime,
+      grossMarketValue,
+      estimatedSellFees,
+      marketValue,
+      unrealizedProfit,
+      profitPercent,
+      dailyProfit,
+      dailyProfitPercent,
+    };
   });
 
   const twsePositions = allPositions.filter((p) => p.market === 'TWSE');
@@ -565,7 +607,10 @@ export function StocksContent() {
     }
     return a.symbol.localeCompare(b.symbol, 'zh-Hant');
   });
-  const activePositionSortOption = POSITION_SORT_OPTIONS.find((option) => option.value === positionSortKey);
+  const selectedPositionSortOption = POSITION_SORT_OPTIONS.find((option) => option.value === positionSortKey);
+  const activePositionSortOption = selectedPositionSortOption?.value === 'marketValue'
+    ? { ...selectedPositionSortOption, label: valuationShareLabel }
+    : selectedPositionSortOption;
 
   const retryableTwQuoteRevision = activePositions
     .filter((pos) => pos.market === 'TWSE' && TW_LIVE_RETRY_STATUSES.has(quoteMeta[pos.name]?.status))
@@ -601,6 +646,13 @@ export function StocksContent() {
       const isUSStock = pos.market === 'US';
       const rate = isUSStock ? (usdToTwdRate || 1) : 1;
       return sum + (pos.hasQuote ? pos.totalBuyCost * rate : 0);
+    }, 0);
+  }, [allPositions, usdToTwdRate]);
+
+  const totalEstimatedSellFees = useMemo(() => {
+    return allPositions.reduce((sum, pos) => {
+      const rate = pos.market === 'US' ? (usdToTwdRate || 1) : 1;
+      return sum + pos.estimatedSellFees * rate;
     }, 0);
   }, [allPositions, usdToTwdRate]);
 
@@ -810,7 +862,8 @@ export function StocksContent() {
     <>
       <StockSummary {...{
         isPortfolioLoading, totalOverallValue, totalOverallCost, totalOverallUnrealized,
-        totalOverallReturnRate,
+        totalOverallReturnRate, totalEstimatedSellFees, usesNetLiquidationValue,
+        valuationMode: stockFeeSettings?.valuationMode, setStockValuationMode,
       }} />
 
       <MobileStockSectionNav {...{
@@ -829,6 +882,7 @@ export function StocksContent() {
         activePositions, currentTabRawTotalValue, quoteMeta,
         editingCostName, costDraft, setCostDraft, hasCostChanged, requestCostSave,
         cancelEditingCost, isSavingCost, startEditingCost, posContainerMaxHeight,
+        valuationLabel, valuationShareLabel, usesNetLiquidationValue,
       }} />
 
       <TransactionsSection {...{

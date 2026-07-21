@@ -69,10 +69,10 @@ export function quoteStatusLabel(status) {
 
 export function LimitStatusBadge({ status }) {
   if (status === 'limit_up') {
-    return <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-black text-rose-600 ring-1 ring-rose-100">漲停</span>;
+    return <span className="ml-1.5 shrink-0 whitespace-nowrap rounded-md bg-rose-50 p-1 text-[9px] font-black leading-none text-rose-600 ring-1 ring-rose-100">漲停</span>;
   }
   if (status === 'limit_down') {
-    return <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-black text-emerald-600 ring-1 ring-emerald-100">跌停</span>;
+    return <span className="ml-1.5 shrink-0 whitespace-nowrap rounded-md bg-emerald-50 p-1 text-[9px] font-black leading-none text-emerald-600 ring-1 ring-emerald-100">跌停</span>;
   }
   return null;
 }

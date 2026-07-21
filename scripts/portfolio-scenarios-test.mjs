@@ -1,4 +1,5 @@
 import { calculateStockPortfolio } from '../lib/calculations.js';
+import { calculateEstimatedSellFees, calculatePortfolioValuation } from '../lib/trading-fees.js';
 
 const STOCK = '2330 台積電';
 
@@ -66,5 +67,29 @@ const reopened = portfolio([
   tx('reopen', '2026-07-16', '2026-07-16T01:00:00.000Z', 'buy', 2, 220),
 ], [snapshot('2026-07', 0, 0, '2026-07-15T02:00:00.000Z')]);
 assertEqual(reopened.positions[0].holdingQty, 2, 'Zero snapshot closes old position and allows later reopening');
+
+// 估值模式只預扣未來賣出費用，不改寫原始市值或持股成本。
+const estimatedStockSellFees = calculateEstimatedSellFees({
+  market: 'TWSE',
+  symbol: '2330',
+  stock: STOCK,
+  marketValue: 100000,
+  settings: { feeDiscount: 0.6, minFee: 20 },
+  tradeDate: '2026-07-22',
+});
+assertEqual(estimatedStockSellFees.commission, 85, 'Estimated commission follows configured discount');
+assertEqual(estimatedStockSellFees.tax, 300, 'Estimated stock transaction tax');
+assertEqual(estimatedStockSellFees.total, 385, 'Estimated total sell fees');
+
+const grossValuation = calculatePortfolioValuation([
+  { market: 'TWSE', symbol: '2330', name: STOCK, marketValue: 100000, fxRate: 1 },
+], { valuationMode: 'market_value', TWSE: { feeDiscount: 0.6, minFee: 20 } }, '2026-07-22');
+assertEqual(grossValuation.grossValueTwd, 100000, 'Market-value mode keeps gross value');
+assertEqual(grossValuation.estimatedSellFeesTwd, 0, 'Market-value mode does not pre-deduct fees');
+
+const netValuation = calculatePortfolioValuation([
+  { market: 'TWSE', symbol: '2330', name: STOCK, marketValue: 100000, fxRate: 1 },
+], { valuationMode: 'net_liquidation', TWSE: { feeDiscount: 0.6, minFee: 20 } }, '2026-07-22');
+assertEqual(netValuation.grossValueTwd - netValuation.estimatedSellFeesTwd, 99615, 'Net-liquidation mode pre-deducts estimated fees');
 
 console.log('Portfolio scenario tests passed');

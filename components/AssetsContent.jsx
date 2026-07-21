@@ -24,6 +24,8 @@ import {
 import { demoMonthlyAssets, demoPortfolio } from '@/lib/demo-data';
 import { demoInitialPrices } from '@/lib/demo-stock-data';
 import { normalizeStockSymbol } from '@/lib/stock-symbol';
+import { calculatePortfolioValuation } from '@/lib/trading-fees';
+import { ValuationModeControl } from '@/components/stocks/ValuationModeControl';
 
 function MonthTick({ x, y, payload, currentMonth }) {
   const month = String(payload?.value ?? '');
@@ -138,6 +140,8 @@ export function AssetsContent() {
     refreshExchangeRates,
     costBasisAdjustments,
     lastMonthNetWorth: contextLastMonthNetWorth,
+    stockFeeSettings,
+    setStockValuationMode,
   } = useApp();
 
   const [isTrendOpen, setIsTrendOpen] = useState(false);
@@ -238,7 +242,12 @@ export function AssetsContent() {
         cutoffDate: lastDayOfMonth,
         cutoffMonth: monthKey,
       });
-      const stockValue = portfolioAtMonth.currentPortfolioValue || 0;
+      const portfolioValuation = calculatePortfolioValuation(
+        portfolioAtMonth.positions,
+        stockFeeSettings,
+        lastDayOfMonth
+      );
+      const stockValue = Math.max(0, portfolioValuation.grossValueTwd - portfolioValuation.estimatedSellFeesTwd);
 
       const netWorth = Math.round(bankSavings + stockValue - liabilities);
 
@@ -248,7 +257,7 @@ export function AssetsContent() {
         yearMonth: monthKey
       };
     });
-  }, [activeMonthlyAssets, activeTransactions, prices, stockMonthlyClosePrices, stockHoldingSnapshots, fxRates, costBasisAdjustments, monthKeys]);
+  }, [activeMonthlyAssets, activeTransactions, prices, stockMonthlyClosePrices, stockHoldingSnapshots, fxRates, costBasisAdjustments, monthKeys, stockFeeSettings]);
 
   const setMonthlyAssets = isSheetsConnected ? realSetMonthlyAssets : () => {
     console.warn("Demo mode: Operation ignored.");
@@ -396,17 +405,25 @@ export function AssetsContent() {
     return found ? found.netWorth : 0;
   }, [activeMonthlyNetWorth, previousMonthKey]);
 
+  const selectedPortfolioValuation = useMemo(() => calculatePortfolioValuation(
+    portfolioAtSelectedMonth.positions,
+    stockFeeSettings,
+    isCurrentMonthSelected ? undefined : lastDayOfSelectedMonth
+  ), [portfolioAtSelectedMonth, stockFeeSettings, isCurrentMonthSelected, lastDayOfSelectedMonth]);
+  const selectedStockValue = Math.max(0, selectedPortfolioValuation.grossValueTwd - selectedPortfolioValuation.estimatedSellFeesTwd);
+  const usesNetLiquidationValue = stockFeeSettings?.valuationMode === 'net_liquidation';
+
   const activeSummary = useMemo(() => {
     return calculateAssetsSummary(
       displayAssets,
-      portfolioAtSelectedMonth.currentPortfolioValue,
+      selectedStockValue,
       previousMonthSummaryNetWorth,
       fxRates
     );
-  }, [displayAssets, portfolioAtSelectedMonth, previousMonthSummaryNetWorth, fxRates]);
+  }, [displayAssets, selectedStockValue, previousMonthSummaryNetWorth, fxRates]);
 
   const activePortfolio = portfolioAtSelectedMonth;
-  const totalStocks = activePortfolio?.currentPortfolioValue || 0;
+  const totalStocks = selectedStockValue;
   const isStockValueLoading = isSheetsConnected
     && isStockPricesLoading
     && (activePortfolio?.positions || []).some((position) => (
@@ -468,9 +485,16 @@ export function AssetsContent() {
 
       <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-3">
         <div className="card h-full p-6 md:col-span-2">
-          <div className="mb-4 flex items-center gap-2">
-            <span className="hidden rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600 md:inline-flex">淨值總覽</span>
-            <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">個人淨資產</p>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="hidden rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600 md:inline-flex">淨值總覽</span>
+              <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">個人淨資產</p>
+            </div>
+            <ValuationModeControl
+              compact
+              value={stockFeeSettings?.valuationMode}
+              onChange={setStockValuationMode}
+            />
           </div>
           <p className="text-4xl font-black text-slate-900">
             {isNetWorthLoading ? (
@@ -483,6 +507,11 @@ export function AssetsContent() {
               `$0`
             )}
           </p>
+          {!isNetWorthLoading && usesNetLiquidationValue && selectedPortfolioValuation.estimatedSellFeesTwd > 0 && (
+            <p className="mt-2 text-[10px] font-medium text-slate-400">
+              證券資產已扣除預估賣出費用 ${Math.round(selectedPortfolioValuation.estimatedSellFeesTwd).toLocaleString('zh-TW')}
+            </p>
+          )}
           {isNetWorthLoading ? (
             <SummaryValueSkeleton className="mt-3 h-4 w-40" />
           ) : (

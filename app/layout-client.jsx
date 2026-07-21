@@ -72,6 +72,7 @@ async function fetchJsonWithTimeout(url, timeoutMs = STOCK_QUOTE_TIMEOUT_MS) {
 }
 
 const DEFAULT_STOCK_FEE_SETTINGS = {
+  valuationMode: 'market_value',
   TWSE: {
     feeRate: TWSE_COMMISSION_RATE,
     feeDiscount: 0.6,
@@ -713,6 +714,15 @@ export default function RootLayoutClient({ children }) {
     }
   }, [stockFeeSettings, displayToast, settingsModalSource]);
 
+  const handleStockValuationModeChange = useCallback((valuationMode) => {
+    const normalizedMode = valuationMode === 'net_liquidation' ? 'net_liquidation' : 'market_value';
+    setStockFeeSettings((currentSettings) => {
+      const updatedSettings = { ...currentSettings, valuationMode: normalizedMode };
+      window.localStorage.setItem(STOCK_FEE_SETTINGS_KEY, JSON.stringify(updatedSettings));
+      return updatedSettings;
+    });
+  }, []);
+
   const handleCloseSettingsModal = useCallback(() => {
     setShowSettingsModal(false);
     if (settingsModalSource === 'fromTransactionModal') {
@@ -804,6 +814,7 @@ export default function RootLayoutClient({ children }) {
       costBasisAdjustments={costBasisAdjustments}
       lastMonthNetWorth={lastMonthNetWorth}
       stockFeeSettings={stockFeeSettings}
+      setStockValuationMode={handleStockValuationModeChange}
       setMonthlyAssets={setMonthlyAssets}
       connectSheets={connectSheets}
       syncFromSheets={() => syncFromSheets(sheetsApiUrl)}
