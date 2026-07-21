@@ -585,7 +585,7 @@ export function AssetsContent() {
               <button
                 type="button"
                 onClick={selectPreviousMonth}
-                className="rounded-md px-1 py-0.5 text-[10px] font-medium text-slate-400 transition hover:bg-slate-50 hover:text-rose-600 md:rounded-xl md:border md:border-slate-200 md:bg-white md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-slate-700 md:hover:border-rose-200 md:hover:bg-rose-50"
+                className="rounded-md px-1 py-0.5 text-[10px] font-medium text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 md:rounded-xl md:border md:border-rose-200 md:bg-rose-50 md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-rose-700 md:hover:bg-rose-100"
               >
                 ← 上個月
               </button>
@@ -593,7 +593,7 @@ export function AssetsContent() {
                 type="button"
                 onClick={selectCurrentMonth}
                 disabled={selectedYear === currentYearReal && selectedMonth === currentMonthReal}
-                className="rounded-md px-1 py-0.5 text-[10px] font-medium text-rose-400 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-default disabled:bg-transparent disabled:text-slate-300 md:rounded-xl md:border md:border-rose-200 md:bg-rose-50 md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-rose-700 md:hover:bg-rose-100 md:disabled:border-slate-200 md:disabled:bg-slate-100 md:disabled:text-slate-400"
+                className="rounded-md px-1 py-0.5 text-[10px] font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-default disabled:bg-transparent disabled:text-slate-300 md:rounded-xl md:border md:border-slate-200 md:bg-slate-100 md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-slate-500 md:hover:bg-slate-200 md:disabled:text-slate-400"
               >
                 <span className="md:hidden">回本月</span>
                 <span className="hidden md:inline">回到本月</span>
@@ -649,7 +649,6 @@ export function AssetsContent() {
           {/* 文字內容 */}
           <div className="min-w-0 flex-1">
             <span className="text-base font-black tracking-tight text-slate-800 transition-colors group-hover:text-rose-600">管理帳戶 / 餘額</span>
-            <p className="mt-0.5 text-[12px] text-slate-500">更新銀行存款、外幣、信託與負債，並同步至個人 Google Sheets</p>
           </div>
 
           <div className="ml-auto flex items-center gap-2">

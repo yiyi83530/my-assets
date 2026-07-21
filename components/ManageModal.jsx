@@ -8,8 +8,6 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
   const [suggestionsByIndex, setSuggestionsByIndex] = useState({});
   const [isSearchingByIndex, setIsSearchingByIndex] = useState({});
   const [highlightedByIndex, setHighlightedByIndex] = useState({});
-  const [itemToDelete, setItemToDelete] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState(ASSETS_CATEGORIES[0]);
 
   useEffect(() => {
@@ -293,7 +291,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
 
                   {/* 刪除按鈕 - 垂直置中 */}
                   <button
-                    onClick={() => setItemToDelete({ index: assetIndex, id: item.id, name: item.name })}
+                    onClick={() => onRemove(assetIndex, item.id)}
                     className="self-center rounded-lg p-1.5 text-slate-400 transition hover:text-rose-500"
                     title="移除本項"
                   >
@@ -334,30 +332,6 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
         </div>
       </div>
 
-      {/* 刪除確認對話框 */}
-      <CustomDialog
-        isOpen={itemToDelete !== null}
-        onClose={() => !isDeleting && setItemToDelete(null)}
-        title="確定要移除嗎？"
-        message={`確定要移除「${itemToDelete?.name || assets[itemToDelete?.index]?.name || '此項目'}」嗎？\n這將從列表中移除該項，需點擊「全部儲存」才會正式生效。`}
-        iconType="warning"
-        isConfirmLoading={isDeleting}
-        buttons={[
-          { label: '取消', onClick: () => setItemToDelete(null) },
-          {
-            label: '確認移除',
-            isPrimary: true,
-            onClick: async () => {
-              setIsDeleting(true);
-              // 模擬一點點延遲讓使用者感覺到有在處理同步
-              await new Promise(resolve => setTimeout(resolve, 500));
-              onRemove(itemToDelete.index, itemToDelete.id);
-              setItemToDelete(null);
-              setIsDeleting(false);
-            },
-          },
-        ]}
-      />
     </div>
   );
 }
