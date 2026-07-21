@@ -2,6 +2,7 @@
 const SHEET_ASSETS = 'assets';
 const SHEET_TRANSACTIONS = 'transactions';
 const SHEET_MONTHLY_ASSETS = 'monthly_assets';
+const SHEET_STOCK_HOLDING_SNAPSHOTS = 'monthly_stock_holdings';
 const SHEET_COST_BASIS_ADJUSTMENTS = 'cost_basis_adjustments';
 
 const ASSET_HEADERS = ['id', 'category', 'name', 'balance', 'isLiability', 'currency', 'amount'];
@@ -20,6 +21,7 @@ const TX_HEADERS = [
 ];
 // monthKey 額外放在第一欄，後面欄位跟 ASSET_HEADERS 一致，方便沿用既有的 normalize 邏輯
 const MONTHLY_ASSET_HEADERS = ['monthKey'].concat(ASSET_HEADERS);
+const STOCK_HOLDING_SNAPSHOT_HEADERS = ['id', 'monthKey', 'market', 'symbol', 'stock', 'holdingQty', 'avgCost', 'note'];
 const COST_BASIS_ADJUSTMENT_HEADERS = ['id', 'stock', 'market', 'effectiveAt', 'avgCost', 'holdingQty', 'totalCostBasis'];
 
 function jsonResponse(payload) {
@@ -138,14 +140,30 @@ function normalizeCostBasisAdjustment_(adjustment) {
   };
 }
 
+function normalizeStockHoldingSnapshot_(snapshot) {
+  const market = String(snapshot.market || 'TWSE').toUpperCase() === 'US' ? 'US' : 'TWSE';
+  return {
+    id: String(snapshot.id || `holding_${new Date().getTime()}`),
+    monthKey: normalizeMonthKey_(snapshot.monthKey),
+    market: market,
+    symbol: String(snapshot.symbol || ''),
+    stock: String(snapshot.stock || ''),
+    holdingQty: Number(snapshot.holdingQty || 0),
+    avgCost: Number(snapshot.avgCost || 0),
+    note: String(snapshot.note || ''),
+  };
+}
+
 function getAll_() {
   const assetsSheet = getOrCreateSheet_(SHEET_ASSETS, ASSET_HEADERS);
   const txSheet = getOrCreateSheet_(SHEET_TRANSACTIONS, TX_HEADERS);
   const costSheet = getOrCreateSheet_(SHEET_COST_BASIS_ADJUSTMENTS, COST_BASIS_ADJUSTMENT_HEADERS);
+  const holdingSheet = getOrCreateSheet_(SHEET_STOCK_HOLDING_SNAPSHOTS, STOCK_HOLDING_SNAPSHOT_HEADERS);
 
   const assetLastRow = assetsSheet.getLastRow();
   const txLastRow = txSheet.getLastRow();
   const costLastRow = costSheet.getLastRow();
+  const holdingLastRow = holdingSheet.getLastRow();
 
   const assetsRows = assetLastRow > 1
     ? assetsSheet.getRange(2, 1, assetLastRow - 1, ASSET_HEADERS.length).getValues()
@@ -156,12 +174,50 @@ function getAll_() {
   const costRows = costLastRow > 1
     ? costSheet.getRange(2, 1, costLastRow - 1, COST_BASIS_ADJUSTMENT_HEADERS.length).getValues()
     : [];
+  const holdingRows = holdingLastRow > 1
+    ? holdingSheet.getRange(2, 1, holdingLastRow - 1, STOCK_HOLDING_SNAPSHOT_HEADERS.length).getValues()
+    : [];
 
   return {
     assets: rowsToObjects_(assetsRows, ASSET_HEADERS),
     transactions: rowsToObjects_(txRows, TX_HEADERS),
     costBasisAdjustments: rowsToObjects_(costRows, COST_BASIS_ADJUSTMENT_HEADERS),
+    stockHoldingSnapshots: rowsToObjects_(holdingRows, STOCK_HOLDING_SNAPSHOT_HEADERS),
   };
+}
+
+function upsertStockHoldingSnapshots_(monthKey, snapshots) {
+  const key = normalizeMonthKey_(monthKey);
+  if (!key) {
+    throw new Error('缺少 monthKey');
+  }
+
+  const sheet = getOrCreateSheet_(SHEET_STOCK_HOLDING_SNAPSHOTS, STOCK_HOLDING_SNAPSHOT_HEADERS);
+  const lastRow = sheet.getLastRow();
+  const monthKeyIndex = STOCK_HOLDING_SNAPSHOT_HEADERS.indexOf('monthKey');
+
+  if (lastRow > 1) {
+    const monthKeys = sheet.getRange(2, monthKeyIndex + 1, lastRow - 1, 1).getValues();
+    for (let index = monthKeys.length - 1; index >= 0; index--) {
+      if (normalizeMonthKey_(monthKeys[index][0]) === key) {
+        sheet.deleteRow(index + 2);
+      }
+    }
+  }
+
+  const rows = (snapshots || [])
+    .map((snapshot) => normalizeStockHoldingSnapshot_(Object.assign({}, snapshot, { monthKey: key })))
+    .filter((snapshot) => snapshot.stock && snapshot.holdingQty >= 0)
+    .map((snapshot) => STOCK_HOLDING_SNAPSHOT_HEADERS.map((header) => snapshot[header] !== undefined ? snapshot[header] : ''));
+
+  if (rows.length > 0) {
+    const symbolColumn = STOCK_HOLDING_SNAPSHOT_HEADERS.indexOf('symbol') + 1;
+    const startRow = sheet.getLastRow() + 1;
+    sheet.getRange(startRow, symbolColumn, rows.length, 1).setNumberFormat('@');
+    sheet.getRange(startRow, 1, rows.length, STOCK_HOLDING_SNAPSHOT_HEADERS.length).setValues(rows);
+  }
+
+  return { monthKey: key, count: rows.length };
 }
 
 function upsertCostBasisAdjustment_(adjustment) {
@@ -390,6 +446,10 @@ function doPost(e) {
 
     if (action === 'upsertCostBasisAdjustment') {
       return jsonResponse({ ok: true, data: upsertCostBasisAdjustment_(payload.adjustment || {}) });
+    }
+
+    if (action === 'upsertStockHoldingSnapshots') {
+      return jsonResponse({ ok: true, data: upsertStockHoldingSnapshots_(payload.monthKey, payload.snapshots || []) });
     }
 
     if (action === 'getMonthlyAssets') {

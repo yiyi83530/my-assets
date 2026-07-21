@@ -44,6 +44,27 @@ function ChevronDownIcon({ className = '' }) {
   );
 }
 
+function getMonthEndDateString(monthKey) {
+  const [year, month] = String(monthKey || '').split('-').map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month)) return `${monthKey}-31`;
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
+function getMonthPriceMap(monthKey, monthlyClosePrices, fallbackPrices) {
+  return {
+    ...(fallbackPrices || {}),
+    ...((monthlyClosePrices || {})[monthKey] || {}),
+  };
+}
+
+function getAdjustmentsUpTo(costBasisAdjustments, dateKey) {
+  return (costBasisAdjustments || []).filter((adjustment) => {
+    const effectiveDate = String(adjustment?.effectiveAt || '').slice(0, 10);
+    return effectiveDate && effectiveDate <= dateKey;
+  });
+}
+
 function ListBlock({ title, subtitle, items, moneyClass = 'text-slate-800', amountRenderer, detailRenderer, totalValue = 0, totalLabel = '總計', totalClass = 'text-slate-700' }) {
   return (
     <div className="card p-5">
@@ -84,7 +105,10 @@ export function AssetsContent() {
     monthlyNetWorth: realMonthlyNetWorth,
     transactions: realTransactions,
     stockMarketPrices: contextStockMarketPrices,
+    stockMonthlyClosePrices,
+    stockHoldingSnapshots,
     refreshStockPrices,
+    refreshMonthlyStockClosePrices,
     exchangeRates: fxRates,
     refreshExchangeRates,
     costBasisAdjustments,
@@ -119,8 +143,18 @@ export function AssetsContent() {
         });
       }
     });
+    (stockHoldingSnapshots || []).forEach((snapshot) => {
+      if (snapshot.stock && !seen.has(snapshot.stock)) {
+        seen.add(snapshot.stock);
+        uniqueStocks.push({
+          name: snapshot.stock,
+          symbol: normalizeStockSymbol(snapshot.symbol || snapshot.stock.split(' ')[0], snapshot.stock, snapshot.market),
+          market: snapshot.market || 'TWSE',
+        });
+      }
+    });
     return uniqueStocks;
-  }, [realTransactions]);
+  }, [realTransactions, stockHoldingSnapshots]);
 
   const prices = isSheetsConnected ? contextStockMarketPrices : demoPrices;
 
@@ -129,6 +163,12 @@ export function AssetsContent() {
   }, [isSheetsConnected, quoteTargets, refreshStockPrices]);
 
   const activeMonthlyAssets = realMonthlyAssets;
+  const monthKeys = useMemo(() => Object.keys(activeMonthlyAssets || {}).sort(), [activeMonthlyAssets]);
+
+  useEffect(() => {
+    if (!isSheetsConnected) return;
+    refreshMonthlyStockClosePrices(quoteTargets, monthKeys);
+  }, [isSheetsConnected, quoteTargets, monthKeys, refreshMonthlyStockClosePrices]);
 
   // 確保不管是真實交易或 Demo 交易，都有標準化的欄位可供計算持股
   const activeTransactions = useMemo(() => {
@@ -144,7 +184,6 @@ export function AssetsContent() {
 
   // 動態計算月度淨值（包含存款、負債與當月持股現值）
   const activeMonthlyNetWorth = useMemo(() => {
-    const monthKeys = Object.keys(activeMonthlyAssets || {}).sort();
     if (monthKeys.length === 0) return [];
 
     return monthKeys.map((monthKey) => {
@@ -166,9 +205,14 @@ export function AssetsContent() {
         }
       });
 
-      const lastDayOfMonth = `${monthKey}-31`;
+      const lastDayOfMonth = getMonthEndDateString(monthKey);
       const txUpToMonth = (activeTransactions || []).filter((tx) => tx.date <= lastDayOfMonth);
-      const portfolioAtMonth = calculateStockPortfolio(txUpToMonth, prices, costBasisAdjustments, fxRates);
+      const monthPrices = getMonthPriceMap(monthKey, stockMonthlyClosePrices, prices);
+      const monthAdjustments = getAdjustmentsUpTo(costBasisAdjustments, lastDayOfMonth);
+      const portfolioAtMonth = calculateStockPortfolio(txUpToMonth, monthPrices, monthAdjustments, fxRates, stockHoldingSnapshots, {
+        cutoffDate: lastDayOfMonth,
+        cutoffMonth: monthKey,
+      });
       const stockValue = portfolioAtMonth.currentPortfolioValue || 0;
 
       const netWorth = Math.round(bankSavings + stockValue - liabilities);
@@ -179,7 +223,7 @@ export function AssetsContent() {
         yearMonth: monthKey
       };
     });
-  }, [activeMonthlyAssets, activeTransactions, prices, fxRates, costBasisAdjustments]);
+  }, [activeMonthlyAssets, activeTransactions, prices, stockMonthlyClosePrices, stockHoldingSnapshots, fxRates, costBasisAdjustments, monthKeys]);
 
   const setMonthlyAssets = isSheetsConnected ? realSetMonthlyAssets : () => {
     console.warn("Demo mode: Operation ignored.");
@@ -295,12 +339,17 @@ export function AssetsContent() {
   const displayLiabilities = hasNoAssets ? [] : displayAssets.filter((a) => a.isLiability || a.category === '負債項目');
 
   // ─── 依「選定年月」算出當月底持倉與淨值總覽（兩者都會隨年月切換重新計算） ───
-  const lastDayOfSelectedMonth = `${selectedMonthKey}-31`; // 字串比較即可，日期格式皆為 YYYY-MM-DD
+  const lastDayOfSelectedMonth = getMonthEndDateString(selectedMonthKey);
 
   const portfolioAtSelectedMonth = useMemo(() => {
     const txUpToMonth = (activeTransactions || []).filter((tx) => tx.date <= lastDayOfSelectedMonth);
-    return calculateStockPortfolio(txUpToMonth, prices, costBasisAdjustments, fxRates);
-  }, [activeTransactions, lastDayOfSelectedMonth, prices, costBasisAdjustments, fxRates]);
+    const selectedMonthPrices = getMonthPriceMap(selectedMonthKey, stockMonthlyClosePrices, prices);
+    const selectedMonthAdjustments = getAdjustmentsUpTo(costBasisAdjustments, lastDayOfSelectedMonth);
+    return calculateStockPortfolio(txUpToMonth, selectedMonthPrices, selectedMonthAdjustments, fxRates, stockHoldingSnapshots, {
+      cutoffDate: lastDayOfSelectedMonth,
+      cutoffMonth: selectedMonthKey,
+    });
+  }, [activeTransactions, lastDayOfSelectedMonth, selectedMonthKey, prices, stockMonthlyClosePrices, stockHoldingSnapshots, costBasisAdjustments, fxRates]);
 
   const previousMonthKey = getPreviousMonthKey(selectedYear, selectedMonth);
   const previousMonthSummaryNetWorth = useMemo(() => {

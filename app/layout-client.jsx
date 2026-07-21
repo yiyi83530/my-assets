@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
 import { SettingsModal } from '@/components/SettingsModal';
 import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
-import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData, monthlyAssetsSnapshots as initialMonthlyAssets } from '@/lib/data';
+import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData, monthlyAssetsSnapshots as initialMonthlyAssets, stockHoldingSnapshots as initialStockHoldingSnapshots } from '@/lib/data';
 import { demoMonthlyAssets } from '@/lib/demo-data';
 import { demoTransactions } from '@/lib/demo-stock-data';
 import { AppProvider } from '@/lib/app-context';
@@ -16,6 +16,7 @@ import {
   fetchSheetsData,
   removeTransactionFromSheets,
   saveMonthlyAssetsToSheets,
+  saveStockHoldingSnapshotsToSheets,
   updateTransactionInSheets,
   upsertCostBasisAdjustmentInSheets,
   upsertAssetsToSheets,
@@ -35,6 +36,26 @@ function hasAssetContent(asset) {
   const amount = Number(rawAmount);
 
   return Boolean(name) || (Number.isFinite(amount) && amount !== 0);
+}
+
+function getAssetDedupKey(asset) {
+  const id = String(asset?.id || '').trim();
+  if (id) return `id:${id}`;
+
+  const category = String(asset?.category || '台幣活存').trim();
+  const name = String(asset?.name || '').trim();
+  const currency = String(asset?.currency || '').trim().toUpperCase();
+  const isLiability = category === '負債項目' || asset?.isLiability === true || String(asset?.isLiability).toLowerCase() === 'true';
+  const balance = Number(asset?.balance) || 0;
+  const amount = Number(asset?.amount ?? asset?.balance) || 0;
+  return `content:${category}|${name}|${currency}|${isLiability}|${balance}|${amount}`;
+}
+
+function dedupeAssets(assets = []) {
+  return [...assets.reduce((itemsByKey, asset) => {
+    itemsByKey.set(getAssetDedupKey(asset), asset);
+    return itemsByKey;
+  }, new Map()).values()];
 }
 
 async function fetchJsonWithTimeout(url, timeoutMs = STOCK_QUOTE_TIMEOUT_MS) {
@@ -90,11 +111,16 @@ export default function RootLayoutClient({ children }) {
   const [sheetsApiUrl, setSheetsApiUrl] = useState('');
   const [isSheetsConnected, setIsSheetsConnected] = useState(false);
   const [stockMarketPrices, setStockMarketPrices] = useState({});
+  const [stockMonthlyClosePrices, setStockMonthlyClosePrices] = useState({});
+  const [realStockHoldingSnapshots, setRealStockHoldingSnapshots] = useState(initialStockHoldingSnapshots);
+  const [localDemoStockHoldingSnapshots, setLocalDemoStockHoldingSnapshots] = useState([]);
   const [stockQuoteMeta, setStockQuoteMeta] = useState({});
   const [isStockPricesLoading, setIsStockPricesLoading] = useState(false);
   const [exchangeRates, setExchangeRates] = useState({});
   const quoteFetchedAtRef = useRef(new Map());
   const quotePendingRef = useRef(new Set());
+  const monthlyQuoteFetchedRef = useRef(new Set());
+  const monthlyQuotePendingRef = useRef(new Set());
   const exchangeRateFetchedAtRef = useRef(new Map());
   const exchangeRatePendingRef = useRef(new Set());
   const saveAssetsInProgressRef = useRef(false);
@@ -111,6 +137,8 @@ export default function RootLayoutClient({ children }) {
   // 依目前連線狀態決定「管理帳戶」實際讀寫的是哪一份資料
   const monthlyAssets = isSheetsConnected ? realMonthlyAssets : localDemoMonthlyAssets;
   const setMonthlyAssets = isSheetsConnected ? setRealMonthlyAssets : setLocalDemoMonthlyAssets;
+  const stockHoldingSnapshots = isSheetsConnected ? realStockHoldingSnapshots : localDemoStockHoldingSnapshots;
+  const setStockHoldingSnapshots = isSheetsConnected ? setRealStockHoldingSnapshots : setLocalDemoStockHoldingSnapshots;
 
   const displayToast = useCallback((msg, type = 'success') => {
     setToastMessage(msg);
@@ -205,6 +233,71 @@ export default function RootLayoutClient({ children }) {
     }
   }, [isSheetsConnected]);
 
+  const refreshMonthlyStockClosePrices = useCallback(async (targets = [], monthKeys = [], { force = false } = {}) => {
+    if (!isSheetsConnected) return;
+
+    const normalizedTargets = [...new Map(
+      targets
+        .filter((target) => target?.name && target?.symbol)
+        .map((target) => [target.name, target])
+    ).values()];
+    const normalizedMonths = [...new Set(
+      monthKeys
+        .map((monthKey) => String(monthKey || '').trim())
+        .filter((monthKey) => /^\d{4}-\d{2}$/.test(monthKey))
+    )];
+
+    const requests = [];
+    normalizedMonths.forEach((monthKey) => {
+      normalizedTargets.forEach((target) => {
+        const requestKey = `${monthKey}:${target.name}`;
+        if (!force && stockMonthlyClosePrices?.[monthKey]?.[target.name] != null) {
+          monthlyQuoteFetchedRef.current.add(requestKey);
+          return;
+        }
+        if (!force && monthlyQuoteFetchedRef.current.has(requestKey)) return;
+        if (monthlyQuotePendingRef.current.has(requestKey)) return;
+        monthlyQuotePendingRef.current.add(requestKey);
+        requests.push({ monthKey, target, requestKey });
+      });
+    });
+    if (requests.length === 0) return;
+
+    try {
+      const requestQuote = async ({ monthKey, target, requestKey }) => {
+        const data = await fetchJsonWithTimeout(
+          `/api/stocks/month-close?symbol=${encodeURIComponent(target.symbol)}&market=${target.market}&month=${monthKey}`
+        );
+        return { monthKey, name: target.name, requestKey, ...data };
+      };
+      const results = await Promise.allSettled(requests.map(requestQuote));
+      const nextMonthlyPrices = {};
+
+      results.forEach((result, index) => {
+        const request = requests[index];
+        monthlyQuoteFetchedRef.current.add(request.requestKey);
+        if (result.status === 'fulfilled' && result.value.price != null) {
+          if (!nextMonthlyPrices[result.value.monthKey]) {
+            nextMonthlyPrices[result.value.monthKey] = {};
+          }
+          nextMonthlyPrices[result.value.monthKey][result.value.name] = result.value.price;
+        }
+      });
+
+      if (Object.keys(nextMonthlyPrices).length > 0) {
+        setStockMonthlyClosePrices((prev) => {
+          const merged = { ...prev };
+          Object.entries(nextMonthlyPrices).forEach(([monthKey, prices]) => {
+            merged[monthKey] = { ...(merged[monthKey] || {}), ...prices };
+          });
+          return merged;
+        });
+      }
+    } finally {
+      requests.forEach((request) => monthlyQuotePendingRef.current.delete(request.requestKey));
+    }
+  }, [isSheetsConnected, stockMonthlyClosePrices]);
+
   const syncFromSheets = useCallback(async (apiUrl, { silent = false } = {}) => {
     if (!apiUrl) return;
     try {
@@ -218,8 +311,14 @@ export default function RootLayoutClient({ children }) {
         setCostBasisAdjustments(data.costBasisAdjustments);
         window.localStorage.setItem(COST_BASIS_ADJUSTMENTS_KEY, JSON.stringify(data.costBasisAdjustments));
       }
+      if (Array.isArray(data.stockHoldingSnapshots)) {
+        setRealStockHoldingSnapshots(data.stockHoldingSnapshots);
+      }
       if (data.stockMarketPrices && typeof data.stockMarketPrices === 'object') {
         setStockMarketPrices(data.stockMarketPrices);
+      }
+      if (data.stockMonthlyClosePrices && typeof data.stockMonthlyClosePrices === 'object') {
+        setStockMonthlyClosePrices(data.stockMonthlyClosePrices);
       }
       if (data.lastMonthNetWorth !== undefined) {
         setLastMonthNetWorth(data.lastMonthNetWorth);
@@ -343,6 +442,45 @@ export default function RootLayoutClient({ children }) {
     }
   }, [costBasisAdjustments, displayToast, isSheetsConnected, sheetsApiUrl]);
 
+  const saveStockHoldingSnapshots = useCallback(async (monthKey, snapshots) => {
+    const key = String(monthKey || '').trim();
+    if (!key) {
+      throw new Error('缺少要儲存的月份');
+    }
+
+    const normalized = (Array.isArray(snapshots) ? snapshots : [])
+      .filter((snapshot) => snapshot?.stock && Number(snapshot?.holdingQty) >= 0)
+      .map((snapshot) => ({
+        ...snapshot,
+        monthKey: key,
+        holdingQty: Number(snapshot.holdingQty) || 0,
+        avgCost: Number(snapshot.avgCost) || 0,
+      }));
+
+    const snapshotBeforeSave = stockHoldingSnapshots;
+    const nextSnapshots = [
+      ...snapshotBeforeSave.filter((snapshot) => String(snapshot.monthKey || '').slice(0, 7) !== key),
+      ...normalized,
+    ];
+    setStockHoldingSnapshots(nextSnapshots);
+
+    try {
+      if (isSheetsConnected && sheetsApiUrl) {
+        await saveStockHoldingSnapshotsToSheets(sheetsApiUrl, key, normalized);
+      }
+      displayToast(
+        isSheetsConnected
+          ? `已儲存 ${key} 月底持股快照`
+          : `已更新本機模擬持股快照（${key}，重新整理後會還原）`,
+        'success'
+      );
+      return normalized;
+    } catch (error) {
+      setStockHoldingSnapshots(snapshotBeforeSave);
+      throw error;
+    }
+  }, [displayToast, isSheetsConnected, setStockHoldingSnapshots, sheetsApiUrl, stockHoldingSnapshots]);
+
   const connectSheets = useCallback(async (apiUrl) => {
     const nextUrl = String(apiUrl || '').trim();
     await syncFromSheets(nextUrl, { silent: true });
@@ -447,7 +585,7 @@ export default function RootLayoutClient({ children }) {
     saveAssetsInProgressRef.current = true;
     setIsSaveLoading(true);
     try {
-      const assetsToSave = assets.filter(hasAssetContent);
+      const assetsToSave = dedupeAssets(assets.filter(hasAssetContent));
       setAssets(assetsToSave);
       const { year, month } = manageModalContext;
       if (year && month) {
@@ -514,10 +652,7 @@ export default function RootLayoutClient({ children }) {
   const handleRemoveAsset = (index, id) => {
     setAssets((prev) => {
       if (id) {
-        const idMatches = prev.filter((item) => String(item.id || '') === String(id));
-        if (idMatches.length === 1) {
-          return prev.filter((item) => String(item.id || '') !== String(id));
-        }
+        return prev.filter((item) => String(item.id || '') !== String(id));
       }
       return prev.filter((_, i) => i !== index);
     });
@@ -627,9 +762,12 @@ export default function RootLayoutClient({ children }) {
       monthlyNetWorth={monthlyNetWorth}
       monthlyAssets={monthlyAssets}
       stockMarketPrices={stockMarketPrices}
+      stockMonthlyClosePrices={stockMonthlyClosePrices}
+      stockHoldingSnapshots={stockHoldingSnapshots}
       stockQuoteMeta={stockQuoteMeta}
       isStockPricesLoading={isStockPricesLoading}
       refreshStockPrices={refreshStockPrices}
+      refreshMonthlyStockClosePrices={refreshMonthlyStockClosePrices}
       exchangeRates={exchangeRates}
       refreshExchangeRates={refreshExchangeRates}
       costBasisAdjustments={costBasisAdjustments}
@@ -642,6 +780,7 @@ export default function RootLayoutClient({ children }) {
       addTransaction={addTransaction}
       removeTransaction={removeTransaction}
       addCostBasisAdjustment={addCostBasisAdjustment}
+      saveStockHoldingSnapshots={saveStockHoldingSnapshots}
       saveStockFeeSettings={handleSaveSettings}
       usdToTwdRate={usdToTwdRate}
     >

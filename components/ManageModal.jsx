@@ -144,7 +144,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
           </button>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="px-6 overflow-y-auto flex-1">
           <div className="sticky top-0 z-30 -mx-6 mb-3 border-b border-slate-100 bg-white px-6 pb-3 pt-1">
             <div className="rounded-xl border border-rose-100 bg-rose-50/40 p-1.5 shadow-sm">
               <div className="grid grid-cols-4 gap-1.5">
@@ -306,7 +306,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
             ))}
             {tabbedAssets.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-xs text-slate-400">
-                目前此分類尚無資料，可點下方按鈕新增。
+                目前此分類尚無資料，可點上方按鈕新增。
               </div>
             )}
           </div>

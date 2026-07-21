@@ -20,19 +20,60 @@ function getIndustry(symbol, stockName = '') {
   return INDUSTRY_MAP[symbol] || '其他';
 }
 
-function buildBasePositions(txList, costBasisAdjustments = []) {
-  const map = {};
+function getMonthEndDateString(monthKey) {
+  const [year, month] = String(monthKey || '').split('-').map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month)) return '';
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
+function buildBasePositions(txList, costBasisAdjustments = [], holdingSnapshots = []) {
+  const latestSnapshotsByStock = (holdingSnapshots || []).reduce((map, snapshot) => {
+    const stock = String(snapshot?.stock || '').trim();
+    const monthKey = String(snapshot?.monthKey || '').slice(0, 7);
+    if (!stock || !monthKey) return map;
+    if (!map[stock] || monthKey > String(map[stock].monthKey || '')) {
+      map[stock] = snapshot;
+    }
+    return map;
+  }, {});
+  const map = Object.values(latestSnapshotsByStock).reduce((acc, snapshot) => {
+    const holdingQty = Number(snapshot.holdingQty) || 0;
+    const avgCost = Number(snapshot.avgCost) || 0;
+    if (!snapshot.stock || holdingQty <= 0) return acc;
+    acc[snapshot.stock] = {
+      name: snapshot.stock,
+      symbol: normalizeStockSymbol(snapshot.symbol || snapshot.stock.split(' ')[0], snapshot.stock, snapshot.market),
+      market: snapshot.market || 'TWSE',
+      holdingQty,
+      totalBuyCost: holdingQty * avgCost,
+      snapshotMonthKey: snapshot.monthKey,
+    };
+    return acc;
+  }, {});
   const sorted = [
-    ...(txList || []).map((tx) => ({
-      kind: 'transaction',
-      timestamp: new Date(String(tx.recordedAt || '').startsWith(String(tx.date || '')) ? tx.recordedAt : `${tx.date}T12:00:00`).getTime(),
-      data: tx,
-    })),
-    ...(costBasisAdjustments || []).map((adjustment) => ({
-      kind: 'cost_adjustment',
-      timestamp: new Date(adjustment.effectiveAt).getTime(),
-      data: adjustment,
-    })),
+    ...(txList || [])
+      .filter((tx) => {
+        const snapshot = latestSnapshotsByStock[tx.stock];
+        if (!snapshot) return true;
+        return String(tx.date || '') > getMonthEndDateString(snapshot.monthKey);
+      })
+      .map((tx) => ({
+        kind: 'transaction',
+        timestamp: new Date(String(tx.recordedAt || '').startsWith(String(tx.date || '')) ? tx.recordedAt : `${tx.date}T12:00:00`).getTime(),
+        data: tx,
+      })),
+    ...(costBasisAdjustments || [])
+      .filter((adjustment) => {
+        const snapshot = latestSnapshotsByStock[adjustment.stock];
+        if (!snapshot) return true;
+        return String(adjustment.effectiveAt || '').slice(0, 10) > getMonthEndDateString(snapshot.monthKey);
+      })
+      .map((adjustment) => ({
+        kind: 'cost_adjustment',
+        timestamp: new Date(adjustment.effectiveAt).getTime(),
+        data: adjustment,
+      })),
   ].sort((a, b) => a.timestamp - b.timestamp || (a.kind === 'transaction' ? -1 : 1));
 
   sorted.forEach((event) => {
@@ -57,6 +98,8 @@ function buildBasePositions(txList, costBasisAdjustments = []) {
       };
     }
     const pos = map[key];
+    pos.symbol = pos.symbol || normalizeStockSymbol(tx.symbol || tx.stock.split(' ')[0], tx.stock, tx.market);
+    pos.market = pos.market || tx.market || 'TWSE';
     if (tx.type === 'buy') {
       pos.holdingQty += Number(tx.qty);
       pos.totalBuyCost += Number(tx.actualAmount);
@@ -210,6 +253,8 @@ export function StocksContent() {
     usdToTwdRate,
     costBasisAdjustments,
     addCostBasisAdjustment,
+    stockHoldingSnapshots,
+    saveStockHoldingSnapshots,
     displayToast,
   } = useApp();
 
@@ -238,6 +283,10 @@ export function StocksContent() {
   const [originalCostDraft, setOriginalCostDraft] = useState(null);
   const [pendingCostChange, setPendingCostChange] = useState(null);
   const [isSavingCost, setIsSavingCost] = useState(false);
+  const [showHoldingSnapshotModal, setShowHoldingSnapshotModal] = useState(false);
+  const [holdingSnapshotMonth, setHoldingSnapshotMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [holdingDrafts, setHoldingDrafts] = useState([]);
+  const [isSavingHoldingSnapshot, setIsSavingHoldingSnapshot] = useState(false);
   const [liveQuoteClock, setLiveQuoteClock] = useState(() => Date.now());
   const [fallbackQuoteFirstSeenAt, setFallbackQuoteFirstSeenAt] = useState({});
 
@@ -309,8 +358,8 @@ export function StocksContent() {
 
   // ── derive positions (必須在報價抓取邏輯之前，因為報價邏輯依賴這些數據) ──────────────────────────────────────────────────────
   const basePositions = useMemo(
-    () => buildBasePositions(transactions, costBasisAdjustments),
-    [transactions, costBasisAdjustments]
+    () => buildBasePositions(transactions, costBasisAdjustments, stockHoldingSnapshots),
+    [transactions, costBasisAdjustments, stockHoldingSnapshots]
   );
   const positionKeys = basePositions.map((p) => p.name).join('|');
 
@@ -399,6 +448,82 @@ export function StocksContent() {
     setCostDraft('');
     setOriginalCostDraft(null);
     setPendingCostChange(null);
+  };
+
+  const createEmptyHoldingDraft = () => ({
+    id: `holding_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    market: posTab === 'US' ? 'US' : 'TWSE',
+    symbol: '',
+    stock: '',
+    holdingQty: '',
+    avgCost: '',
+    note: '',
+  });
+
+  const openHoldingSnapshotEditor = () => {
+    const currentMonthKey = new Date().toISOString().slice(0, 7);
+    const exactSnapshots = (stockHoldingSnapshots || []).filter(
+      (snapshot) => String(snapshot.monthKey || '').slice(0, 7) === currentMonthKey
+    );
+    const sourceRows = exactSnapshots.length > 0
+      ? exactSnapshots
+      : basePositions.map((position) => ({
+        id: `holding_${currentMonthKey}_${position.symbol || position.name}`,
+        market: position.market || 'TWSE',
+        symbol: position.symbol || normalizeStockSymbol(position.name.split(' ')[0], position.name, position.market),
+        stock: position.name,
+        holdingQty: position.holdingQty,
+        avgCost: position.avgCost,
+        note: exactSnapshots.length > 0 ? position.note : '',
+      }));
+
+    setHoldingSnapshotMonth(currentMonthKey);
+    setHoldingDrafts(sourceRows.length > 0 ? sourceRows.map((row) => ({
+      id: row.id || `holding_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      market: row.market || 'TWSE',
+      symbol: row.symbol || normalizeStockSymbol(String(row.stock || '').split(' ')[0], row.stock, row.market),
+      stock: row.stock || '',
+      holdingQty: String(row.holdingQty ?? ''),
+      avgCost: String(row.avgCost ?? ''),
+      note: row.note || '',
+    })) : [createEmptyHoldingDraft()]);
+    setShowHoldingSnapshotModal(true);
+  };
+
+  const updateHoldingDraft = (index, patch) => {
+    setHoldingDrafts((rows) => rows.map((row, rowIndex) => (
+      rowIndex === index ? { ...row, ...patch } : row
+    )));
+  };
+
+  const saveHoldingSnapshotDrafts = async () => {
+    const rows = holdingDrafts
+      .map((row) => {
+        const stock = String(row.stock || '').trim();
+        const market = row.market === 'US' ? 'US' : 'TWSE';
+        return {
+          ...row,
+          id: row.id || `holding_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          monthKey: holdingSnapshotMonth,
+          market,
+          symbol: normalizeStockSymbol(row.symbol || stock.split(' ')[0], stock, market),
+          stock,
+          holdingQty: Number(row.holdingQty) || 0,
+          avgCost: Number(row.avgCost) || 0,
+          note: String(row.note || ''),
+        };
+      })
+      .filter((row) => row.stock && row.holdingQty >= 0);
+
+    setIsSavingHoldingSnapshot(true);
+    try {
+      await saveStockHoldingSnapshots(holdingSnapshotMonth, rows);
+      setShowHoldingSnapshotModal(false);
+    } catch (error) {
+      displayToast(`月底持股快照儲存失敗：${error.message || '請稍後再試'}`, 'error');
+    } finally {
+      setIsSavingHoldingSnapshot(false);
+    }
   };
 
   const requestCostSave = (pos, rate, currency, displayName) => {
@@ -800,7 +925,7 @@ export function StocksContent() {
         aria-labelledby="positions-heading"
       >
         <div className="border-b border-slate-200 bg-gradient-to-r from-rose-50/80 via-white to-white px-4 py-5 sm:px-6 sm:py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <span className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white shadow-sm shadow-rose-200 md:flex md:h-11 md:w-11 md:rounded-2xl" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5">
@@ -809,6 +934,20 @@ export function StocksContent() {
               </span>
               <h2 id="positions-heading" className="whitespace-nowrap text-xl font-black tracking-tight text-slate-900 sm:text-2xl">持股明細</h2>
             </div>
+            <button
+              type="button"
+              onClick={openHoldingSnapshotEditor}
+              disabled={isPortfolioLoading}
+              className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-full bg-rose-50 px-2.5 text-[10px] font-black text-rose-700 shadow-sm shadow-rose-100/60 ring-1 ring-white/70 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 disabled:cursor-wait disabled:opacity-50 sm:h-8 sm:px-3 sm:text-[11px]"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 8a2 2 0 012-2h2l1.2-1.6A1 1 0 0110 4h4a1 1 0 01.8.4L16 6h2a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
+                <circle cx="12" cy="13" r="3.25" />
+              </svg>
+              月底快照
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
             <div className="grid w-full shrink-0 grid-cols-2 rounded-xl bg-slate-200/60 p-1 sm:w-auto" role="group" aria-label="選擇股票市場">
               <button
                 onClick={() => setPosTab('TWSE')}
@@ -831,8 +970,6 @@ export function StocksContent() {
                 美股
               </button>
             </div>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
             <button
               onClick={handleManualRefresh}
               disabled={isFetchingPrices || isPortfolioLoading}
@@ -1719,6 +1856,137 @@ export function StocksContent() {
         </div>
       </section>
 
+      {showHoldingSnapshotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="flex h-[82vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-4 py-3">
+              <div>
+                <h3 className="text-sm font-black text-slate-900">月底持股快照</h3>
+                <p className="mt-0.5 text-[11px] text-slate-500">以券商帳戶的月底股數與平均成本為準；沒有交易紀錄也能計算每月股票市值。</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSavingHoldingSnapshot && setShowHoldingSnapshotModal(false)}
+                className="rounded-lg px-2 py-1 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+                aria-label="關閉月底持股快照"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="shrink-0 border-b border-slate-100 px-4 py-2">
+              <label className="flex max-w-[180px] flex-col gap-1 text-[11px] font-bold text-slate-500">
+                快照月份
+                <input
+                  type="month"
+                  value={holdingSnapshotMonth}
+                  onChange={(event) => setHoldingSnapshotMonth(event.target.value)}
+                  className="h-8 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-800 outline-none transition focus:border-rose-200 focus:bg-white focus:ring-2 focus:ring-rose-100"
+                />
+              </label>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+              <div className="min-w-[482px]">
+                <div className="grid grid-cols-[54px_70px_minmax(100px,1fr)_70px_88px_30px] gap-1.5 border-b border-slate-100 pb-1.5 text-[10px] font-bold text-slate-400">
+                  <span>市場</span>
+                  <span>代碼</span>
+                  <span>股票名稱</span>
+                  <span>月底股數</span>
+                  <span>平均成本</span>
+                  <span />
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {holdingDrafts.map((row, index) => (
+                    <div key={row.id || index} className="grid grid-cols-[54px_70px_minmax(100px,1fr)_70px_88px_30px] gap-1.5 py-1.5">
+                      <select
+                        value={row.market}
+                        onChange={(event) => updateHoldingDraft(index, { market: event.target.value })}
+                        className="h-8 rounded-md border border-slate-200 bg-white px-1 text-[11px] font-bold text-slate-700 outline-none focus:border-rose-200 focus:ring-2 focus:ring-rose-100"
+                      >
+                        <option value="TWSE">台股</option>
+                        <option value="US">美股</option>
+                      </select>
+                      <input
+                        value={row.symbol}
+                        onChange={(event) => updateHoldingDraft(index, { symbol: event.target.value })}
+                        placeholder="2330"
+                        className="h-8 rounded-md border border-slate-200 bg-slate-50 px-1.5 font-mono text-xs text-slate-800 outline-none focus:border-rose-200 focus:bg-white focus:ring-2 focus:ring-rose-100"
+                      />
+                      <input
+                        value={row.stock}
+                        onChange={(event) => {
+                          const stock = event.target.value;
+                          updateHoldingDraft(index, {
+                            stock,
+                            symbol: row.symbol || normalizeStockSymbol(stock.split(' ')[0], stock, row.market),
+                          });
+                        }}
+                        placeholder={row.market === 'US' ? 'AAPL Apple Inc.' : '2330 台積電'}
+                        className="h-8 rounded-md border border-slate-200 bg-slate-50 px-2 text-xs text-slate-800 outline-none focus:border-rose-200 focus:bg-white focus:ring-2 focus:ring-rose-100"
+                      />
+                      <input
+                        type="number"
+                        value={row.holdingQty}
+                        onChange={(event) => updateHoldingDraft(index, { holdingQty: event.target.value })}
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        className="h-8 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-right font-mono text-xs text-slate-800 outline-none focus:border-rose-200 focus:bg-white focus:ring-2 focus:ring-rose-100"
+                      />
+                      <input
+                        type="number"
+                        value={row.avgCost}
+                        onChange={(event) => updateHoldingDraft(index, { avgCost: event.target.value })}
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        className="h-8 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-right font-mono text-xs text-slate-800 outline-none focus:border-rose-200 focus:bg-white focus:ring-2 focus:ring-rose-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setHoldingDrafts((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}
+                        className="flex h-8 items-center justify-center rounded-md text-xs text-slate-300 transition hover:bg-rose-50 hover:text-rose-500"
+                        aria-label="刪除此持股快照列"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHoldingDrafts((rows) => [...rows, createEmptyHoldingDraft()])}
+                className="mt-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-bold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
+              >
+                新增股票列
+              </button>
+            </div>
+
+            <div className="flex shrink-0 justify-end gap-2 border-t border-slate-100 px-4 py-3">
+              <button
+                type="button"
+                disabled={isSavingHoldingSnapshot}
+                onClick={() => setShowHoldingSnapshotModal(false)}
+                className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-200 disabled:opacity-50"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={isSavingHoldingSnapshot}
+                onClick={saveHoldingSnapshotDrafts}
+                className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-rose-200 transition hover:bg-rose-600 disabled:opacity-50"
+              >
+                {isSavingHoldingSnapshot && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+                {isSavingHoldingSnapshot ? '儲存中' : '儲存快照'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── 平均成本修改確認 ── */}
       {pendingCostChange && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1738,7 +2006,7 @@ export function StocksContent() {
                 </span>
                 嗎？
               </p>
-              <p className="mt-2 text-xs leading-5 text-slate-400">儲存後會重新計算所有月份的投資成本與未實現損益，後續交易將接續新成本計算。</p>
+              <p className="mt-2 text-xs leading-5 text-slate-400">儲存後會從這次校正時間往後接續計算；已有月底快照的月份仍以快照成本為準。</p>
             </div>
             <div className="mt-6 flex gap-3">
               <button
