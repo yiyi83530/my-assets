@@ -1179,7 +1179,7 @@ export function StocksContent() {
               type="button"
               onClick={() => setPositionSortDirection((direction) => (direction === 'desc' ? 'asc' : 'desc'))}
               disabled={isPortfolioLoading}
-              className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-wait disabled:opacity-50"
+              className="inline-flex h-8 items-center justify-center gap-1 px-1 text-xs font-bold text-slate-400 transition hover:text-slate-500 disabled:cursor-wait disabled:opacity-50"
               aria-label={`目前依${activePositionSortOption?.label || '選定欄位'}${positionSortDirection === 'desc' ? '由高到低' : '由低到高'}排序，點擊切換`}
             >
               <svg viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 transition-transform ${positionSortDirection === 'asc' ? 'rotate-180' : ''}`} aria-hidden="true">
