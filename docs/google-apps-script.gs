@@ -47,7 +47,7 @@ function getOrCreateSheet_(name, headers) {
 }
 
 function rowsToObjects_(rows, headers) {
-  return rows.map((row) => {
+  return rows.filter((row) => row.some((cell) => String(cell || '').trim() !== '')).map((row) => {
     const obj = {};
     headers.forEach((h, i) => {
       obj[h] = row[i];
@@ -66,6 +66,32 @@ function clearAndWriteObjects_(sheet, headers, items) {
 
   const values = items.map((item) => headers.map((h) => item[h] !== undefined ? item[h] : ''));
   sheet.getRange(2, 1, values.length, headers.length).setValues(values);
+}
+
+function assetDedupKey_(asset) {
+  const id = String(asset.id || '').trim();
+  if (id) return `id:${id}`;
+
+  const category = String(asset.category || '台幣活存').trim();
+  const name = String(asset.name || '').trim();
+  const currency = String(asset.currency || '').trim().toUpperCase();
+  const isLiability = asset.isLiability === true || String(asset.isLiability).toLowerCase() === 'true' || category === '負債項目';
+  const balance = Number(asset.balance || 0);
+  const amount = Number(asset.amount != null ? asset.amount : balance);
+  return `content:${category}|${name}|${currency}|${isLiability}|${balance}|${amount}`;
+}
+
+function dedupeAssets_(assets) {
+  const byKey = {};
+  const orderedKeys = [];
+  (assets || []).forEach((asset) => {
+    const hasContent = String(asset.id || asset.category || asset.name || asset.balance || asset.amount || '').trim();
+    if (!hasContent) return;
+    const key = assetDedupKey_(asset);
+    if (!Object.prototype.hasOwnProperty.call(byKey, key)) orderedKeys.push(key);
+    byKey[key] = normalizeAsset_(asset);
+  });
+  return orderedKeys.map((key) => byKey[key]);
 }
 
 function normalizeAsset_(asset) {
@@ -161,7 +187,7 @@ function upsertCostBasisAdjustment_(adjustment) {
 
 function upsertAssets_(assets) {
   const assetsSheet = getOrCreateSheet_(SHEET_ASSETS, ASSET_HEADERS);
-  const normalized = (assets || []).map(normalizeAsset_);
+  const normalized = dedupeAssets_(assets || []);
   clearAndWriteObjects_(assetsSheet, ASSET_HEADERS, normalized);
   return { count: normalized.length };
 }
@@ -280,11 +306,16 @@ function getMonthlyAssets_() {
     const asset = {};
     ASSET_HEADERS.forEach((h) => { asset[h] = row[h]; });
 
-    if (!grouped[monthKey]) grouped[monthKey] = [];
-    grouped[monthKey].push(asset);
+    if (!grouped[monthKey]) grouped[monthKey] = {};
+    grouped[monthKey][assetDedupKey_(asset)] = normalizeAsset_(asset);
   });
 
-  return grouped;
+  const result = {};
+  Object.keys(grouped).forEach((monthKey) => {
+    result[monthKey] = Object.keys(grouped[monthKey]).map((key) => grouped[monthKey][key]);
+  });
+
+  return result;
 }
 
 function upsertMonthlyAssets_(monthKey, assets) {
@@ -307,7 +338,7 @@ function upsertMonthlyAssets_(monthKey, assets) {
     }
   }
 
-  const normalized = (assets || []).map(normalizeAsset_);
+  const normalized = dedupeAssets_(assets || []);
   const newRows = normalized.map((asset) =>
     MONTHLY_ASSET_HEADERS.map((h) => (h === 'monthKey' ? key : (asset[h] !== undefined ? asset[h] : '')))
   );
