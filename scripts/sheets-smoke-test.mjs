@@ -3,8 +3,10 @@ import { once } from 'node:events';
 
 import {
   appendTransactionToSheets,
+  fetchMonthlyAssetsFromSheets,
   fetchSheetsData,
   removeTransactionFromSheets,
+  saveMonthlyAssetsToSheets,
   testSheetsConnection,
   upsertAssetsToSheets,
 } from '../lib/sheets-client.js';
@@ -28,6 +30,7 @@ const state = {
       note: '',
     },
   ],
+  monthlyAssets: {},
 };
 
 const server = http.createServer((req, res) => {
@@ -70,6 +73,17 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    if (action === 'getMonthlyAssets') {
+      res.end(JSON.stringify({ ok: true, data: state.monthlyAssets }));
+      return;
+    }
+
+    if (action === 'upsertMonthlyAssets') {
+      state.monthlyAssets[payload.monthKey] = payload.assets || [];
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
     res.statusCode = 400;
     res.end(JSON.stringify({ ok: false, message: `unknown action: ${action}` }));
   });
@@ -92,6 +106,17 @@ async function run() {
     { id: 'a2', category: '外幣活存', name: 'USD Bank', amount: 200, currency: 'usd', balance: 200 },
     { id: 'a3', category: '負債項目', name: 'Card', balance: 3000, isLiability: true },
   ]);
+  await upsertAssetsToSheets(url, [
+    { id: 'a3', category: '負債項目', name: 'Card', balance: 3000, isLiability: true },
+  ]);
+
+  await saveMonthlyAssetsToSheets(url, '2026-07', [
+    { id: 'm1', category: '台幣活存', name: 'July Bank', balance: 1000, isLiability: false },
+    { id: 'm2', category: '負債項目', name: 'July Card', balance: 3000, isLiability: true },
+  ]);
+  await saveMonthlyAssetsToSheets(url, '2026-07', [
+    { id: 'm2', category: '負債項目', name: 'July Card', balance: 3000, isLiability: true },
+  ]);
 
   await appendTransactionToSheets(url, {
     id: 't2',
@@ -109,14 +134,19 @@ async function run() {
   await removeTransactionFromSheets(url, 't1');
 
   const second = await fetchSheetsData(url);
-  if (second.assets.length !== 2) {
-    throw new Error('Asset upsert failed');
+  if (second.assets.length !== 1 || second.assets[0].id !== 'a3') {
+    throw new Error('Asset replacement failed');
   }
-  if (second.assets[0].currency !== 'USD') {
-    throw new Error('Foreign currency normalization failed');
+  if (second.assets[0].isLiability !== true) {
+    throw new Error('Liability normalization failed');
   }
   if (second.transactions.length !== 1 || second.transactions[0].id !== 't2') {
     throw new Error('Transaction append/remove failed');
+  }
+
+  const monthly = await fetchMonthlyAssetsFromSheets(url);
+  if (!monthly['2026-07'] || monthly['2026-07'].length !== 1 || monthly['2026-07'][0].id !== 'm2') {
+    throw new Error('Monthly asset replacement failed');
   }
 
   server.close();
@@ -128,4 +158,3 @@ run().catch((error) => {
   console.error(error);
   process.exit(1);
 });
-

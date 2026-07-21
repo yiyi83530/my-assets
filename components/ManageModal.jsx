@@ -190,7 +190,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
               </p>
             )}
             {tabbedAssets.map(({ item, index: assetIndex }) => (
-              <div key={item.id} className="rounded-xl border border-slate-200/60 bg-slate-50 p-3.5">
+              <div key={`${item.id || 'asset'}-${assetIndex}`} className="rounded-xl border border-slate-200/60 bg-slate-50 p-3.5">
                 <div className="flex items-start gap-2">
                   <div className={`flex-1 ${item.category === '外幣活存' ? 'space-y-3' : 'grid grid-cols-2 gap-3 items-start'}`}>
                     {/* 第一行：名稱 */}
@@ -266,7 +266,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
                           >
                             {FOREIGN_CURRENCIES.map((currency) => (
                               <option key={currency} value={currency}>
-                                {currency}
+                                {currency === 'TWD' ? 'TWD 台幣' : currency}
                               </option>
                             ))}
                           </select>
@@ -297,7 +297,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
 
                   {/* 刪除按鈕 - 垂直置中 */}
                   <button
-                    onClick={() => setItemToDelete(assetIndex)}
+                    onClick={() => setItemToDelete({ index: assetIndex, id: item.id, name: item.name })}
                     className="self-center rounded-lg p-1.5 text-slate-400 transition hover:text-rose-500"
                     title="移除本項"
                   >
@@ -343,7 +343,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
         isOpen={itemToDelete !== null}
         onClose={() => !isDeleting && setItemToDelete(null)}
         title="確定要移除嗎？"
-        message={`確定要移除「${assets[itemToDelete]?.name || '此項目'}」嗎？\n這將從列表中移除該項，需點擊「全部儲存」才會正式生效。`}
+        message={`確定要移除「${itemToDelete?.name || assets[itemToDelete?.index]?.name || '此項目'}」嗎？\n這將從列表中移除該項，需點擊「全部儲存」才會正式生效。`}
         iconType="warning"
         isConfirmLoading={isDeleting}
         buttons={[
@@ -355,7 +355,7 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
               setIsDeleting(true);
               // 模擬一點點延遲讓使用者感覺到有在處理同步
               await new Promise(resolve => setTimeout(resolve, 500));
-              onRemove(itemToDelete);
+              onRemove(itemToDelete.index, itemToDelete.id);
               setItemToDelete(null);
               setIsDeleting(false);
             },

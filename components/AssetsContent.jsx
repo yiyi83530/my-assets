@@ -58,8 +58,8 @@ function ListBlock({ title, subtitle, items, moneyClass = 'text-slate-800', amou
         </div>
       </div>
       <div className="space-y-2">
-        {items.map((item) => (
-          <div key={item.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
+        {items.map((item, index) => (
+          <div key={`${item.id || 'asset'}-${index}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
             <span className="text-slate-600">{item.name}</span>
             <div className="flex flex-col items-end text-right">
               <span className={`font-mono font-bold ${moneyClass}`}>{amountRenderer ? amountRenderer(item) : formatMoney(item.balance)}</span>
@@ -586,8 +586,8 @@ export function AssetsContent() {
               </div>
             </div>
             <div className="space-y-2">
-              {displayLiabilities.map((item) => (
-                <div key={item.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
+              {displayLiabilities.map((item, index) => (
+                <div key={`${item.id || 'liability'}-${index}`} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs">
                   <span className="text-slate-600">{item.name}</span>
                   <span className="font-mono font-bold text-slate-700">-{formatMoney(item.balance)}</span>
                 </div>

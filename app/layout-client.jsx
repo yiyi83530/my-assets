@@ -27,6 +27,16 @@ const COST_BASIS_ADJUSTMENTS_KEY = 'my_assets_cost_basis_adjustments';
 const LIVE_DATA_CACHE_MS = 5 * 60 * 1000;
 const STOCK_QUOTE_TIMEOUT_MS = 8000;
 
+function hasAssetContent(asset) {
+  const name = String(asset?.name || '').trim();
+  const rawAmount = asset?.category === '外幣活存'
+    ? (asset?.amount ?? asset?.balance)
+    : asset?.balance;
+  const amount = Number(rawAmount);
+
+  return Boolean(name) || (Number.isFinite(amount) && amount !== 0);
+}
+
 async function fetchJsonWithTimeout(url, timeoutMs = STOCK_QUOTE_TIMEOUT_MS) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -434,20 +444,22 @@ export default function RootLayoutClient({ children }) {
   const handleSaveAssets = async () => {
     setIsSaveLoading(true);
     try {
+      const assetsToSave = assets.filter(hasAssetContent);
+      setAssets(assetsToSave);
       const { year, month } = manageModalContext;
       if (year && month) {
         const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-        const updatedMonthlyAssets = { ...monthlyAssets, [monthKey]: assets };
+        const updatedMonthlyAssets = { ...monthlyAssets, [monthKey]: assetsToSave };
         setMonthlyAssets(updatedMonthlyAssets);
 
         if (isSheetsConnected) {
-          await saveMonthlyAssetsToSheets(sheetsApiUrl, monthKey, assets);
-          
           // 如果儲存的是當前月份，也同步更新 master assets 表，確保最新狀態一致，這樣重新載入時才不會因為 getAll 回傳空值而蓋掉欄位
           const today = new Date();
-          if (Number(year) === today.getFullYear() && Number(month) === (today.getMonth() + 1)) {
-            await saveAssetsToSheets(assets);
-          }
+          const shouldSyncCurrentAssets = Number(year) === today.getFullYear() && Number(month) === (today.getMonth() + 1);
+          await Promise.all([
+            saveMonthlyAssetsToSheets(sheetsApiUrl, monthKey, assetsToSave),
+            ...(shouldSyncCurrentAssets ? [saveAssetsToSheets(assetsToSave)] : []),
+          ]);
         }
         displayToast(
           isSheetsConnected
@@ -457,7 +469,7 @@ export default function RootLayoutClient({ children }) {
         );
       } else {
         if (isSheetsConnected) {
-          await saveAssetsToSheets(assets);
+          await saveAssetsToSheets(assetsToSave);
         }
         displayToast(isSheetsConnected ? '資產負債餘額已同步儲存 🐷' : '已更新本機資料（尚未連線 Google Sheets）', 'success');
       }
@@ -478,11 +490,14 @@ export default function RootLayoutClient({ children }) {
   const handleAddNewAsset = (category = '台幣活存') => {
     const isForeign = category === '外幣活存';
     const isLiability = category === '負債項目';
+    const id = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? `new_${crypto.randomUUID()}`
+      : `new_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     setAssets([
       ...assets,
       {
-        id: 'new_' + Date.now(),
+        id,
         category,
         name: '',
         balance: '',
@@ -492,8 +507,16 @@ export default function RootLayoutClient({ children }) {
     ]);
   };
 
-  const handleRemoveAsset = (index) => {
-    setAssets(assets.filter((_, i) => i !== index));
+  const handleRemoveAsset = (index, id) => {
+    setAssets((prev) => {
+      if (id) {
+        const idMatches = prev.filter((item) => String(item.id || '') === String(id));
+        if (idMatches.length === 1) {
+          return prev.filter((item) => String(item.id || '') !== String(id));
+        }
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleSaveSettings = useCallback((market, newSettingsForMarket) => {

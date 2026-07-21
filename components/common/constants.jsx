@@ -86,4 +86,4 @@ export const INDUSTRY_COLORS = {
 };
 
 export const ASSETS_CATEGORIES = ['台幣活存', '外幣活存', '員工持股信託', '負債項目'];
-export const FOREIGN_CURRENCIES = ['USD', 'JPY', 'EUR', 'HKD', 'CNY', 'SGD'];
+export const FOREIGN_CURRENCIES = ['TWD', 'USD', 'JPY', 'EUR', 'HKD', 'CNY', 'SGD'];

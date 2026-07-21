@@ -1,4 +1,4 @@
-// 更新日期：2026-07-20（修改本檔案時請同步更新）
+// 更新日期：2026-07-21（修改本檔案時請同步更新）
 const SHEET_ASSETS = 'assets';
 const SHEET_TRANSACTIONS = 'transactions';
 const SHEET_MONTHLY_ASSETS = 'monthly_assets';
@@ -57,9 +57,9 @@ function rowsToObjects_(rows, headers) {
 }
 
 function clearAndWriteObjects_(sheet, headers, items) {
-  const maxRows = sheet.getMaxRows();
-  if (maxRows > 1) {
-    sheet.getRange(2, 1, maxRows - 1, headers.length).clearContent();
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, headers.length).clearContent();
   }
 
   if (!items || items.length === 0) return;
@@ -296,27 +296,24 @@ function upsertMonthlyAssets_(monthKey, assets) {
   const sheet = getOrCreateSheet_(SHEET_MONTHLY_ASSETS, MONTHLY_ASSET_HEADERS);
   const lastRow = sheet.getLastRow();
 
-  // 讀出所有現有列，先過濾掉「屬於這個月份」的舊資料，其餘月份原封不動保留
-  const existingRows = lastRow > 1
-    ? sheet.getRange(2, 1, lastRow - 1, MONTHLY_ASSET_HEADERS.length).getValues()
-    : [];
   const monthKeyIndex = MONTHLY_ASSET_HEADERS.indexOf('monthKey');
-  const keptRows = existingRows.filter((row) => String(row[monthKeyIndex]) !== key);
+
+  if (lastRow > 1) {
+    const monthKeys = sheet.getRange(2, monthKeyIndex + 1, lastRow - 1, 1).getValues();
+    for (let index = monthKeys.length - 1; index >= 0; index--) {
+      if (normalizeMonthKey_(monthKeys[index][0]) === key) {
+        sheet.deleteRow(index + 2);
+      }
+    }
+  }
 
   const normalized = (assets || []).map(normalizeAsset_);
   const newRows = normalized.map((asset) =>
     MONTHLY_ASSET_HEADERS.map((h) => (h === 'monthKey' ? key : (asset[h] !== undefined ? asset[h] : '')))
   );
 
-  const finalRows = keptRows.concat(newRows);
-
-  // 整張表清空後，把保留的舊月份資料＋這個月份的新資料一起寫回去
-  const maxRows = sheet.getMaxRows();
-  if (maxRows > 1) {
-    sheet.getRange(2, 1, maxRows - 1, MONTHLY_ASSET_HEADERS.length).clearContent();
-  }
-  if (finalRows.length > 0) {
-    sheet.getRange(2, 1, finalRows.length, MONTHLY_ASSET_HEADERS.length).setValues(finalRows);
+  if (newRows.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, MONTHLY_ASSET_HEADERS.length).setValues(newRows);
   }
 
   return { monthKey: key, count: normalized.length };
