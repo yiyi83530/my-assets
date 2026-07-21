@@ -866,7 +866,7 @@ export function StocksContent() {
     if (!scroller || !card) return;
     setMobileSection(section);
     scroller.scrollTo({
-      left: Math.max(0, card.offsetLeft - 4),
+      left: section === 'positions' ? 0 : scroller.scrollWidth - scroller.clientWidth,
       behavior,
     });
   };
@@ -968,11 +968,11 @@ export function StocksContent() {
       </div>
 
       {/* 手機版：滑動精簡入口卡，下方只顯示選中的完整內容。 */}
-      <div className="md:hidden">
+      <div className="-mx-4 md:hidden">
         <div
           ref={mobileSectionScrollerRef}
           onScroll={handleMobileSectionScroll}
-          className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="tablist"
           aria-label="選擇股票內容"
         >
@@ -1444,7 +1444,7 @@ export function StocksContent() {
                         <div className="flex items-center gap-1.5">
                           <span className="rounded-md bg-rose-50 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</span>
                           <h3 className="min-w-0 truncate text-[13px] font-bold text-slate-800">{displayName}</h3>
-                          {positionIndex === 0 && pos.hasQuote && !isQuoteValueLoading && <span className="shrink-0" title="市值占比第一名" aria-label="市值占比第一名"><CrownIcon /></span>}
+                          {positionIndex === 0 && <span className="shrink-0" title="目前排序第一名" aria-label="目前排序第一名"><CrownIcon /></span>}
                         </div>
                         <div className="mt-1.5 text-[10px] text-slate-400">
                           <div>持有 {pos.holdingQty.toLocaleString()} 股</div>
@@ -1552,7 +1552,7 @@ export function StocksContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activePositions.map((pos) => {
+                  {activePositions.map((pos, positionIndex) => {
                     const sharePercent =
                       currentTabRawTotalValue > 0 ? (pos.marketValue / currentTabRawTotalValue) * 100 : 0;
                     const nameParts = pos.name.split(' ');
@@ -1587,6 +1587,7 @@ export function StocksContent() {
                           <div className="flex items-center gap-2 whitespace-nowrap">
                             <span className="inline-flex shrink-0 rounded-md bg-rose-50 px-2 py-0.5 font-mono text-xs font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</span>
                             <span className="max-w-[180px] truncate text-sm text-slate-800">{displayName}</span>
+                            {positionIndex === 0 && <span className="shrink-0" title="目前排序第一名" aria-label="目前排序第一名"><CrownIcon /></span>}
                           </div>
                         </td>
 
