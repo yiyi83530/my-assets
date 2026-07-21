@@ -19,13 +19,7 @@ export function StockSummary(props) {
   return (
     <>
 {/* ── Summary Stats（台股+美股總和） ── */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-xs font-black text-slate-700">持股估值口徑</p>
-          <p className="mt-0.5 text-[10px] text-slate-400">
-            {usesNetLiquidationValue ? '已預扣賣出手續費與交易稅' : '賣出時才計入實際費用'}
-          </p>
-        </div>
+      <div className="mb-1 flex flex-wrap items-center justify-end gap-2">
         <ValuationModeControl value={valuationMode} onChange={setStockValuationMode} />
       </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">

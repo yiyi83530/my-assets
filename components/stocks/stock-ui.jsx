@@ -18,8 +18,8 @@ export function getIndustryColor(industry) {
 }
 
 export function tabBtnClass(active) {
-  return `px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-    active ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+  return `relative z-10 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+    active ? 'text-slate-800' : 'text-slate-500 hover:text-slate-700'
   }`;
 }
 

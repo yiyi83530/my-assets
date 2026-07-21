@@ -93,22 +93,32 @@ export function PositionsSection(props) {
             </button>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
-            <div className="grid w-full shrink-0 grid-cols-2 rounded-xl bg-slate-200/60 p-1 sm:w-auto" role="group" aria-label="選擇股票市場">
+            <div className="relative grid w-full shrink-0 grid-cols-2 rounded-xl bg-slate-200/60 p-1 sm:w-auto" role="radiogroup" aria-label="選擇股票市場">
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%_-_4px)] rounded-lg bg-white shadow-sm transition-transform duration-200 ease-out ${
+                  posTab === 'US' ? 'translate-x-full' : 'translate-x-0'
+                }`}
+              />
               <button
+                type="button"
                 onClick={() => setPosTab('TWSE')}
-                aria-pressed={posTab === 'TWSE'}
-                className={`flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all md:gap-2 ${
-                  posTab === 'TWSE' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                role="radio"
+                aria-checked={posTab === 'TWSE'}
+                className={`relative z-10 flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-colors md:gap-2 ${
+                  posTab === 'TWSE' ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 <MarketFlag market="TWSE" />
                 台股
               </button>
               <button
+                type="button"
                 onClick={() => setPosTab('US')}
-                aria-pressed={posTab === 'US'}
-                className={`flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all md:gap-2 ${
-                  posTab === 'US' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                role="radio"
+                aria-checked={posTab === 'US'}
+                className={`relative z-10 flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-colors md:gap-2 ${
+                  posTab === 'US' ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
                 <MarketFlag market="US" />
@@ -153,22 +163,32 @@ export function PositionsSection(props) {
             </button>
             {posTab === 'US' && (
               <div className="order-3 flex min-h-7 w-full min-w-0 items-center gap-2 sm:order-2 sm:w-auto sm:flex-1">
-                <div className="relative z-10 ml-auto grid shrink-0 grid-cols-2 rounded-lg bg-slate-200/60 p-0.5" role="group" aria-label="選擇顯示幣別">
+                <div className="relative z-10 ml-auto grid shrink-0 grid-cols-2 rounded-lg bg-slate-200/60 p-0.5" role="radiogroup" aria-label="選擇顯示幣別">
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute inset-y-0.5 left-0.5 w-[calc(50%_-_2px)] rounded-md bg-white shadow-sm transition-transform duration-200 ease-out ${
+                      displayCurrency === 'USD' ? 'translate-x-full' : 'translate-x-0'
+                    }`}
+                  />
                   <button
+                    type="button"
                     onClick={() => setDisplayCurrency('TWD')}
                     disabled={!usdToTwdRate}
-                    aria-pressed={displayCurrency === 'TWD'}
-                    className={`min-w-[54px] rounded-md px-2.5 py-1.5 text-[11px] font-bold transition ${
-                      displayCurrency === 'TWD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    role="radio"
+                    aria-checked={displayCurrency === 'TWD'}
+                    className={`relative z-10 min-w-[54px] rounded-md px-2.5 py-1.5 text-[11px] font-bold transition-colors ${
+                      displayCurrency === 'TWD' ? 'text-slate-800' : 'text-slate-500 hover:text-slate-700'
                     } ${!usdToTwdRate ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
                     TWD
                   </button>
                   <button
+                    type="button"
                     onClick={() => setDisplayCurrency('USD')}
-                    aria-pressed={displayCurrency === 'USD'}
-                    className={`min-w-[54px] rounded-md px-2.5 py-1.5 text-[11px] font-bold transition ${
-                      displayCurrency === 'USD' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    role="radio"
+                    aria-checked={displayCurrency === 'USD'}
+                    className={`relative z-10 min-w-[54px] rounded-md px-2.5 py-1.5 text-[11px] font-bold transition-colors ${
+                      displayCurrency === 'USD' ? 'text-slate-800' : 'text-slate-500 hover:text-slate-700'
                     }`}
                   >
                     USD

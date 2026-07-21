@@ -8,7 +8,7 @@ export default function TabsLayout({ children }) {
   const activeTab = pathname === '/assets' ? 'assets' : 'stocks';
 
   return (
-    <div className="space-y-6">
+    <div className={activeTab === 'stocks' ? 'space-y-3' : 'space-y-6'}>
       <TabNav activeTab={activeTab} />
       {children}
     </div>

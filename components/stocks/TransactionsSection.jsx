@@ -55,11 +55,17 @@ export function TransactionsSection(props) {
               </span>
               <h2 id="transactions-heading" className="whitespace-nowrap text-xl font-black tracking-tight text-slate-900 sm:text-2xl">歷史交易明細</h2>
             </div>
-            <div className="grid w-full grid-cols-2 items-center gap-1 rounded-xl bg-slate-100 p-0.5 sm:flex sm:w-auto">
-              <button onClick={() => setHistTab('TWSE')} className={tabBtnClass(histTab === 'TWSE')}>
+            <div className="relative grid w-full grid-cols-2 items-center rounded-xl bg-slate-100 p-0.5 sm:w-auto" role="radiogroup" aria-label="選擇交易市場">
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none absolute inset-y-0.5 left-0.5 w-[calc(50%_-_2px)] rounded-lg bg-white shadow-sm transition-transform duration-200 ease-out ${
+                  histTab === 'US' ? 'translate-x-full' : 'translate-x-0'
+                }`}
+              />
+              <button type="button" role="radio" aria-checked={histTab === 'TWSE'} onClick={() => setHistTab('TWSE')} className={tabBtnClass(histTab === 'TWSE')}>
                 <span className="inline-flex items-center justify-center gap-1.5 md:gap-2"><MarketFlag market="TWSE" />台股</span>
               </button>
-              <button onClick={() => setHistTab('US')} className={tabBtnClass(histTab === 'US')}>
+              <button type="button" role="radio" aria-checked={histTab === 'US'} onClick={() => setHistTab('US')} className={tabBtnClass(histTab === 'US')}>
                 <span className="inline-flex items-center justify-center gap-1.5 md:gap-2"><MarketFlag market="US" />美股</span>
               </button>
             </div>

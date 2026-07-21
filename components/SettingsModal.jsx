@@ -58,17 +58,23 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
           <div
             role="tablist"
             aria-label="選擇交易市場"
-            className="grid w-full grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1"
+            className="relative grid w-full grid-cols-2 rounded-2xl bg-slate-100 p-1"
           >
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%_-_4px)] rounded-xl bg-white shadow-sm transition-transform duration-200 ease-out ${
+                selectedMarket === 'US' ? 'translate-x-full' : 'translate-x-0'
+              }`}
+            />
             <button
               type="button"
               role="tab"
               aria-selected={selectedMarket === 'TWSE'}
               onClick={() => setSelectedMarket('TWSE')}
-              className={`icon-label flex min-h-11 w-full items-center justify-center rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-1 ${
+              className={`icon-label relative z-10 flex min-h-11 w-full items-center justify-center rounded-xl px-3 py-2.5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-1 ${
                 selectedMarket === 'TWSE'
-                  ? 'border-rose-100 bg-white text-slate-900 shadow-sm'
-                  : 'border-transparent text-slate-500 hover:bg-white/60 hover:text-slate-700'
+                  ? 'text-slate-900'
+                  : 'text-slate-500 hover:bg-white/60 hover:text-slate-700'
               }`}
             >
               <span aria-hidden="true">📈</span><span>台股設定</span>
@@ -78,10 +84,10 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
               role="tab"
               aria-selected={selectedMarket === 'US'}
               onClick={() => setSelectedMarket('US')}
-              className={`icon-label flex min-h-11 w-full items-center justify-center rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-1 ${
+              className={`icon-label relative z-10 flex min-h-11 w-full items-center justify-center rounded-xl px-3 py-2.5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-1 ${
                 selectedMarket === 'US'
-                  ? 'border-rose-100 bg-white text-slate-900 shadow-sm'
-                  : 'border-transparent text-slate-500 hover:bg-white/60 hover:text-slate-700'
+                  ? 'text-slate-900'
+                  : 'text-slate-500 hover:bg-white/60 hover:text-slate-700'
               }`}
             >
               <span aria-hidden="true">🇺🇸</span><span>美股設定</span>
