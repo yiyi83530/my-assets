@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:sheets": "node scripts/sheets-smoke-test.mjs"
+    "test:sheets": "node scripts/sheets-smoke-test.mjs",
+    "test:portfolio": "node scripts/portfolio-scenarios-test.mjs"
   },
   "dependencies": {
     "next": "^16.2.9",

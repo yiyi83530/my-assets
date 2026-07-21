@@ -458,6 +458,7 @@ export default function RootLayoutClient({ children }) {
         monthKey: key,
         holdingQty: Number(snapshot.holdingQty) || 0,
         avgCost: Number(snapshot.avgCost) || 0,
+        effectiveAt: String(snapshot.effectiveAt || ''),
       }));
 
     const snapshotBeforeSave = stockHoldingSnapshots;
@@ -473,7 +474,7 @@ export default function RootLayoutClient({ children }) {
       }
       displayToast(
         isSheetsConnected
-          ? `已儲存 ${key} 月底持股快照`
+          ? `已儲存 ${key} 持股快照，後續交易會接續計算`
           : `已更新本機模擬持股快照（${key}，重新整理後會還原）`,
         'success'
       );

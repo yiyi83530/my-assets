@@ -3,12 +3,31 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useApp } from '@/lib/app-context';
+import { calculateStockPortfolio } from '@/lib/calculations';
 import { INDUSTRY_COLORS, INDUSTRY_MAP } from '@/components/common/constants';
 import { demoInitialPrices } from '@/lib/demo-stock-data';
 import { normalizeStockSymbol } from '@/lib/stock-symbol';
 
 const LEGACY_INDUSTRY_SETTINGS_STORAGE_KEY = 'my-assets-industry-categories-v1';
 const CUSTOM_INDUSTRY_COLORS = ['#a855f7', '#f43f5e', '#0ea5e9', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6'];
+
+function getLocalMonthKey(date = new Date()) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getSnapshotEffectiveAt(monthKey, now = new Date()) {
+  if (monthKey === getLocalMonthKey(now)) return now.toISOString();
+  const [year, month] = String(monthKey || '').split('-').map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month)) return now.toISOString();
+  return new Date(year, month, 0, 23, 59, 59, 999).toISOString();
+}
+
+function getMonthEndDateString(monthKey) {
+  const [year, month] = String(monthKey || '').split('-').map(Number);
+  if (!Number.isInteger(year) || !Number.isInteger(month)) return '';
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
 
 function normalizeIndustrySymbol(symbol) {
   return String(symbol || '').trim().toUpperCase();
@@ -55,103 +74,14 @@ function parseIndustrySymbols(value) {
     .filter(Boolean))];
 }
 
-function getMonthEndDateString(monthKey) {
-  const [year, month] = String(monthKey || '').split('-').map(Number);
-  if (!Number.isInteger(year) || !Number.isInteger(month)) return '';
-  const lastDay = new Date(year, month, 0).getDate();
-  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-}
-
 function buildBasePositions(txList, costBasisAdjustments = [], holdingSnapshots = []) {
-  const latestSnapshotsByStock = (holdingSnapshots || []).reduce((map, snapshot) => {
-    const stock = String(snapshot?.stock || '').trim();
-    const monthKey = String(snapshot?.monthKey || '').slice(0, 7);
-    if (!stock || !monthKey) return map;
-    if (!map[stock] || monthKey > String(map[stock].monthKey || '')) {
-      map[stock] = snapshot;
-    }
-    return map;
-  }, {});
-  const map = Object.values(latestSnapshotsByStock).reduce((acc, snapshot) => {
-    const holdingQty = Number(snapshot.holdingQty) || 0;
-    const avgCost = Number(snapshot.avgCost) || 0;
-    if (!snapshot.stock || holdingQty <= 0) return acc;
-    acc[snapshot.stock] = {
-      name: snapshot.stock,
-      symbol: normalizeStockSymbol(snapshot.symbol || snapshot.stock.split(' ')[0], snapshot.stock, snapshot.market),
-      market: snapshot.market || 'TWSE',
-      holdingQty,
-      totalBuyCost: holdingQty * avgCost,
-      snapshotMonthKey: snapshot.monthKey,
-    };
-    return acc;
-  }, {});
-  const sorted = [
-    ...(txList || [])
-      .filter((tx) => {
-        const snapshot = latestSnapshotsByStock[tx.stock];
-        if (!snapshot) return true;
-        return String(tx.date || '') > getMonthEndDateString(snapshot.monthKey);
-      })
-      .map((tx) => ({
-        kind: 'transaction',
-        timestamp: new Date(String(tx.recordedAt || '').startsWith(String(tx.date || '')) ? tx.recordedAt : `${tx.date}T12:00:00`).getTime(),
-        data: tx,
-      })),
-    ...(costBasisAdjustments || [])
-      .filter((adjustment) => {
-        const snapshot = latestSnapshotsByStock[adjustment.stock];
-        if (!snapshot) return true;
-        return String(adjustment.effectiveAt || '').slice(0, 10) > getMonthEndDateString(snapshot.monthKey);
-      })
-      .map((adjustment) => ({
-        kind: 'cost_adjustment',
-        timestamp: new Date(adjustment.effectiveAt).getTime(),
-        data: adjustment,
-      })),
-  ].sort((a, b) => a.timestamp - b.timestamp || (a.kind === 'transaction' ? -1 : 1));
-
-  sorted.forEach((event) => {
-    if (event.kind === 'cost_adjustment') {
-      const adjustment = event.data;
-      const pos = map[adjustment.stock];
-      const avgCost = Number(adjustment.avgCost);
-      if (pos?.holdingQty > 0 && Number.isFinite(avgCost) && avgCost >= 0) {
-        pos.totalBuyCost = avgCost * pos.holdingQty;
-      }
-      return;
-    }
-    const tx = event.data;
-    const key = tx.stock;
-    if (!map[key]) {
-      map[key] = {
-        name: tx.stock,
-        symbol: normalizeStockSymbol(tx.symbol || tx.stock.split(' ')[0], tx.stock, tx.market),
-        market: tx.market || 'TWSE',
-        holdingQty: 0,
-        totalBuyCost: 0,
-      };
-    }
-    const pos = map[key];
-    pos.symbol = pos.symbol || normalizeStockSymbol(tx.symbol || tx.stock.split(' ')[0], tx.stock, tx.market);
-    pos.market = pos.market || tx.market || 'TWSE';
-    if (tx.type === 'buy') {
-      pos.holdingQty += Number(tx.qty);
-      pos.totalBuyCost += Number(tx.actualAmount);
-    } else if (tx.type === 'sell' && pos.holdingQty > 0) {
-      const sold = Math.min(Number(tx.qty), pos.holdingQty);
-      const ratio = sold / pos.holdingQty;
-      pos.holdingQty -= sold;
-      pos.totalBuyCost *= 1 - ratio;
-    }
-  });
-
-  return Object.values(map)
-    .filter((p) => p.holdingQty > 0)
-    .map((p) => ({
-      ...p,
-      avgCost: p.holdingQty > 0 ? p.totalBuyCost / p.holdingQty : 0,
-    }));
+  return calculateStockPortfolio(
+    txList,
+    {},
+    costBasisAdjustments,
+    {},
+    holdingSnapshots
+  ).positions;
 }
 
 function tabBtnClass(active) {
@@ -327,7 +257,7 @@ export function StocksContent() {
   const [pendingCostChange, setPendingCostChange] = useState(null);
   const [isSavingCost, setIsSavingCost] = useState(false);
   const [showHoldingSnapshotModal, setShowHoldingSnapshotModal] = useState(false);
-  const [holdingSnapshotMonth, setHoldingSnapshotMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [holdingSnapshotMonth, setHoldingSnapshotMonth] = useState(() => getLocalMonthKey());
   const [holdingDrafts, setHoldingDrafts] = useState([]);
   const [isSavingHoldingSnapshot, setIsSavingHoldingSnapshot] = useState(false);
   const [liveQuoteClock, setLiveQuoteClock] = useState(() => Date.now());
@@ -586,33 +516,35 @@ export function StocksContent() {
     note: '',
   });
 
+  const buildHoldingDraftsForMonth = (monthKey) => {
+    const positions = monthKey === getLocalMonthKey()
+      ? basePositions
+      : calculateStockPortfolio(
+        transactions,
+        {},
+        costBasisAdjustments,
+        {},
+        stockHoldingSnapshots,
+        { cutoffDate: getMonthEndDateString(monthKey), cutoffMonth: monthKey }
+      ).positions;
+    return positions.map((position) => ({
+      id: `holding_${monthKey}_${position.symbol || position.name}`,
+      market: position.market || 'TWSE',
+      symbol: position.symbol || normalizeStockSymbol(position.name.split(' ')[0], position.name, position.market),
+      stock: position.name,
+      holdingQty: String(position.holdingQty ?? ''),
+      avgCost: String(position.avgCost ?? ''),
+      note: position.note || '',
+    }));
+  };
+
   const openHoldingSnapshotEditor = () => {
-    const currentMonthKey = new Date().toISOString().slice(0, 7);
-    const exactSnapshots = (stockHoldingSnapshots || []).filter(
-      (snapshot) => String(snapshot.monthKey || '').slice(0, 7) === currentMonthKey
-    );
-    const sourceRows = exactSnapshots.length > 0
-      ? exactSnapshots
-      : basePositions.map((position) => ({
-        id: `holding_${currentMonthKey}_${position.symbol || position.name}`,
-        market: position.market || 'TWSE',
-        symbol: position.symbol || normalizeStockSymbol(position.name.split(' ')[0], position.name, position.market),
-        stock: position.name,
-        holdingQty: position.holdingQty,
-        avgCost: position.avgCost,
-        note: exactSnapshots.length > 0 ? position.note : '',
-      }));
+    const currentMonthKey = getLocalMonthKey();
+    // 每次都以「目前計算出的完整持股」開啟，確保同月快照後新增的交易也出現在下一次校正中。
+    const sourceRows = buildHoldingDraftsForMonth(currentMonthKey);
 
     setHoldingSnapshotMonth(currentMonthKey);
-    setHoldingDrafts(sourceRows.length > 0 ? sourceRows.map((row) => ({
-      id: row.id || `holding_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      market: row.market || 'TWSE',
-      symbol: row.symbol || normalizeStockSymbol(String(row.stock || '').split(' ')[0], row.stock, row.market),
-      stock: row.stock || '',
-      holdingQty: String(row.holdingQty ?? ''),
-      avgCost: String(row.avgCost ?? ''),
-      note: row.note || '',
-    })) : [createEmptyHoldingDraft()]);
+    setHoldingDrafts(sourceRows.length > 0 ? sourceRows : [createEmptyHoldingDraft()]);
     setShowHoldingSnapshotModal(true);
   };
 
@@ -623,7 +555,8 @@ export function StocksContent() {
   };
 
   const saveHoldingSnapshotDrafts = async () => {
-    const rows = holdingDrafts
+    const effectiveAt = getSnapshotEffectiveAt(holdingSnapshotMonth);
+    const enteredRows = holdingDrafts
       .map((row) => {
         const stock = String(row.stock || '').trim();
         const market = row.market === 'US' ? 'US' : 'TWSE';
@@ -637,16 +570,37 @@ export function StocksContent() {
           holdingQty: Number(row.holdingQty) || 0,
           avgCost: Number(row.avgCost) || 0,
           note: String(row.note || ''),
+          effectiveAt,
         };
       })
       .filter((row) => row.stock && row.holdingQty >= 0);
+    const enteredStocks = new Set(enteredRows.map((row) => row.stock));
+    const knownStocks = [...(transactions || []), ...(stockHoldingSnapshots || [])].reduce((map, item) => {
+      const stock = String(item?.stock || '').trim();
+      if (stock && !map.has(stock)) map.set(stock, item);
+      return map;
+    }, new Map());
+    const closedRows = [...knownStocks.entries()]
+      .filter(([stock]) => !enteredStocks.has(stock))
+      .map(([stock, item]) => ({
+        id: `holding_${holdingSnapshotMonth}_${item.symbol || stock}_closed`,
+        monthKey: holdingSnapshotMonth,
+        market: item.market === 'US' ? 'US' : 'TWSE',
+        symbol: normalizeStockSymbol(item.symbol || stock.split(' ')[0], stock, item.market),
+        stock,
+        holdingQty: 0,
+        avgCost: 0,
+        note: '快照時已無持股',
+        effectiveAt,
+      }));
+    const rows = [...enteredRows, ...closedRows];
 
     setIsSavingHoldingSnapshot(true);
     try {
       await saveStockHoldingSnapshots(holdingSnapshotMonth, rows);
       setShowHoldingSnapshotModal(false);
     } catch (error) {
-      displayToast(`月底持股快照儲存失敗：${error.message || '請稍後再試'}`, 'error');
+      displayToast(`持股快照儲存失敗：${error.message || '請稍後再試'}`, 'error');
     } finally {
       setIsSavingHoldingSnapshot(false);
     }
@@ -1071,7 +1025,7 @@ export function StocksContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 8a2 2 0 012-2h2l1.2-1.6A1 1 0 0110 4h4a1 1 0 01.8.4L16 6h2a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
                 <circle cx="12" cy="13" r="3.25" />
               </svg>
-              月底快照
+              持股快照
             </button>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
@@ -2236,14 +2190,14 @@ export function StocksContent() {
           <div className="flex h-[82vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
             <div className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-4 py-3">
               <div>
-                <h3 className="text-sm font-black text-slate-900">月底持股快照</h3>
-                <p className="mt-0.5 text-[11px] text-slate-500">以券商帳戶的月底股數與平均成本為準；沒有交易紀錄也能計算每月股票市值。</p>
+                <h3 className="text-sm font-black text-slate-900">持股快照</h3>
+                <p className="mt-0.5 text-[11px] text-slate-500">用券商帳戶的實際股數與平均成本校正；快照後的交易會繼續自動累加。</p>
               </div>
               <button
                 type="button"
                 onClick={() => !isSavingHoldingSnapshot && setShowHoldingSnapshotModal(false)}
                 className="rounded-lg px-2 py-1 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
-                aria-label="關閉月底持股快照"
+                aria-label="關閉持股快照"
               >
                 ✕
               </button>
@@ -2255,10 +2209,21 @@ export function StocksContent() {
                 <input
                   type="month"
                   value={holdingSnapshotMonth}
-                  onChange={(event) => setHoldingSnapshotMonth(event.target.value)}
+                  onChange={(event) => {
+                    const monthKey = event.target.value;
+                    const rows = buildHoldingDraftsForMonth(monthKey);
+                    setHoldingSnapshotMonth(monthKey);
+                    setHoldingDrafts(rows.length > 0 ? rows : [createEmptyHoldingDraft()]);
+                  }}
+                  max={getLocalMonthKey()}
                   className="h-8 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-800 outline-none transition focus:border-rose-200 focus:bg-white focus:ring-2 focus:ring-rose-100"
                 />
               </label>
+              <p className="mt-1.5 text-[10px] leading-4 text-slate-400">
+                {holdingSnapshotMonth === getLocalMonthKey()
+                  ? '本月快照從儲存當下生效；今天之後新增的交易仍會接續計算。'
+                  : '補登過去月份時，快照視為該月月底狀態；較晚月份的交易仍會接續計算。'}
+              </p>
             </div>
 
             <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
@@ -2267,7 +2232,7 @@ export function StocksContent() {
                   <span>市場</span>
                   <span>代碼</span>
                   <span>股票名稱</span>
-                  <span>月底股數</span>
+                  <span>快照股數</span>
                   <span>平均成本</span>
                   <span />
                 </div>

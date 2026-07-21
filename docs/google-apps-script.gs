@@ -1,4 +1,4 @@
-// 更新日期：2026-07-21｜版本：V1.0.0（修改本檔案時請同步更新；同日持續修改時依序遞增修訂號）
+// 更新日期：2026-07-22｜版本：V1.0.0（修改本檔案時請同步更新；同日持續修改時依序遞增修訂號）
 const SHEET_ASSETS = 'assets';
 const SHEET_TRANSACTIONS = 'transactions';
 const SHEET_MONTHLY_ASSETS = 'monthly_assets';
@@ -22,7 +22,7 @@ const TX_HEADERS = [
 ];
 // monthKey 額外放在第一欄，後面欄位跟 ASSET_HEADERS 一致，方便沿用既有的 normalize 邏輯
 const MONTHLY_ASSET_HEADERS = ['monthKey'].concat(ASSET_HEADERS);
-const STOCK_HOLDING_SNAPSHOT_HEADERS = ['id', 'monthKey', 'market', 'symbol', 'stock', 'holdingQty', 'avgCost', 'note'];
+const STOCK_HOLDING_SNAPSHOT_HEADERS = ['id', 'monthKey', 'market', 'symbol', 'stock', 'holdingQty', 'avgCost', 'note', 'effectiveAt'];
 const COST_BASIS_ADJUSTMENT_HEADERS = ['id', 'stock', 'market', 'effectiveAt', 'avgCost', 'holdingQty', 'totalCostBasis'];
 const INDUSTRY_CATEGORY_HEADERS = ['category', 'symbols'];
 
@@ -153,6 +153,7 @@ function normalizeStockHoldingSnapshot_(snapshot) {
     holdingQty: Number(snapshot.holdingQty || 0),
     avgCost: Number(snapshot.avgCost || 0),
     note: String(snapshot.note || ''),
+    effectiveAt: String(snapshot.effectiveAt || ''),
   };
 }
 

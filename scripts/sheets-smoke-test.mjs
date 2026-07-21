@@ -7,6 +7,7 @@ import {
   fetchSheetsData,
   removeTransactionFromSheets,
   saveMonthlyAssetsToSheets,
+  saveStockHoldingSnapshotsToSheets,
   testSheetsConnection,
   upsertAssetsToSheets,
 } from '../lib/sheets-client.js';
@@ -31,6 +32,7 @@ const state = {
     },
   ],
   monthlyAssets: {},
+  stockHoldingSnapshots: [],
 };
 
 const server = http.createServer((req, res) => {
@@ -84,6 +86,12 @@ const server = http.createServer((req, res) => {
       return;
     }
 
+    if (action === 'upsertStockHoldingSnapshots') {
+      state.stockHoldingSnapshots = payload.snapshots || [];
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
     res.statusCode = 400;
     res.end(JSON.stringify({ ok: false, message: `unknown action: ${action}` }));
   });
@@ -133,6 +141,16 @@ async function run() {
 
   await removeTransactionFromSheets(url, 't1');
 
+  await saveStockHoldingSnapshotsToSheets(url, '2026-07', [{
+    id: 's1',
+    market: 'TWSE',
+    symbol: '2330',
+    stock: '2330 台積電',
+    holdingQty: 10,
+    avgCost: 100,
+    effectiveAt: '2026-07-15T08:00:00.000Z',
+  }]);
+
   const second = await fetchSheetsData(url);
   if (second.assets.length !== 1 || second.assets[0].id !== 'a3') {
     throw new Error('Asset replacement failed');
@@ -142,6 +160,10 @@ async function run() {
   }
   if (second.transactions.length !== 1 || second.transactions[0].id !== 't2') {
     throw new Error('Transaction append/remove failed');
+  }
+  if (second.stockHoldingSnapshots.length !== 1
+    || second.stockHoldingSnapshots[0].effectiveAt !== '2026-07-15T08:00:00.000Z') {
+    throw new Error('Stock holding snapshot effectiveAt failed');
   }
 
   const monthly = await fetchMonthlyAssetsFromSheets(url);

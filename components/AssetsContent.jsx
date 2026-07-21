@@ -128,6 +128,8 @@ export function AssetsContent() {
     monthlyNetWorth: realMonthlyNetWorth,
     transactions: realTransactions,
     stockMarketPrices: contextStockMarketPrices,
+    stockQuoteMeta,
+    isStockPricesLoading,
     stockMonthlyClosePrices,
     stockHoldingSnapshots,
     refreshStockPrices,
@@ -363,16 +365,30 @@ export function AssetsContent() {
 
   // ─── 依「選定年月」算出當月底持倉與淨值總覽（兩者都會隨年月切換重新計算） ───
   const lastDayOfSelectedMonth = getMonthEndDateString(selectedMonthKey);
+  const currentMonthKey = `${currentYearReal}-${String(currentMonthReal).padStart(2, '0')}`;
+  const isCurrentMonthSelected = selectedMonthKey === currentMonthKey;
 
   const portfolioAtSelectedMonth = useMemo(() => {
-    const txUpToMonth = (activeTransactions || []).filter((tx) => tx.date <= lastDayOfSelectedMonth);
-    const selectedMonthPrices = getMonthPriceMap(selectedMonthKey, stockMonthlyClosePrices, prices);
+    // 本月必須與「股票庫存」使用同一份完整交易及即時報價；只有歷史月份才做月底截點。
+    const selectedTransactions = isCurrentMonthSelected
+      ? activeTransactions
+      : (activeTransactions || []).filter((tx) => String(tx.date || '').slice(0, 10) <= lastDayOfSelectedMonth);
+    const selectedMonthPrices = isCurrentMonthSelected
+      ? prices
+      : getMonthPriceMap(selectedMonthKey, stockMonthlyClosePrices, prices);
     const selectedMonthAdjustments = getAdjustmentsUpTo(costBasisAdjustments, lastDayOfSelectedMonth);
-    return calculateStockPortfolio(txUpToMonth, selectedMonthPrices, selectedMonthAdjustments, fxRates, stockHoldingSnapshots, {
-      cutoffDate: lastDayOfSelectedMonth,
-      cutoffMonth: selectedMonthKey,
-    });
-  }, [activeTransactions, lastDayOfSelectedMonth, selectedMonthKey, prices, stockMonthlyClosePrices, stockHoldingSnapshots, costBasisAdjustments, fxRates]);
+    const cutoffOptions = isCurrentMonthSelected
+      ? {}
+      : { cutoffDate: lastDayOfSelectedMonth, cutoffMonth: selectedMonthKey };
+    return calculateStockPortfolio(
+      selectedTransactions,
+      selectedMonthPrices,
+      selectedMonthAdjustments,
+      fxRates,
+      stockHoldingSnapshots,
+      cutoffOptions
+    );
+  }, [activeTransactions, isCurrentMonthSelected, lastDayOfSelectedMonth, selectedMonthKey, prices, stockMonthlyClosePrices, stockHoldingSnapshots, costBasisAdjustments, fxRates]);
 
   const previousMonthKey = getPreviousMonthKey(selectedYear, selectedMonth);
   const previousMonthSummaryNetWorth = useMemo(() => {
@@ -391,6 +407,11 @@ export function AssetsContent() {
 
   const activePortfolio = portfolioAtSelectedMonth;
   const totalStocks = activePortfolio?.currentPortfolioValue || 0;
+  const isStockValueLoading = isSheetsConnected
+    && isStockPricesLoading
+    && (activePortfolio?.positions || []).some((position) => (
+      prices[position.name] == null && stockQuoteMeta?.[position.name]?.status !== 'unavailable'
+    ));
 
   const totalNtd = displayNtd.reduce((sum, item) => sum + (Number(item.balance) || 0), 0);
   const totalForeign = displayForeign.reduce((sum, item) => sum + (Number(item.convertedBalance ?? item.balance) || 0), 0);
@@ -424,6 +445,7 @@ export function AssetsContent() {
 
   // 初始資料尚未完成時保留完整頁面結構，只遮住依賴遠端資料的數值。
   const isAssetScreenLoading = isAppInitializing;
+  const isNetWorthLoading = isAssetScreenLoading || isStockValueLoading;
 
   return (
     <>
@@ -451,7 +473,7 @@ export function AssetsContent() {
             <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">個人淨資產</p>
           </div>
           <p className="text-4xl font-black text-slate-900">
-            {isAssetScreenLoading ? (
+            {isNetWorthLoading ? (
               <SummaryValueSkeleton />
             ) : displayNetWorth !== 0 ? (
               `$${displayNetWorth.toLocaleString()}`
@@ -461,7 +483,7 @@ export function AssetsContent() {
               `$0`
             )}
           </p>
-          {isAssetScreenLoading ? (
+          {isNetWorthLoading ? (
             <SummaryValueSkeleton className="mt-3 h-4 w-40" />
           ) : (
             <p className={`mt-3 flex items-center text-xs font-bold ${displayNetGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -480,7 +502,7 @@ export function AssetsContent() {
                 <span className="text-[10px] font-medium text-slate-400">單位：新台幣</span>
               </div>
               <div className="h-44 flex items-center justify-center">
-                {isAssetScreenLoading ? (
+                {isNetWorthLoading ? (
                   <div className="h-full w-full animate-pulse rounded-lg bg-rose-100/70" aria-label="趨勢資料載入中" />
                 ) : chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -508,7 +530,7 @@ export function AssetsContent() {
           <p className="mt-3 mb-3 hidden text-left text-[11px] text-slate-400 md:block">將滑鼠移動到圓餅圖上，即可顯示該資產名稱及餘額！</p>
           <div className="h-40 w-full flex items-center justify-center">
             <div className="h-full w-full scale-[0.78] transition-transform md:scale-100">
-              {isAssetScreenLoading ? (
+              {isNetWorthLoading ? (
                 <div className="mx-auto h-32 w-32 animate-pulse rounded-full border-[22px] border-slate-200/80" aria-label="配置資料載入中" />
               ) : allocationData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -527,7 +549,7 @@ export function AssetsContent() {
 
           {/* 簡易圖例與數值 */}
           <div className="mt-2 w-full space-y-1.5">
-            {isAssetScreenLoading ? [0, 1, 2].map((item) => (
+            {isNetWorthLoading ? [0, 1, 2].map((item) => (
               <div key={item} className="flex items-center justify-between">
                 <span className="h-3 w-20 animate-pulse rounded bg-slate-200/80" />
                 <span className="h-3 w-24 animate-pulse rounded bg-slate-200/80" />
