@@ -581,11 +581,11 @@ export function AssetsContent() {
             <span className="text-xs text-slate-500">選擇年月查看該月資產及負債</span>
           </div>
           <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
-            <div className="order-2 col-span-2 flex items-center justify-end gap-3 md:order-none md:justify-start md:gap-2">
+            <div className="order-2 col-span-2 flex items-center justify-end gap-1 md:order-none md:justify-start">
               <button
                 type="button"
                 onClick={selectPreviousMonth}
-                className="rounded-md px-1 py-0.5 text-[10px] font-medium text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 md:rounded-xl md:border md:border-rose-200 md:bg-rose-50 md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-rose-700 md:hover:bg-rose-100"
+                className="px-1 py-0.5 text-[10px] font-medium text-rose-500 transition hover:text-rose-600 md:py-1.5 md:text-xs md:font-semibold md:text-rose-700"
               >
                 ← 上個月
               </button>
@@ -593,7 +593,7 @@ export function AssetsContent() {
                 type="button"
                 onClick={selectCurrentMonth}
                 disabled={selectedYear === currentYearReal && selectedMonth === currentMonthReal}
-                className="rounded-md px-1 py-0.5 text-[10px] font-medium text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 disabled:cursor-default disabled:bg-transparent disabled:text-slate-300 md:rounded-xl md:border md:border-slate-200 md:bg-slate-100 md:px-3 md:py-1.5 md:text-xs md:font-semibold md:text-slate-500 md:hover:bg-slate-200 md:disabled:text-slate-400"
+                className="px-1 py-0.5 text-[10px] font-medium text-slate-400 transition hover:text-slate-600 disabled:cursor-default disabled:text-slate-300 md:py-1.5 md:text-xs md:font-semibold md:text-slate-500 md:disabled:text-slate-400"
               >
                 <span className="md:hidden">回本月</span>
                 <span className="hidden md:inline">回到本月</span>
