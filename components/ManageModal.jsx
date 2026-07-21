@@ -145,10 +145,6 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
-          <p className="mb-4 text-xs text-slate-400">
-            手動輸入或更新各大銀行、信託、借貸 or 信用卡的名稱與目前金額。更新後點選「全部儲存」將即時同步至 Google Sheets。
-          </p>
-
           <div className="sticky top-0 z-30 -mx-6 mb-3 border-b border-slate-100 bg-white px-6 pb-3 pt-1">
             <div className="rounded-xl border border-rose-100 bg-rose-50/40 p-1.5 shadow-sm">
               <div className="grid grid-cols-4 gap-1.5">
