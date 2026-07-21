@@ -452,7 +452,7 @@ export function AssetsContent() {
       {!isAssetScreenLoading && !isSheetsConnected && (
         <div className={`mb-4 rounded-2xl border p-4 shadow-sm border-rose-100 bg-rose-50/70`}>
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div className="flex items-start gap-3">
+            <div className="icon-label flex items-start">
               <div className="mt-0.5 rounded-lg border bg-white p-1 border-rose-100 text-rose-500">☁️</div>
               <div>
                 <h4 className="text-sm font-semibold text-rose-950">目前為單機演示模式</h4>
@@ -466,8 +466,8 @@ export function AssetsContent() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="card p-6 md:col-span-2">
+      <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-3">
+        <div className="card h-full p-6 md:col-span-2">
           <div className="mb-4 flex items-center gap-2">
             <span className="hidden rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600 md:inline-flex">淨值總覽</span>
             <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">個人淨資產</p>
@@ -486,8 +486,8 @@ export function AssetsContent() {
           {isNetWorthLoading ? (
             <SummaryValueSkeleton className="mt-3 h-4 w-40" />
           ) : (
-            <p className={`mt-3 flex items-center text-xs font-bold ${displayNetGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-              較上月 <span className="mx-1 text-[10px]">{displayNetGrowth >= 0 ? '▲' : '▼'}</span> ${displayNetGrowth.toLocaleString()} ({displayGrowthRate.toFixed(2)}%)
+            <p className={`icon-label mt-3 flex items-center text-xs font-bold ${displayNetGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              <span>較上月</span><span className="text-[10px]" aria-hidden="true">{displayNetGrowth >= 0 ? '▲' : '▼'}</span><span>${displayNetGrowth.toLocaleString()} ({displayGrowthRate.toFixed(2)}%)</span>
             </p>
           )}
 
@@ -498,7 +498,7 @@ export function AssetsContent() {
           <div className={`${isTrendOpen ? 'block' : 'hidden'} md:block`}>
             <div className="mt-3 h-64 rounded-xl border border-rose-100 bg-rose-50/40 p-4">
               <div className="mb-4 flex items-center justify-between">
-                <h4 className="text-s font-bold uppercase tracking-wider text-slate-500">📈 資產淨值變動趨勢</h4>
+                <h4 className="icon-label inline-flex items-center text-s font-bold uppercase tracking-wider text-slate-500"><span aria-hidden="true">📈</span><span>資產淨值變動趨勢</span></h4>
                 <span className="text-[10px] font-medium text-slate-400">單位：新台幣</span>
               </div>
               <div className="h-44 flex items-center justify-center">
@@ -522,7 +522,7 @@ export function AssetsContent() {
           </div>
         </div>
 
-        <div className="card flex flex-col justify-center p-6">
+        <div className="card flex h-full flex-col p-6">
           <div className="mb-2 flex items-center gap-2">
             <span className="hidden rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-600 md:inline-flex">配置分析</span>
             <h3 className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">資產配置比例</h3>
@@ -558,7 +558,7 @@ export function AssetsContent() {
               const percent = totalAssets > 0 ? (item.value / totalAssets) * 100 : 0;
               return (
                 <div key={item.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                  <div className="icon-label flex items-center">
                     <div className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
                     <span className="text-[11px] font-medium text-slate-500">{item.name}</span>
                   </div>

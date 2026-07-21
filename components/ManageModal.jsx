@@ -128,8 +128,8 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl flex h-[90vh] flex-col max-h-[90vh]">
         <div className="flex items-center justify-between border-b border-rose-100 px-6 py-4 shrink-0">
           <div>
-            <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-              ✎ 管理活存與負債餘額
+            <h3 className="icon-label flex items-center text-sm font-bold text-slate-900">
+              <span aria-hidden="true">✎</span><span>管理活存與負債餘額</span>
             </h3>
             {editingMonth && (
               <p className="mt-1 text-xs text-slate-500">
@@ -324,10 +324,10 @@ export function ManageAccountsModal({ isOpen, onClose, assets, onSave, onAddNew,
             disabled={isSaving}
             className={`w-1/2 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition ${
               isSaving ? 'cursor-not-allowed opacity-70' : 'hover:bg-rose-600'
-            } flex items-center justify-center gap-2`}
+            } icon-label flex items-center justify-center`}
           >
             {isSaving && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
-            {isSaving ? '儲存中...' : '同步儲存 🐷'}
+            {isSaving ? '儲存中...' : <><span>同步儲存</span><span aria-hidden="true">🐷</span></>}
           </button>
         </div>
       </div>
@@ -393,7 +393,7 @@ export function CustomDialog({
               key={idx}
               disabled={isConfirmLoading}
               onClick={() => !isConfirmLoading && btn.onClick()}
-              className={`flex-1 rounded-xl py-2.5 text-sm font-bold transition flex items-center justify-center gap-2 ${
+              className={`icon-label flex flex-1 items-center justify-center rounded-xl py-2.5 text-sm font-bold transition ${
                 btn.isPrimary
                   ? 'bg-rose-500 text-white shadow-sm shadow-rose-200 hover:bg-rose-600 disabled:opacity-50'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-50'

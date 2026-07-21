@@ -61,7 +61,7 @@ export function PositionHoldings(props) {
                   <article key={pos.name} className="px-3.5 py-3">
                     <div className="flex items-start justify-between gap-2.5">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           <span className="rounded-md bg-rose-50 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</span>
                           <h3 className="min-w-0 truncate text-[13px] font-bold text-slate-800">{displayName}</h3>
                           {positionIndex === 0 && <span className="shrink-0" title="目前排序第一名" aria-label="目前排序第一名"><CrownIcon /></span>}
@@ -135,7 +135,7 @@ export function PositionHoldings(props) {
                             )}
                           </div>
                         ) : (
-                          <button type="button" onClick={() => startEditingCost(pos, avgCost)} className="mt-0.5 inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-700" aria-label={`修改 ${displayName} 平均成本`}>
+                          <button type="button" onClick={() => startEditingCost(pos, avgCost)} className="icon-label mt-0.5 inline-flex items-center font-mono text-xs font-bold text-slate-700" aria-label={`修改 ${displayName} 平均成本`}>
                             {fmtCurrency(avgCost, currency, false, 2)}
                             <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 text-slate-400" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5-3.75.922.922-3.75 8.5-8.5z" /></svg>
                           </button>
@@ -145,7 +145,7 @@ export function PositionHoldings(props) {
                         <p className="text-[10px] font-medium text-slate-400">
                           {isQuoteValueLoading ? '取得即時股價' : statusLabel || '目前股價'}
                         </p>
-                        <p className="mt-0.5 inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-700">
+                        <p className="icon-label mt-0.5 inline-flex items-center font-mono text-xs font-bold text-slate-700">
                           <span>{isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-16" /> : marketPrice == null ? '—' : fmtCurrency(marketPrice, currency, false, 2)}</span>
                           {!isQuoteValueLoading && <LimitStatusBadge status={meta?.limitStatus} />}
                         </p>
@@ -204,7 +204,7 @@ export function PositionHoldings(props) {
                       <tr key={pos.name} className="h-14 border-t border-slate-100 hover:bg-slate-50/60 transition">
                         {/* 股票 */}
                         <td className="px-4 py-3 align-middle text-left">
-                          <div className="flex items-center gap-2 whitespace-nowrap">
+                          <div className="flex items-center gap-2.5 whitespace-nowrap">
                             <span className="inline-flex shrink-0 rounded-md bg-rose-50 px-2 py-0.5 font-mono text-xs font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</span>
                             <span className="max-w-[180px] truncate text-sm text-slate-800">{displayName}</span>
                             {positionIndex === 0 && <span className="shrink-0" title="目前排序第一名" aria-label="目前排序第一名"><CrownIcon /></span>}
@@ -245,7 +245,7 @@ export function PositionHoldings(props) {
                               )}
                             </div>
                           ) : (
-                            <button type="button" onClick={() => startEditingCost(pos, convertedAvgCost)} className="inline-flex items-center gap-1 font-mono text-sm text-slate-700" aria-label={`修改 ${displayName} 平均成本`}>
+                            <button type="button" onClick={() => startEditingCost(pos, convertedAvgCost)} className="icon-label inline-flex items-center font-mono text-sm text-slate-700" aria-label={`修改 ${displayName} 平均成本`}>
                               {fmtCurrency(convertedAvgCost, currentDisplayCurrency, false, 2)}
                               <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 text-slate-400" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5-3.75.922.922-3.75 8.5-8.5z" /></svg>
                             </button>
@@ -255,7 +255,7 @@ export function PositionHoldings(props) {
                         {/* 現價（唯讀） */}
                         <td className="px-4 py-3 align-middle">
                           <div className="flex flex-col items-center justify-center gap-1">
-                            <span className="inline-flex items-center gap-1 font-mono text-sm font-bold text-slate-700">
+                            <span className="icon-label inline-flex items-center font-mono text-sm font-bold text-slate-700">
                               <span>{isQuoteValueLoading ? <InlineValueSkeleton /> : convertedMarketPrice == null ? '—' : fmtCurrency(convertedMarketPrice, currentDisplayCurrency, false, 2)}</span>
                               {!isQuoteValueLoading && <LimitStatusBadge status={meta?.limitStatus} />}
                             </span>

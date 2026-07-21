@@ -48,7 +48,7 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
     <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
       <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between border-b border-rose-100 px-6 py-4">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">⚙️ 交易設定</h3>
+          <h3 className="icon-label flex items-center text-sm font-bold text-slate-900"><span aria-hidden="true">⚙️</span><span>交易設定</span></h3>
           <button onClick={onClose} className="text-slate-400 transition hover:text-slate-600">
             ✕
           </button>
@@ -59,20 +59,20 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
             <button
               type="button"
               onClick={() => setSelectedMarket('TWSE')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`icon-label inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                 selectedMarket === 'TWSE' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              📈 台股設定
+              <span aria-hidden="true">📈</span><span>台股設定</span>
             </button>
             <button
               type="button"
               onClick={() => setSelectedMarket('US')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              className={`icon-label inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                 selectedMarket === 'US' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              🇺🇸 美股設定
+              <span aria-hidden="true">🇺🇸</span><span>美股設定</span>
             </button>
           </div>
         </div>
@@ -154,7 +154,7 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
             <button
               type="submit"
               disabled={isSaving}
-              className="w-1/2 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="icon-label flex w-1/2 items-center justify-center rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600 disabled:opacity-50"
             >
               {isSaving ? (
                 <>

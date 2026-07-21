@@ -30,7 +30,7 @@ export function IndustryEditorModal(props) {
               <span className="h-1 w-10 rounded-full bg-slate-200" />
             </div>
             <div className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-4 pb-4 pt-1 sm:px-5 sm:py-4">
-              <div className="flex min-w-0 items-center gap-3">
+              <div className="icon-label flex min-w-0 items-center">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500" aria-hidden="true">
                   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5h12M6.5 10h7M8.5 14.5h3" />
@@ -126,7 +126,7 @@ export function IndustryEditorModal(props) {
                                 setExpandedIndustryDraftId(null);
                                 setIndustryEditorError('');
                               }}
-                              className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+                              className="icon-label mt-3 inline-flex items-center rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
                               aria-label={`刪除${draft.name || '此'}類別`}
                             >
                               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-3.5 w-3.5" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 6h11M8 6V4.5h4V6m-6 0 .7 9h6.6l.7-9" /></svg>
@@ -199,7 +199,7 @@ export function IndustryEditorModal(props) {
                 type="button"
                 disabled={!isSheetsConnected || isSavingIndustryCategories}
                 onClick={saveIndustryCategories}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 text-xs font-black text-white shadow-md shadow-rose-200 transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9"
+                className="icon-label inline-flex h-11 items-center justify-center rounded-xl bg-rose-500 px-4 text-xs font-black text-white shadow-md shadow-rose-200 transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9"
               >
                 {isSavingIndustryCategories && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
                 {isSavingIndustryCategories ? '保存中' : '保存分類'}

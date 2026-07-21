@@ -351,8 +351,8 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
     <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
       <div className="flex h-[78vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl max-h-[78vh]">
         <div className="flex shrink-0 items-center justify-between border-b border-rose-100 px-6 py-4">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-            {initialData ? '✍️ 編輯股票交易' : '➕ 記錄股票交易'}
+          <h3 className="icon-label flex items-center text-sm font-bold text-slate-900">
+            <span aria-hidden="true">{initialData ? '✍️' : '➕'}</span><span>{initialData ? '編輯股票交易' : '記錄股票交易'}</span>
           </h3>
           <button onClick={onClose} className="text-slate-400 transition hover:text-slate-600">
             ✕
@@ -366,7 +366,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
               <button
                 type="button"
                 onClick={() => setType('buy')}
-                className={`rounded-xl border-2 py-3 px-4 text-center text-sm font-bold flex items-center justify-center gap-2 transition ${
+                className={`icon-label flex items-center justify-center rounded-xl border-2 px-4 py-3 text-center text-sm font-bold transition ${
                   type === 'buy'
                     ? 'border-rose-500 bg-rose-50/50 text-rose-700 shadow-sm shadow-rose-100'
                     : 'border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -378,7 +378,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
               <button
                 type="button"
                 onClick={() => setType('sell')}
-                className={`rounded-xl border-2 py-3 px-4 text-center text-sm font-bold flex items-center justify-center gap-2 transition ${
+                className={`icon-label flex items-center justify-center rounded-xl border-2 px-4 py-3 text-center text-sm font-bold transition ${
                   type === 'sell'
                     ? 'border-emerald-500 bg-emerald-50/50 text-emerald-700 shadow-sm shadow-emerald-100'
                     : 'border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -403,7 +403,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                   onKeyDown={handleMarketDropdownKeyDown}
                   className="flex h-10 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-800 transition hover:bg-white focus:border-rose-300 focus:bg-white focus:outline-none"
                 >
-                  <span>{market === 'TWSE' ? '📈 台股' : '🇺🇸 美股'}</span>
+                  <span className="icon-label inline-flex items-center"><span aria-hidden="true">{market === 'TWSE' ? '📈' : '🇺🇸'}</span><span>{market === 'TWSE' ? '台股' : '美股'}</span></span>
                   <svg
                     viewBox="0 0 20 20"
                     fill="currentColor"
@@ -433,13 +433,13 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                         setShowMarketDropdown(false);
                         setMarketHighlightedIndex(-1);
                       }}
-                      className={`w-full px-3 py-2 text-left text-sm font-semibold transition flex items-center gap-2 ${
+                      className={`icon-label flex w-full items-center px-3 py-2 text-left text-sm font-semibold transition ${
                         marketHighlightedIndex === 0
                           ? 'bg-rose-50 text-rose-700'
                           : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      📈 台股
+                      <span aria-hidden="true">📈</span><span>台股</span>
                     </button>
                     <button
                       type="button"
@@ -456,13 +456,13 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                         setShowMarketDropdown(false);
                         setMarketHighlightedIndex(-1);
                       }}
-                      className={`w-full px-3 py-2 text-left text-sm font-semibold transition flex items-center gap-2 border-t border-slate-100 ${
+                      className={`icon-label flex w-full items-center border-t border-slate-100 px-3 py-2 text-left text-sm font-semibold transition ${
                         marketHighlightedIndex === 1
                           ? 'bg-rose-50 text-rose-700'
                           : 'text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      🇺🇸 美股
+                      <span aria-hidden="true">🇺🇸</span><span>美股</span>
                     </button>
                   </div>
                 )}
@@ -573,7 +573,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
             <button
               type="button"
               onClick={() => openSettingsModal('fromTransactionModal')}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700"
+              className="icon-label inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold text-slate-500 transition-all hover:bg-slate-50 hover:text-slate-700"
             >
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true">
                 <path strokeLinecap="round" d="M4 6h12M4 14h12" />
@@ -604,7 +604,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
             </div>
 
             <div className="border-t border-slate-200 pt-3">
-              <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+              <label className="icon-label flex items-center text-xs font-semibold text-slate-600">
                 <input
                   type="checkbox"
                   checked={isFeeManual}
@@ -656,7 +656,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
             <button
               type="submit"
               disabled={isSaving}
-              className="w-1/2 rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="icon-label flex w-1/2 items-center justify-center rounded-lg bg-rose-500 py-2.5 text-sm font-semibold text-white shadow-md shadow-rose-100 transition hover:bg-rose-600 disabled:opacity-50"
             >
               {isSaving ? (
                 <>
@@ -779,7 +779,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
 
   const buttonText = isConnected
     ? (isLoading ? '斷開中...' : '結束連線')
-    : (isLoading ? '連線中...' : '💾 開始連線');
+    : (isLoading ? '連線中...' : '開始連線');
   const buttonClasses = isConnected
     ? 'bg-amber-100 text-amber-700 shadow-md shadow-amber-100 hover:bg-amber-200'
     : 'bg-rose-500 text-white shadow-md shadow-rose-100 hover:bg-rose-600';
@@ -791,8 +791,8 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
     <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-rose-100 px-6 py-4">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
-            ☁️ 設置 Google 試算表同步資料
+          <h3 className="icon-label flex items-center text-sm font-bold text-slate-900">
+            <span aria-hidden="true">☁️</span><span>設置 Google 試算表同步資料</span>
           </h3>
           <button onClick={onClose} className="text-slate-400 transition hover:text-slate-600">
             ✕
@@ -801,7 +801,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
 
         <div className="space-y-4 overflow-y-auto p-6 max-h-[calc(80vh-120px)]">
           <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs leading-relaxed text-slate-700">
-            <p className="text-sm font-bold text-rose-950">💡 Google Sheet Apps Script 三分鐘極速架設法：</p>
+            <p className="icon-label flex items-center text-sm font-bold text-rose-950"><span aria-hidden="true">💡</span><span>Google Sheet Apps Script 三分鐘極速架設法：</span></p>
             <div className={`relative mt-2 overflow-hidden transition-all duration-300 ${isSetupStepsExpanded ? 'max-h-[420px]' : 'max-h-[118px]'}`}>
               <ol className="list-inside list-decimal space-y-1.5 text-slate-600">
                 <li>登入 Google 試算表，點選上方選單「擴充功能」-&gt;「Apps Script」。</li>
@@ -838,7 +838,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
               <button
                 onClick={handleCopy}
                 disabled={isScriptLoading || !scriptCode}
-                className={`rounded-md px-2 py-1 text-sm font-semibold shadow transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                className={`icon-label inline-flex items-center rounded-md px-2 py-1 text-sm font-semibold shadow transition disabled:cursor-not-allowed disabled:opacity-50 ${
                   copied
                     ? 'bg-rose-100 text-rose-500'
                     : 'bg-white text-slate-600 hover:bg-slate-100'
@@ -846,11 +846,11 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
               >
                 {copied ? (
                   <>
-                    成功 <span className="text-base">🎉</span>
+                    <span>成功</span><span className="text-base" aria-hidden="true">🎉</span>
                   </>
                 ) : (
                   <>
-                    複製 <span className="text-base">📋</span>
+                    <span>複製</span><span className="text-base" aria-hidden="true">📋</span>
                   </>
                 )}
               </button>
@@ -893,15 +893,16 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
               type="button"
               onClick={buttonAction}
               disabled={isLoading}
-              className={`w-full flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-semibold transition ${buttonClasses} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`icon-label flex w-full items-center justify-center rounded-lg py-2.5 text-sm font-semibold transition ${buttonClasses} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {isLoading && (
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
               )}
-              {buttonText}
+              {!isConnected && !isLoading && <span aria-hidden="true">💾</span>}
+              <span>{buttonText}</span>
             </button>
           </div>
         </div>
@@ -928,7 +929,7 @@ export function Toast({ message, isVisible, type = 'success' }) {
 
   return (
     <div
-      className={`fixed bottom-5 right-5 flex items-center gap-3 rounded-xl border border-rose-100 bg-white px-4 py-3 shadow-xl transition-all duration-300 z-50 ${
+      className={`icon-label fixed bottom-5 right-5 flex items-center rounded-xl border border-rose-100 bg-white px-4 py-3 shadow-xl transition-all duration-300 z-50 ${
         isVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'
       }`}
     >

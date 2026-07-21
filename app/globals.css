@@ -12,6 +12,17 @@ body {
   @apply rounded-2xl border border-slate-200/60 bg-white shadow-sm;
 }
 
+/* Shared spacing for an icon, emoji, status dot, or spinner beside its label. */
+.icon-label {
+  column-gap: 0.125rem;
+}
+
+@media (min-width: 768px) {
+  .icon-label {
+    column-gap: 0.25rem;
+  }
+}
+
 @media (max-width: 767px) {
   @keyframes mobile-panel-enter-left {
     from { opacity: 0; transform: translateX(-14px); }

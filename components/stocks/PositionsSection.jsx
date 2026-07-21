@@ -80,7 +80,7 @@ export function PositionsSection(props) {
               type="button"
               onClick={openHoldingSnapshotEditor}
               disabled={isPortfolioLoading}
-              className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full bg-rose-50 px-2 text-[9px] font-black text-rose-700 shadow-sm shadow-rose-100/60 ring-1 ring-white/70 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 disabled:cursor-wait disabled:opacity-50 sm:h-7 sm:px-2.5 sm:text-[10px]"
+              className="icon-label inline-flex h-6 shrink-0 items-center justify-center rounded-full bg-rose-50 px-2 text-[9px] font-black text-rose-700 shadow-sm shadow-rose-100/60 ring-1 ring-white/70 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 disabled:cursor-wait disabled:opacity-50 sm:h-7 sm:px-2.5 sm:text-[10px]"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 8a2 2 0 012-2h2l1.2-1.6A1 1 0 0110 4h4a1 1 0 01.8.4L16 6h2a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
@@ -94,7 +94,7 @@ export function PositionsSection(props) {
               <button
                 onClick={() => setPosTab('TWSE')}
                 aria-pressed={posTab === 'TWSE'}
-                className={`flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all ${
+                className={`flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all md:gap-2 ${
                   posTab === 'TWSE' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -104,7 +104,7 @@ export function PositionsSection(props) {
               <button
                 onClick={() => setPosTab('US')}
                 aria-pressed={posTab === 'US'}
-                className={`flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all ${
+                className={`flex min-w-[68px] items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold transition-all md:gap-2 ${
                   posTab === 'US' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -115,7 +115,7 @@ export function PositionsSection(props) {
             <button
               onClick={handleManualRefresh}
               disabled={isFetchingPrices || isPortfolioLoading}
-              className="group order-1 inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-md bg-transparent px-1 text-[11px] font-bold text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-wait disabled:opacity-50"
+              className="icon-label group order-1 inline-flex h-7 shrink-0 items-center justify-center rounded-md bg-transparent px-1 text-[11px] font-bold text-rose-500 transition hover:bg-rose-50 hover:text-rose-600 disabled:cursor-wait disabled:opacity-50"
             >
               {isFetchingPrices || isPortfolioLoading ? (
                 <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-rose-600" />
@@ -136,13 +136,13 @@ export function PositionsSection(props) {
               onClick={() => setShowChart(!showChart)}
               aria-expanded={showChart}
               disabled={isPortfolioLoading}
-              className={`order-2 ml-auto inline-flex h-6 shrink-0 items-center justify-center gap-0.5 rounded-md border px-1.5 text-[9px] font-semibold transition disabled:cursor-wait disabled:opacity-50 sm:order-3 sm:h-7 sm:gap-1 sm:px-2 sm:text-[10px] ${
+              className={`icon-label order-2 ml-auto inline-flex h-6 shrink-0 items-center justify-center rounded-md px-1 text-[10px] font-semibold transition disabled:cursor-wait disabled:opacity-50 sm:order-3 sm:h-7 sm:text-[11px] sm:font-bold ${
                 showChart
-                  ? 'border-rose-200 bg-rose-50 text-rose-600'
-                  : 'border-rose-100 bg-white text-rose-500 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600'
+                  ? 'bg-slate-100 text-slate-600'
+                  : 'bg-transparent text-slate-500 hover:bg-slate-100 hover:text-slate-700'
               }`}
             >
-              <svg viewBox="0 0 20 20" fill="currentColor" className="h-2.5 w-2.5 sm:h-3 sm:w-3" aria-hidden="true">
+              <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true">
                 <path d="M10 2.5a.75.75 0 01.75.75v6.25H17a.75.75 0 01.75.75A8.75 8.75 0 1110 1.25a.75.75 0 010 1.5z" />
                 <path d="M12.5 2.08a8.02 8.02 0 014.92 4.92h-4.17a.75.75 0 01-.75-.75V2.08z" />
               </svg>
@@ -199,7 +199,7 @@ export function PositionsSection(props) {
               type="button"
               onClick={() => setPositionSortDirection((direction) => (direction === 'desc' ? 'asc' : 'desc'))}
               disabled={isPortfolioLoading}
-              className="inline-flex h-8 items-center justify-center gap-1 px-1 text-[10px] font-bold text-slate-400 transition hover:text-slate-500 disabled:cursor-wait disabled:opacity-50"
+              className="icon-label inline-flex h-8 items-center justify-center px-1 text-[10px] font-bold text-slate-400 transition hover:text-slate-500 disabled:cursor-wait disabled:opacity-50"
               aria-label={`目前依${activePositionSortOption?.label || '選定欄位'}${positionSortDirection === 'desc' ? '由高到低' : '由低到高'}排序，點擊切換`}
             >
               <svg viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 transition-transform ${positionSortDirection === 'asc' ? 'rotate-180' : ''}`} aria-hidden="true">

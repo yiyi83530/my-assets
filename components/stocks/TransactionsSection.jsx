@@ -57,10 +57,10 @@ export function TransactionsSection(props) {
             </div>
             <div className="grid w-full grid-cols-2 items-center gap-1 rounded-xl bg-slate-100 p-0.5 sm:flex sm:w-auto">
               <button onClick={() => setHistTab('TWSE')} className={tabBtnClass(histTab === 'TWSE')}>
-                <span className="inline-flex items-center justify-center gap-1.5"><MarketFlag market="TWSE" />台股</span>
+                <span className="inline-flex items-center justify-center gap-1.5 md:gap-2"><MarketFlag market="TWSE" />台股</span>
               </button>
               <button onClick={() => setHistTab('US')} className={tabBtnClass(histTab === 'US')}>
-                <span className="inline-flex items-center justify-center gap-1.5"><MarketFlag market="US" />美股</span>
+                <span className="inline-flex items-center justify-center gap-1.5 md:gap-2"><MarketFlag market="US" />美股</span>
               </button>
             </div>
           </div>

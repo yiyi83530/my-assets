@@ -33,7 +33,7 @@ export function IndustryDistribution(props) {
                 <button
                   type="button"
                   onClick={openIndustryCategoryEditor}
-                  className="inline-flex h-8 shrink-0 items-center gap-1.5 px-1 text-[11px] font-black text-rose-600 transition hover:text-rose-700 sm:hidden"
+                  className="icon-label inline-flex h-8 shrink-0 items-center px-1 text-[11px] font-black text-slate-500 transition hover:text-slate-700 sm:hidden"
                 >
                   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h12M7 10h6M9 14h2" />
@@ -46,7 +46,7 @@ export function IndustryDistribution(props) {
                 <button
                   type="button"
                   onClick={openIndustryCategoryEditor}
-                  className="inline-flex h-8 items-center gap-1.5 px-1 text-[11px] font-black text-rose-600 transition hover:text-rose-700"
+                  className="icon-label inline-flex h-8 items-center px-1 text-[11px] font-black text-slate-500 transition hover:text-slate-700"
                 >
                   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h12M7 10h6M9 14h2" />

@@ -35,13 +35,15 @@ export function MobileStockSectionNav(props) {
                 : 'border-slate-200 bg-white'
             }`}
           >
-            <div className="flex items-center gap-3">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white shadow-sm" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V9m5 10V5m5 14v-7m5 7V3" />
-                </svg>
-              </span>
-              <h2 className="text-base font-black text-slate-900">持股明細</h2>
+            <div className="flex items-center">
+              <div className="flex items-center gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white shadow-sm" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 19V9m5 10V5m5 14v-7m5 7V3" />
+                  </svg>
+                </span>
+                <h2 className="text-base font-black text-slate-900">持股明細</h2>
+              </div>
               <span className="ml-auto rounded-full bg-white px-2 py-1 text-[10px] font-bold text-rose-500 shadow-sm">
                 {isAppInitializing ? '—' : `${allPositions.length} 檔`}
               </span>

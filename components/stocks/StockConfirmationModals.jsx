@@ -49,7 +49,7 @@ export function StockConfirmationModals(props) {
                 type="button"
                 disabled={isSavingCost}
                 onClick={() => saveEditedCost(pendingCostChange)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-rose-500 py-2.5 text-sm font-bold text-white shadow-sm shadow-rose-200 transition hover:bg-rose-600 disabled:opacity-50"
+                className="icon-label flex flex-1 items-center justify-center rounded-xl bg-rose-500 py-2.5 text-sm font-bold text-white shadow-sm shadow-rose-200 transition hover:bg-rose-600 disabled:opacity-50"
               >
                 {isSavingCost && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
                 {isSavingCost ? '儲存中' : '確認儲存'}
@@ -90,7 +90,7 @@ export function StockConfirmationModals(props) {
               <button
                 disabled={isDeleting}
                 onClick={confirmDelete}
-                className="flex-1 rounded-xl bg-rose-500 py-2.5 text-sm font-bold text-white transition hover:bg-rose-600 shadow-sm shadow-rose-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                className="icon-label flex flex-1 items-center justify-center rounded-xl bg-rose-500 py-2.5 text-sm font-bold text-white shadow-sm shadow-rose-200 transition hover:bg-rose-600 disabled:opacity-50"
               >
                 {isDeleting ? (
                   <>

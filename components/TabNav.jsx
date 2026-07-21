@@ -31,8 +31,8 @@ export default function TabNav({ activeTab }) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-base font-extrabold tracking-tight text-slate-900">
-              我的小豬存錢筒 <span className="text-rose-500">🐷</span>
+            <h1 className="icon-label inline-flex items-center text-base font-extrabold tracking-tight text-slate-900">
+              <span>我的小豬存錢筒</span><span className="text-rose-500" aria-hidden="true">🐷</span>
             </h1>
             {mounted && (
               <span

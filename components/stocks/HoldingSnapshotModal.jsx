@@ -152,7 +152,7 @@ export function HoldingSnapshotModal(props) {
                 type="button"
                 disabled={isSavingHoldingSnapshot}
                 onClick={saveHoldingSnapshotDrafts}
-                className="flex items-center justify-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-rose-200 transition hover:bg-rose-600 disabled:opacity-50"
+                className="icon-label flex items-center justify-center rounded-lg bg-rose-500 px-4 py-2 text-xs font-bold text-white shadow-sm shadow-rose-200 transition hover:bg-rose-600 disabled:opacity-50"
               >
                 {isSavingHoldingSnapshot && <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
                 {isSavingHoldingSnapshot ? '儲存中' : '儲存快照'}
