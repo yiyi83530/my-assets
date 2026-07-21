@@ -73,13 +73,13 @@ async function fetchRealtimeTwQuote(symbol, exchange) {
     const upperLimit = toNumberMaybe(row.u);
     const lowerLimit = toNumberMaybe(row.w);
     if (traded !== null) {
-      return { price: traded, status: getTwTradedPriceStatus(row.tlong), limitStatus: getLimitStatus(traded, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
+      return { price: traded, previousClose, status: getTwTradedPriceStatus(row.tlong), limitStatus: getLimitStatus(traded, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
     }
     if (opening !== null) {
-      return { price: opening, status: 'opening_price', limitStatus: getLimitStatus(opening, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
+      return { price: opening, previousClose, status: 'opening_price', limitStatus: getLimitStatus(opening, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
     }
     if (previousClose !== null) {
-      return { price: previousClose, status: 'previous_close', limitStatus: getLimitStatus(previousClose, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
+      return { price: previousClose, previousClose, status: 'previous_close', limitStatus: getLimitStatus(previousClose, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
     }
     return null;
   } catch {
@@ -99,7 +99,9 @@ async function fetchDailyClose(symbol, url, exchange) {
     if (!row) return null;
     const price = toNumberMaybe(row.ClosingPrice ?? row.Close);
     if (price === null) return null;
-    return { price, status: 'daily_close', source: exchange, asOf: row.Date || null };
+    const change = toNumberMaybe(row.Change);
+    const previousClose = change === null ? null : price - change;
+    return { price, previousClose, status: 'daily_close', source: exchange, asOf: row.Date || null };
   } catch {
     return null;
   }
@@ -116,7 +118,8 @@ async function fetchEsbQuote(symbol) {
     if (!row) return null;
     const price = toNumberMaybe(row.LatestPrice) ?? toNumberMaybe(row.BuyingPrice)
       ?? toNumberMaybe(row.SellingPrice) ?? toNumberMaybe(row.PreviousAveragePrice);
-    return price === null ? null : { price, status: 'esb_quote', source: 'TPEx ESB', asOf: row.Date || null };
+    const previousClose = toNumberMaybe(row.PreviousClose ?? row.PreviousAveragePrice);
+    return price === null ? null : { price, previousClose, status: 'esb_quote', source: 'TPEx ESB', asOf: row.Date || null };
   } catch {
     return null;
   }
@@ -133,8 +136,10 @@ async function fetchUsQuote(symbol) {
       const price = toNumberMaybe(result?.meta?.regularMarketPrice);
       if (price !== null) {
         const marketState = String(result?.meta?.marketState || '').toUpperCase();
+        const previousClose = toNumberMaybe(result?.meta?.chartPreviousClose ?? result?.meta?.previousClose);
         return {
           price,
+          previousClose,
           status: marketState === 'REGULAR' ? 'realtime' : 'latest_price',
           source: 'Yahoo Finance',
           asOf: result?.meta?.regularMarketTime || null,

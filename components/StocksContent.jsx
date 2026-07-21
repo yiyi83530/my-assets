@@ -192,6 +192,38 @@ function InlineValueSkeleton({ className = '' }) {
   return <span className={`inline-block h-4 w-16 animate-pulse rounded-md bg-slate-200/80 align-middle ${className}`} aria-label="資料載入中" />;
 }
 
+function MarketFlag({ market, className = 'h-3 w-4' }) {
+  if (market === 'US') {
+    return (
+      <svg viewBox="0 0 24 16" className={`${className} overflow-hidden rounded-[2px] shadow-sm ring-1 ring-slate-900/10`} aria-hidden="true">
+        <rect width="24" height="16" fill="#fff" />
+        {[0, 4, 8, 12].map((y) => <rect key={y} y={y} width="24" height="2" fill="#dc2626" />)}
+        <rect width="10" height="8" fill="#1e3a8a" />
+        {[2, 5, 8].map((x) => [2, 4, 6].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="0.55" fill="#fff" />))}
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 16" className={`${className} overflow-hidden rounded-[2px] shadow-sm ring-1 ring-slate-900/10`} aria-hidden="true">
+      <rect width="24" height="16" fill="#e11d48" />
+      <rect width="12" height="8" fill="#1e3a8a" />
+      <circle cx="6" cy="4" r="2" fill="#fff" />
+      <g stroke="#fff" strokeWidth="0.65">
+        <path d="M6 .7v1M6 6.3v1M2.7 4h1M8.3 4h1M3.7 1.7l.7.7M7.6 5.6l.7.7M8.3 1.7l-.7.7M4.4 5.6l-.7.7" />
+      </g>
+    </svg>
+  );
+}
+
+function CrownIcon({ className = 'h-3.5 w-3.5' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
+      <path d="m3 6 3.6 3L10 4l3.4 5L17 6l-1.2 8H4.2L3 6Z" fill="#fbbf24" stroke="#d97706" strokeWidth="1.2" strokeLinejoin="round" />
+      <path d="M4.4 14.3h11.2" stroke="#d97706" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function StockDataLoading() {
   return (
     <div className="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center">
@@ -639,7 +671,11 @@ export function StocksContent() {
     const unrealizedProfit = hasQuote ? marketValue - p.totalBuyCost : null;
     const profitPercent =
       hasQuote && p.totalBuyCost > 0 ? (unrealizedProfit / p.totalBuyCost) * 100 : null;
-    return { ...p, marketPrice, hasQuote, isWaitingForRealtime, marketValue, unrealizedProfit, profitPercent };
+    const previousClose = Number(meta?.previousClose);
+    const hasPreviousClose = Number.isFinite(previousClose) && previousClose > 0;
+    const dailyProfit = hasQuote && hasPreviousClose ? (marketPrice - previousClose) * p.holdingQty : null;
+    const dailyProfitPercent = hasQuote && hasPreviousClose ? ((marketPrice - previousClose) / previousClose) * 100 : null;
+    return { ...p, marketPrice, hasQuote, isWaitingForRealtime, marketValue, unrealizedProfit, profitPercent, dailyProfit, dailyProfitPercent };
   });
 
   const twsePositions = allPositions.filter((p) => p.market === 'TWSE');
@@ -697,6 +733,17 @@ export function StocksContent() {
 
   const totalOverallUnrealized = totalOverallValue - totalOverallCost;
   const totalOverallReturnRate = totalOverallCost > 0 ? (totalOverallUnrealized / totalOverallCost) * 100 : 0;
+  const hasCompleteDailyProfit = allPositions.length > 0 && allPositions.every((pos) => pos.dailyProfit != null);
+  const totalOverallDailyProfit = hasCompleteDailyProfit
+    ? allPositions.reduce((sum, pos) => {
+      const rate = pos.market === 'US' ? (usdToTwdRate || 1) : 1;
+      return sum + pos.dailyProfit * rate;
+    }, 0)
+    : null;
+  const previousOverallValue = totalOverallDailyProfit == null ? null : totalOverallValue - totalOverallDailyProfit;
+  const totalOverallDailyProfitPercent = previousOverallValue > 0
+    ? (totalOverallDailyProfit / previousOverallValue) * 100
+    : null;
 
   // ✅ 修正：当前 tab 的总计（用于表格显示）
   // 当在美股 tab 且选择 TWD 时，美股数据转换成 TWD
@@ -936,7 +983,7 @@ export function StocksContent() {
             aria-selected={mobileSection === 'positions'}
             aria-controls="positions-panel"
             onClick={() => scrollToMobileSection('positions')}
-            className={`w-[86%] shrink-0 snap-start rounded-2xl border p-4 text-left transition ${
+            className={`w-[74%] shrink-0 snap-start rounded-2xl border p-4 text-left transition ${
               mobileSection === 'positions'
                 ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-white shadow-sm ring-1 ring-rose-100'
                 : 'border-slate-200 bg-white'
@@ -962,7 +1009,7 @@ export function StocksContent() {
             aria-selected={mobileSection === 'transactions'}
             aria-controls="transactions-panel"
             onClick={() => scrollToMobileSection('transactions')}
-            className={`w-[86%] shrink-0 snap-start rounded-2xl border p-4 text-left transition ${
+            className={`w-[74%] shrink-0 snap-start rounded-2xl border p-4 text-left transition ${
               mobileSection === 'transactions'
                 ? 'border-blue-200 bg-gradient-to-br from-blue-50 to-white shadow-sm ring-1 ring-blue-100'
                 : 'border-slate-200 bg-white'
@@ -1014,14 +1061,25 @@ export function StocksContent() {
                 </svg>
               </span>
               <h2 id="positions-heading" className="whitespace-nowrap text-xl font-black tracking-tight text-slate-900 sm:text-2xl">持股明細</h2>
+              <div className="min-w-0 border-l border-rose-200/80 pl-3">
+                <p className="text-[9px] font-bold tracking-wide text-slate-400 sm:text-[10px]">總體今日損益</p>
+                {isPortfolioLoading ? (
+                  <span className="mt-1 block h-4 w-20 animate-pulse rounded bg-slate-200/80" aria-label="資料載入中" />
+                ) : (
+                  <p className={`mt-0.5 truncate font-mono text-xs font-black sm:text-sm ${totalOverallDailyProfit == null ? 'text-slate-400' : totalOverallDailyProfit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {totalOverallDailyProfit == null ? '—' : fmtCurrency(totalOverallDailyProfit, 'TWD', true)}
+                    {totalOverallDailyProfitPercent != null && <span className="ml-1 text-[9px] sm:text-[10px]">({totalOverallDailyProfitPercent >= 0 ? '+' : ''}{totalOverallDailyProfitPercent.toFixed(2)}%)</span>}
+                  </p>
+                )}
+              </div>
             </div>
             <button
               type="button"
               onClick={openHoldingSnapshotEditor}
               disabled={isPortfolioLoading}
-              className="inline-flex h-7 shrink-0 items-center justify-center gap-1 rounded-full bg-rose-50 px-2.5 text-[10px] font-black text-rose-700 shadow-sm shadow-rose-100/60 ring-1 ring-white/70 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 disabled:cursor-wait disabled:opacity-50 sm:h-8 sm:px-3 sm:text-[11px]"
+              className="inline-flex h-6 shrink-0 items-center justify-center gap-1 rounded-full bg-rose-50 px-2 text-[9px] font-black text-rose-700 shadow-sm shadow-rose-100/60 ring-1 ring-white/70 transition hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800 disabled:cursor-wait disabled:opacity-50 sm:h-7 sm:px-2.5 sm:text-[10px]"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3 sm:h-3.5 sm:w-3.5" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 8a2 2 0 012-2h2l1.2-1.6A1 1 0 0110 4h4a1 1 0 01.8.4L16 6h2a2 2 0 012 2v9a2 2 0 01-2 2H6a2 2 0 01-2-2V8z" />
                 <circle cx="12" cy="13" r="3.25" />
               </svg>
@@ -1037,7 +1095,7 @@ export function StocksContent() {
                   posTab === 'TWSE' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <span className="text-sm leading-none" aria-hidden="true">🇹🇼</span>
+                <MarketFlag market="TWSE" />
                 台股
               </button>
               <button
@@ -1047,7 +1105,7 @@ export function StocksContent() {
                   posTab === 'US' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                <span className="text-sm leading-none" aria-hidden="true">🇺🇸</span>
+                <MarketFlag market="US" />
                 美股
               </button>
             </div>
@@ -1117,23 +1175,28 @@ export function StocksContent() {
             <label htmlFor="position-sort" className="text-[10px] font-bold text-slate-400">
               排序
             </label>
-            <select
-              id="position-sort"
-              value={positionSortKey}
-              onChange={(event) => setPositionSortKey(event.target.value)}
-              disabled={isPortfolioLoading}
-              className="h-8 min-w-[120px] rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 outline-none transition focus:border-rose-200 focus:ring-2 focus:ring-rose-100 disabled:cursor-wait disabled:opacity-50"
-              aria-label="選擇持股排序基準"
-            >
-              {POSITION_SORT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                id="position-sort"
+                value={positionSortKey}
+                onChange={(event) => setPositionSortKey(event.target.value)}
+                disabled={isPortfolioLoading}
+                className="h-8 min-w-[120px] appearance-none rounded-lg border border-slate-200 bg-white pl-2.5 pr-9 text-xs font-bold text-slate-700 outline-none transition focus:border-rose-200 focus:ring-2 focus:ring-rose-100 disabled:cursor-wait disabled:opacity-50"
+                aria-label="選擇持股排序基準"
+              >
+                {POSITION_SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-700" aria-hidden="true">
+                <path d="m5 7.5 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
             <button
               type="button"
               onClick={() => setPositionSortDirection((direction) => (direction === 'desc' ? 'asc' : 'desc'))}
               disabled={isPortfolioLoading}
-              className="inline-flex h-8 items-center justify-center gap-1 px-1 text-xs font-bold text-slate-400 transition hover:text-slate-500 disabled:cursor-wait disabled:opacity-50"
+              className="inline-flex h-8 items-center justify-center gap-1 px-1 text-[10px] font-bold text-slate-400 transition hover:text-slate-500 disabled:cursor-wait disabled:opacity-50"
               aria-label={`目前依${activePositionSortOption?.label || '選定欄位'}${positionSortDirection === 'desc' ? '由高到低' : '由低到高'}排序，點擊切換`}
             >
               <svg viewBox="0 0 20 20" fill="currentColor" className={`h-3.5 w-3.5 transition-transform ${positionSortDirection === 'asc' ? 'rotate-180' : ''}`} aria-hidden="true">
@@ -1369,52 +1432,58 @@ export function StocksContent() {
                 const totalCost = isUSStock && displayCurrency === 'TWD' ? pos.totalBuyCost * rate : pos.totalBuyCost;
                 const marketValue = isUSStock && displayCurrency === 'TWD' ? pos.marketValue * rate : pos.marketValue;
                 const profit = pos.unrealizedProfit == null ? null : (isUSStock && displayCurrency === 'TWD' ? pos.unrealizedProfit * rate : pos.unrealizedProfit);
+                const dailyProfit = pos.dailyProfit == null ? null : (isUSStock && displayCurrency === 'TWD' ? pos.dailyProfit * rate : pos.dailyProfit);
                 const meta = quoteMeta[pos.name];
                 const statusLabel = quoteStatusLabel(meta?.status);
                 const isQuoteValueLoading = pos.isWaitingForRealtime;
 
                 return (
-                  <article key={pos.name} className="px-4 py-4">
-                    <div className="flex items-start justify-between gap-3">
+                  <article key={pos.name} className="px-3.5 py-3">
+                    <div className="flex items-start justify-between gap-2.5">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="rounded-md bg-rose-50 px-2 py-1 font-mono text-[10px] font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</span>
-                          <h3 className="truncate text-sm font-bold text-slate-800">{displayName}</h3>
+                        <div className="flex items-center gap-1.5">
+                          <span className="rounded-md bg-rose-50 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</span>
+                          <h3 className="min-w-0 truncate text-[13px] font-bold text-slate-800">{displayName}</h3>
+                          {positionIndex === 0 && pos.hasQuote && !isQuoteValueLoading && <span className="shrink-0" title="市值占比第一名" aria-label="市值占比第一名"><CrownIcon /></span>}
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-slate-400">
-                          <span>持有 {pos.holdingQty.toLocaleString()} 股</span>
-                          <span aria-hidden="true">・</span>
-                          <span className="inline-flex items-center gap-1">
-                            市值占比 {isQuoteValueLoading ? <InlineValueSkeleton className="h-3 w-8" /> : pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
-                            {positionIndex === 0 && pos.hasQuote && !isQuoteValueLoading && <span className="text-xs" title="市值占比第一名" aria-label="市值占比第一名">👑</span>}
-                          </span>
-                          <span className="relative ml-0.5 h-1.5 w-12 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
-                            <span
-                              className="absolute inset-y-0 left-0 rounded-full bg-rose-400 transition-all duration-300"
-                              style={{ width: `${pos.hasQuote && !isQuoteValueLoading ? Math.min(sharePercent, 100) : 0}%` }}
-                            />
-                          </span>
+                        <div className="mt-1.5 text-[10px] text-slate-400">
+                          <div>持有 {pos.holdingQty.toLocaleString()} 股</div>
+                          <div className="mt-0.5 flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1">
+                              市值占比 {isQuoteValueLoading ? <InlineValueSkeleton className="h-3 w-8" /> : pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
+                            </span>
+                            <span className="relative h-1.5 w-12 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                              <span
+                                className="absolute inset-y-0 left-0 rounded-full bg-rose-400 transition-all duration-300"
+                                style={{ width: `${pos.hasQuote && !isQuoteValueLoading ? Math.min(sharePercent, 100) : 0}%` }}
+                              />
+                            </span>
+                          </div>
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="text-[10px] font-medium text-slate-400">帳面現值 ({currency})</p>
-                        <p className="mt-0.5 font-mono text-sm font-black text-slate-800">
+                        <p className="mt-0.5 font-mono text-[13px] font-black text-slate-800">
                           {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-20" /> : pos.hasQuote ? fmtCurrency(marketValue, currency) : '—'}
+                        </p>
+                        <p className={`mt-0.5 font-mono text-[9px] font-bold ${dailyProfit == null ? 'text-slate-400' : dailyProfit >= 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                          今日 {isQuoteValueLoading || dailyProfit == null ? '—' : fmtCurrency(dailyProfit, currency, true)}
+                          {!isQuoteValueLoading && pos.dailyProfitPercent != null && ` (${pos.dailyProfitPercent >= 0 ? '+' : ''}${pos.dailyProfitPercent.toFixed(2)}%)`}
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3 rounded-xl bg-slate-50 p-3">
+                    <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl bg-slate-50 px-3 py-2.5">
                       <div>
                         <p className="text-[10px] font-medium text-slate-400">未實現損益 ({currency})</p>
-                        <p className={`mt-1 font-mono text-sm font-black ${profit == null ? 'text-slate-400' : profit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        <p className={`mt-0.5 font-mono text-[13px] font-black ${profit == null ? 'text-slate-400' : profit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                           {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-24" /> : profit == null ? '—' : fmtCurrency(profit, currency, true)}
                           {!isQuoteValueLoading && pos.profitPercent != null && <span className="ml-1 text-[10px]">({pos.profitPercent >= 0 ? '+' : ''}{pos.profitPercent.toFixed(2)}%)</span>}
                         </p>
                       </div>
                       <div>
                         <p className="text-[10px] font-medium text-slate-400">投資成本 ({currency})</p>
-                        <p className="mt-1 font-mono text-sm font-bold text-slate-700">{fmtCurrency(totalCost, currency)}</p>
+                        <p className="mt-0.5 font-mono text-[13px] font-bold text-slate-700">{fmtCurrency(totalCost, currency)}</p>
                       </div>
                       <div>
                         <p className="text-[10px] font-medium text-slate-400">平均成本 ({currency})</p>
@@ -1446,7 +1515,7 @@ export function StocksContent() {
                             )}
                           </div>
                         ) : (
-                          <button type="button" onClick={() => startEditingCost(pos, avgCost)} className="mt-1 inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-700" aria-label={`修改 ${displayName} 平均成本`}>
+                          <button type="button" onClick={() => startEditingCost(pos, avgCost)} className="mt-0.5 inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-700" aria-label={`修改 ${displayName} 平均成本`}>
                             {fmtCurrency(avgCost, currency, false, 2)}
                             <svg viewBox="0 0 20 20" fill="currentColor" className="h-3 w-3 text-slate-400" aria-hidden="true"><path d="M13.586 3.586a2 2 0 112.828 2.828l-8.5 8.5-3.75.922.922-3.75 8.5-8.5z" /></svg>
                           </button>
@@ -1456,7 +1525,7 @@ export function StocksContent() {
                         <p className="text-[10px] font-medium text-slate-400">
                           {isQuoteValueLoading ? '取得即時股價' : statusLabel || '目前股價'}
                         </p>
-                        <p className="mt-1 inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-700">
+                        <p className="mt-0.5 inline-flex items-center gap-1 font-mono text-xs font-bold text-slate-700">
                           <span>{isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-16" /> : marketPrice == null ? '—' : fmtCurrency(marketPrice, currency, false, 2)}</span>
                           {!isQuoteValueLoading && <LimitStatusBadge status={meta?.limitStatus} />}
                         </p>
@@ -1467,13 +1536,14 @@ export function StocksContent() {
               })}
             </div>
             <div className="hidden overflow-x-auto md:block" style={{ maxHeight: `${posContainerMaxHeight}px`, overflowY: 'auto' }}>
-              <table className="w-full min-w-[960px] text-center">
+              <table className="w-full min-w-[1080px] text-center">
                 <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-400 sticky top-0 z-10 shadow-sm">
                   <tr className="h-12">
                     <th className="px-4 py-3 align-middle text-left whitespace-nowrap">股票</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">持有股數</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">成本價 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">現價 {posTab === 'US' && `(${displayCurrency})`}</th>
+                    <th className="px-4 py-3 align-middle whitespace-nowrap">今日損益 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">投資成本 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">帳面現值 {posTab === 'US' && `(${displayCurrency})`}</th>
                     <th className="px-4 py-3 align-middle whitespace-nowrap">未實現損益 {posTab === 'US' && `(${displayCurrency})`}</th>
@@ -1501,6 +1571,9 @@ export function StocksContent() {
                     const convertedUnrealizedProfit = pos.unrealizedProfit == null
                       ? null
                       : (isUSStock && displayCurrency === 'TWD' ? pos.unrealizedProfit * rate : pos.unrealizedProfit);
+                    const convertedDailyProfit = pos.dailyProfit == null
+                      ? null
+                      : (isUSStock && displayCurrency === 'TWD' ? pos.dailyProfit * rate : pos.dailyProfit);
 
                     const profitPercent = pos.profitPercent;
                     const meta = quoteMeta[pos.name];
@@ -1576,6 +1649,18 @@ export function StocksContent() {
                           </div>
                         </td>
 
+                        {/* 今日損益（相較昨收） */}
+                        <td className="px-4 py-3 align-middle">
+                          <div className={`font-mono text-sm font-bold ${convertedDailyProfit == null ? 'text-slate-400' : convertedDailyProfit >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                            {isQuoteValueLoading ? <InlineValueSkeleton className="h-4 w-20" /> : convertedDailyProfit == null ? '—' : fmtCurrency(convertedDailyProfit, currentDisplayCurrency, true)}
+                          </div>
+                          {!isQuoteValueLoading && pos.dailyProfitPercent != null && (
+                            <div className={`mt-0.5 font-mono text-[10px] font-bold ${pos.dailyProfitPercent >= 0 ? 'text-rose-400' : 'text-emerald-500'}`}>
+                              {pos.dailyProfitPercent >= 0 ? '+' : ''}{pos.dailyProfitPercent.toFixed(2)}%
+                            </div>
+                          )}
+                        </td>
+
                         {/* 投資成本 */}
                         <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
                           {fmtCurrency(convertedTotalBuyCost, currentDisplayCurrency)}
@@ -1640,10 +1725,10 @@ export function StocksContent() {
             </div>
             <div className="grid w-full grid-cols-2 items-center gap-1 rounded-xl bg-slate-100 p-0.5 sm:flex sm:w-auto">
               <button onClick={() => setHistTab('TWSE')} className={tabBtnClass(histTab === 'TWSE')}>
-                📈 台股
+                <span className="inline-flex items-center justify-center gap-1.5"><MarketFlag market="TWSE" />台股</span>
               </button>
               <button onClick={() => setHistTab('US')} className={tabBtnClass(histTab === 'US')}>
-                🇺🇸 美股
+                <span className="inline-flex items-center justify-center gap-1.5"><MarketFlag market="US" />美股</span>
               </button>
             </div>
           </div>

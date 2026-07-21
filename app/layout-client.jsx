@@ -220,7 +220,7 @@ export default function RootLayoutClient({ children }) {
         quoteFetchedAtRef.current.set(name, fetchedAt);
         if (result.status === 'fulfilled' && result.value.price != null) {
           nextPrices[name] = result.value.price;
-          nextMeta[name] = { status: result.value.status, limitStatus: result.value.limitStatus, source: result.value.source, asOf: result.value.asOf, fetchedAt };
+          nextMeta[name] = { status: result.value.status, limitStatus: result.value.limitStatus, previousClose: result.value.previousClose, source: result.value.source, asOf: result.value.asOf, fetchedAt };
         } else {
           nextMeta[name] = { status: 'unavailable', source: null, asOf: null, fetchedAt };
         }
