@@ -97,6 +97,7 @@ export default function RootLayoutClient({ children }) {
   const quotePendingRef = useRef(new Set());
   const exchangeRateFetchedAtRef = useRef(new Map());
   const exchangeRatePendingRef = useRef(new Set());
+  const saveAssetsInProgressRef = useRef(false);
   const [costBasisAdjustments, setCostBasisAdjustments] = useState([]);
   const [lastMonthNetWorth, setLastMonthNetWorth] = useState(0);
   const [stockFeeSettings, setStockFeeSettings] = useState(DEFAULT_STOCK_FEE_SETTINGS);
@@ -442,6 +443,8 @@ export default function RootLayoutClient({ children }) {
   };
 
   const handleSaveAssets = async () => {
+    if (saveAssetsInProgressRef.current) return;
+    saveAssetsInProgressRef.current = true;
     setIsSaveLoading(true);
     try {
       const assetsToSave = assets.filter(hasAssetContent);
@@ -477,6 +480,7 @@ export default function RootLayoutClient({ children }) {
     } catch (error) {
       displayToast(`資產同步失敗：${error.message || '請稍後再試'}`, 'error');
     } finally {
+      saveAssetsInProgressRef.current = false;
       setIsSaveLoading(false);
     }
   };
