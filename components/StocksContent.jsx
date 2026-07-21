@@ -7,17 +7,52 @@ import { INDUSTRY_COLORS, INDUSTRY_MAP } from '@/components/common/constants';
 import { demoInitialPrices } from '@/lib/demo-stock-data';
 import { normalizeStockSymbol } from '@/lib/stock-symbol';
 
-function getIndustry(symbol, stockName = '') {
-  const name = String(stockName);
+const LEGACY_INDUSTRY_SETTINGS_STORAGE_KEY = 'my-assets-industry-categories-v1';
+const CUSTOM_INDUSTRY_COLORS = ['#a855f7', '#f43f5e', '#0ea5e9', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6'];
 
-  // Google Sheets 可能把 ETF 代號的前導零移除，因此用名稱辨識 ETF，
-  // 避免把 006208（富邦台50）與真正的個股代號 6208 混在一起。
-  if (name.includes('元大台灣50')) return '大盤型 ETF';
-  if (name.includes('富邦台50')) return '大盤型 ETF';
-  if (name.includes('國泰臺韓科技') || name.includes('國泰台韓科技')) return '科技主題 ETF';
-  if (name.includes('主動統一台股增長')) return '主動式 ETF';
+function normalizeIndustrySymbol(symbol) {
+  return String(symbol || '').trim().toUpperCase();
+}
 
-  return INDUSTRY_MAP[symbol] || '其他';
+function createDefaultIndustryCategories() {
+  const groups = new Map();
+  Object.entries(INDUSTRY_MAP).forEach(([symbol, industry]) => {
+    if (!groups.has(industry)) groups.set(industry, []);
+    groups.get(industry).push(normalizeIndustrySymbol(symbol));
+  });
+  return [...groups.entries()].map(([name, symbols]) => ({ name, symbols }));
+}
+
+function sanitizeIndustryCategories(categories) {
+  if (!Array.isArray(categories)) return null;
+  return categories.map((category) => ({
+    name: String(category?.name || '').trim(),
+    symbols: [...new Set((Array.isArray(category?.symbols) ? category.symbols : [])
+      .map(normalizeIndustrySymbol)
+      .filter(Boolean))],
+  })).filter((category) => category.name);
+}
+
+function buildIndustryLookup(categories) {
+  return (categories || []).reduce((lookup, category) => {
+    category.symbols.forEach((symbol) => {
+      lookup[normalizeIndustrySymbol(symbol)] = category.name;
+    });
+    return lookup;
+  }, {});
+}
+
+function getIndustryColor(industry) {
+  if (INDUSTRY_COLORS[industry]) return INDUSTRY_COLORS[industry];
+  const hash = [...String(industry)].reduce((value, character) => ((value * 31) + character.charCodeAt(0)) >>> 0, 0);
+  return CUSTOM_INDUSTRY_COLORS[hash % CUSTOM_INDUSTRY_COLORS.length];
+}
+
+function parseIndustrySymbols(value) {
+  return [...new Set(String(value || '')
+    .split(/[\s,，、;；]+/)
+    .map(normalizeIndustrySymbol)
+    .filter(Boolean))];
 }
 
 function getMonthEndDateString(monthKey) {
@@ -255,6 +290,8 @@ export function StocksContent() {
     addCostBasisAdjustment,
     stockHoldingSnapshots,
     saveStockHoldingSnapshots,
+    industryCategories: savedIndustryCategories,
+    saveIndustryCategories: saveIndustryCategoriesToSheet,
     displayToast,
   } = useApp();
 
@@ -278,6 +315,12 @@ export function StocksContent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showChart, setShowChart] = useState(false);
   const [selectedIndustry, setSelectedIndustry] = useState(null);
+  const [showIndustryEditor, setShowIndustryEditor] = useState(false);
+  const [industryDrafts, setIndustryDrafts] = useState([]);
+  const [expandedIndustryDraftId, setExpandedIndustryDraftId] = useState(null);
+  const [industryEditorError, setIndustryEditorError] = useState('');
+  const [isSavingIndustryCategories, setIsSavingIndustryCategories] = useState(false);
+  const [isCompactIndustryChart, setIsCompactIndustryChart] = useState(false);
   const [editingCostName, setEditingCostName] = useState(null);
   const [costDraft, setCostDraft] = useState('');
   const [originalCostDraft, setOriginalCostDraft] = useState(null);
@@ -306,6 +349,89 @@ export function StocksContent() {
   const mobileSectionCardRefs = useRef({});
   const mobileSectionScrollTimerRef = useRef(null);
   const mobileHintTimersRef = useRef([]);
+
+  const industryCategories = useMemo(
+    () => sanitizeIndustryCategories(savedIndustryCategories) || createDefaultIndustryCategories(),
+    [savedIndustryCategories]
+  );
+
+  useEffect(() => {
+    try {
+      window.localStorage.removeItem(LEGACY_INDUSTRY_SETTINGS_STORAGE_KEY);
+    } catch (error) {
+      console.error('Failed to remove legacy industry settings from localStorage', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 639px)');
+    const updateChartMode = () => setIsCompactIndustryChart(mediaQuery.matches);
+    updateChartMode();
+    mediaQuery.addEventListener('change', updateChartMode);
+    return () => mediaQuery.removeEventListener('change', updateChartMode);
+  }, []);
+
+  const openIndustryCategoryEditor = () => {
+    setIndustryDrafts(industryCategories.map((category, index) => ({
+      id: `industry_${Date.now()}_${index}`,
+      name: category.name,
+      symbolsText: category.symbols.join(', '),
+    })));
+    setExpandedIndustryDraftId(null);
+    setIndustryEditorError('');
+    setShowIndustryEditor(true);
+  };
+
+  const updateIndustryDraft = (index, patch) => {
+    setIndustryDrafts((drafts) => drafts.map((draft, draftIndex) => (
+      draftIndex === index ? { ...draft, ...patch } : draft
+    )));
+    setIndustryEditorError('');
+  };
+
+  const saveIndustryCategories = async () => {
+    const normalizedDrafts = industryDrafts.map((draft) => ({
+      name: String(draft.name || '').trim(),
+      symbols: parseIndustrySymbols(draft.symbolsText),
+    }));
+    if (normalizedDrafts.some((category) => !category.name)) {
+      setIndustryEditorError('每個類別都需要填寫名稱。');
+      return;
+    }
+    if (normalizedDrafts.length === 0) {
+      setIndustryEditorError('至少需要保留一個產業類別。');
+      return;
+    }
+
+    const categoryNames = new Set();
+    const assignedSymbols = new Map();
+    for (const category of normalizedDrafts) {
+      const comparableName = category.name.toLocaleLowerCase('zh-Hant');
+      if (categoryNames.has(comparableName)) {
+        setIndustryEditorError(`類別「${category.name}」重複，請合併或重新命名。`);
+        return;
+      }
+      categoryNames.add(comparableName);
+      for (const symbol of category.symbols) {
+        if (assignedSymbols.has(symbol)) {
+          setIndustryEditorError(`股票代號 ${symbol} 同時出現在「${assignedSymbols.get(symbol)}」與「${category.name}」。`);
+          return;
+        }
+        assignedSymbols.set(symbol, category.name);
+      }
+    }
+
+    setIsSavingIndustryCategories(true);
+    try {
+      await saveIndustryCategoriesToSheet(normalizedDrafts);
+      setSelectedIndustry(null);
+      setShowIndustryEditor(false);
+    } catch (error) {
+      setIndustryEditorError(error.message || '產業分類保存失敗，請稍後再試。');
+    } finally {
+      setIsSavingIndustryCategories(false);
+    }
+  };
 
   useEffect(() => {
     if (posTab === 'US') setDisplayCurrency('TWD');
@@ -655,10 +781,11 @@ export function StocksContent() {
   // (txContainerMaxHeight 會在 activeTx 宣告之後計算)
 
   // ── 按產業聚合 ────────────────────────────────────────────────────────
-  const industryData = (() => {
+  const industryLookup = useMemo(() => buildIndustryLookup(industryCategories), [industryCategories]);
+  const industryData = useMemo(() => {
     const industryMap = {};
     activePositions.forEach((pos) => {
-      const industry = getIndustry(pos.symbol, pos.name);
+      const industry = industryLookup[normalizeIndustrySymbol(pos.symbol)] || '其他';
       if (!industryMap[industry]) {
         industryMap[industry] = { value: 0, holdings: [] };
       }
@@ -689,7 +816,7 @@ export function StocksContent() {
       .sort((a, b) => b.value - a.value);
 
     return finalIndustryData;
-  })();
+  }, [activePositions, displayCurrency, industryLookup, posTab, usdToTwdRate]);
 
   useEffect(() => {
     if (selectedIndustry && !industryData.some((item) => item.name === selectedIndustry)) {
@@ -1087,12 +1214,39 @@ export function StocksContent() {
 
         {!isPortfolioLoading && showChart && industryData.length > 0 && (
           <div className="border-b border-slate-100 bg-slate-50/50 px-4 py-5 md:px-5">
-            <div className="mb-4 flex items-end justify-between gap-3">
-              <div>
-                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">持股產業分佈</h3>
-                <p className="mt-1 text-[11px] text-slate-400">點選產業，查看你的持股成分</p>
+            <div className="mb-4 sm:flex sm:items-end sm:justify-between sm:gap-3">
+              <div className="flex items-start justify-between gap-3 sm:block">
+                <div>
+                  <h3 className="text-sm font-black tracking-tight text-slate-700 sm:text-xs sm:font-bold sm:uppercase sm:tracking-wide sm:text-slate-500">持股產業分佈</h3>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="text-[11px] text-slate-400">點選產業查看持股成分</p>
+                    <span className="rounded-full bg-slate-200/70 px-2 py-0.5 text-[10px] font-bold text-slate-500 sm:hidden">{industryData.length} 類</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={openIndustryCategoryEditor}
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 px-1 text-[11px] font-black text-rose-600 transition hover:text-rose-700 sm:hidden"
+                >
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h12M7 10h6M9 14h2" />
+                  </svg>
+                  分類設定
+                </button>
               </div>
-              <span className="shrink-0 text-[11px] font-medium text-slate-400">共 {industryData.length} 個產業</span>
+              <div className="hidden shrink-0 items-center gap-2 sm:flex">
+                <span className="text-[11px] font-medium text-slate-400">共 {industryData.length} 個產業</span>
+                <button
+                  type="button"
+                  onClick={openIndustryCategoryEditor}
+                  className="inline-flex h-8 items-center gap-1.5 px-1 text-[11px] font-black text-rose-600 transition hover:text-rose-700"
+                >
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h12M7 10h6M9 14h2" />
+                  </svg>
+                  分類設定
+                </button>
+              </div>
             </div>
             <div className="grid gap-5 lg:grid-cols-[minmax(280px,0.9fr)_minmax(340px,1.1fr)] lg:items-start">
               <div className="rounded-2xl border border-slate-100 bg-white p-2 shadow-sm">
@@ -1102,8 +1256,41 @@ export function StocksContent() {
                   data={industryData}
                   cx="50%"
                   cy="50%"
-                  labelLine={true}
+                  labelLine={!isCompactIndustryChart}
                   label={({ cx, cy, midAngle, outerRadius, percent, name }) => {
+                    if (isCompactIndustryChart) {
+                      if (percent * 100 < 0.5) return null;
+                      const angle = -midAngle * (Math.PI / 180);
+                      const side = Math.cos(angle) >= 0 ? 1 : -1;
+                      const lineStartX = cx + outerRadius * Math.cos(angle);
+                      const lineStartY = cy + outerRadius * Math.sin(angle);
+                      const x = cx + side * (outerRadius + 30);
+                      const y = cy + (outerRadius + 14) * Math.sin(angle);
+                      const estimatedLabelWidth = Math.min((String(name).length + 4) * 8, 84);
+                      const lineEndX = x - side * (estimatedLabelWidth / 2 + 4);
+                      return (
+                        <g>
+                          <line
+                            x1={lineStartX}
+                            y1={lineStartY}
+                            x2={lineEndX}
+                            y2={y}
+                            stroke="#cbd5e1"
+                            strokeWidth="1"
+                          />
+                          <text
+                            x={x}
+                            y={y}
+                            fill="#64748b"
+                            textAnchor="middle"
+                            dominantBaseline="central"
+                            className="text-[9px] font-bold"
+                          >
+                            {`${name} ${(percent * 100).toFixed(0)}%`}
+                          </text>
+                        </g>
+                      );
+                    }
                     if (percent * 100 < 0.5) return null;
                     const radius = outerRadius + 12;
                     const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
@@ -1130,7 +1317,7 @@ export function StocksContent() {
                   {industryData.map((entry, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={INDUSTRY_COLORS[entry.name] || INDUSTRY_COLORS.default}
+                      fill={getIndustryColor(entry.name)}
                       opacity={!selectedIndustry || selectedIndustry === entry.name ? 1 : 0.35}
                       stroke={selectedIndustry === entry.name ? '#fff' : 'transparent'}
                       strokeWidth={selectedIndustry === entry.name ? 3 : 0}
@@ -1164,14 +1351,14 @@ export function StocksContent() {
                         aria-expanded={isOpen}
                         className="flex w-full items-center gap-3 px-3.5 py-3 text-left hover:bg-slate-50"
                       >
-                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: INDUSTRY_COLORS[entry.name] || INDUSTRY_COLORS.default }} />
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: getIndustryColor(entry.name) }} />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-center gap-2">
                             <span className="truncate text-sm font-bold text-slate-700">{entry.name}</span>
                             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">{entry.holdings.length} 檔</span>
                           </span>
                           <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-100">
-                            <span className="block h-full rounded-full" style={{ width: `${Math.min(industryPercent, 100)}%`, backgroundColor: INDUSTRY_COLORS[entry.name] || INDUSTRY_COLORS.default }} />
+                            <span className="block h-full rounded-full" style={{ width: `${Math.min(industryPercent, 100)}%`, backgroundColor: getIndustryColor(entry.name) }} />
                           </span>
                         </span>
                         <span className="shrink-0 text-right">
@@ -1370,8 +1557,10 @@ export function StocksContent() {
                       <tr key={pos.name} className="h-14 border-t border-slate-100 hover:bg-slate-50/60 transition">
                         {/* 股票 */}
                         <td className="px-4 py-3 align-middle text-left">
-                          <div className="inline-flex rounded-md bg-rose-50 px-2 py-0.5 font-mono text-xs font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</div>
-                          <div className="max-w-[180px] truncate text-sm text-slate-800">{displayName}</div>
+                          <div className="flex items-center gap-2 whitespace-nowrap">
+                            <span className="inline-flex shrink-0 rounded-md bg-rose-50 px-2 py-0.5 font-mono text-xs font-bold text-rose-600 ring-1 ring-rose-100">{pos.symbol}</span>
+                            <span className="max-w-[180px] truncate text-sm text-slate-800">{displayName}</span>
+                          </div>
                         </td>
 
                         {/* 持有股數 */}
@@ -1855,6 +2044,192 @@ export function StocksContent() {
           )}
         </div>
       </section>
+
+      {showIndustryEditor && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/45 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="industry-editor-heading" className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] border border-slate-200 bg-white shadow-2xl sm:max-h-[86vh] sm:rounded-2xl">
+            <div className="flex justify-center py-2 sm:hidden" aria-hidden="true">
+              <span className="h-1 w-10 rounded-full bg-slate-200" />
+            </div>
+            <div className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-4 pb-4 pt-1 sm:px-5 sm:py-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500" aria-hidden="true">
+                  <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5h12M6.5 10h7M8.5 14.5h3" />
+                  </svg>
+                </span>
+                <div className="min-w-0">
+                  <h3 id="industry-editor-heading" className="text-base font-black text-slate-900">產業分類設定</h3>
+                  <p className="mt-0.5 truncate text-[11px] text-slate-400">保存後同步至 Google Sheets</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => !isSavingIndustryCategories && setShowIndustryEditor(false)}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm text-slate-400 transition hover:bg-slate-200 hover:text-slate-600"
+                aria-label="關閉產業分類管理"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/70 px-4 py-4 sm:px-5">
+              {!isSheetsConnected && (
+                <p role="alert" className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-[11px] font-bold leading-5 text-amber-700">
+                  尚未連接 Google Sheets，請先完成連線再保存。
+                </p>
+              )}
+
+              <div className="mb-3 flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white px-3.5 py-3 shadow-sm shadow-slate-100">
+                <div>
+                  <p className="text-xs font-black text-slate-700">你的分類</p>
+                  <p className="mt-0.5 text-[10px] text-slate-400">點選類別即可展開編輯</p>
+                </div>
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
+                  <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-600">{industryDrafts.length} 類</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-1">{industryDrafts.reduce((total, draft) => total + parseIndustrySymbols(draft.symbolsText).length, 0)} 檔</span>
+                </div>
+              </div>
+
+              {industryDrafts.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center">
+                  <p className="text-sm font-bold text-slate-500">還沒有分類</p>
+                  <p className="mt-1 text-[11px] text-slate-400">新增一個類別開始整理持股</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {industryDrafts.map((draft, index) => {
+                    const isExpanded = expandedIndustryDraftId === draft.id;
+                    const symbolCount = parseIndustrySymbols(draft.symbolsText).length;
+                    return (
+                      <div key={draft.id} className={`overflow-hidden rounded-2xl border bg-white transition ${isExpanded ? 'border-rose-200 shadow-md shadow-rose-100/50' : 'border-slate-200/80 shadow-sm shadow-slate-100'}`}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedIndustryDraftId(isExpanded ? null : draft.id)}
+                          className="flex w-full items-center gap-3 px-3.5 py-3 text-left"
+                          aria-expanded={isExpanded}
+                        >
+                          <span className="h-3 w-3 shrink-0 rounded-full ring-4 ring-slate-50" style={{ backgroundColor: getIndustryColor(draft.name || '其他') }} />
+                          <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-700">{draft.name || '未命名類別'}</span>
+                          <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">{symbolCount} 檔</span>
+                          <svg viewBox="0 0 20 20" fill="currentColor" className={`h-4 w-4 shrink-0 text-slate-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true">
+                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+
+                        {isExpanded && (
+                          <div className="border-t border-slate-100 bg-slate-50/60 px-3.5 pb-3.5 pt-3">
+                            <div className="grid gap-3 sm:grid-cols-[minmax(150px,0.35fr)_minmax(260px,1fr)]">
+                              <label className="block">
+                                <span className="mb-1.5 block text-[10px] font-bold text-slate-500">類別名稱</span>
+                                <input
+                                  value={draft.name}
+                                  onChange={(event) => updateIndustryDraft(index, { name: event.target.value })}
+                                  placeholder="例如：半導體"
+                                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+                                />
+                              </label>
+                              <label className="block">
+                                <span className="mb-1.5 block text-[10px] font-bold text-slate-500">股票代號</span>
+                                <textarea
+                                  value={draft.symbolsText}
+                                  onChange={(event) => updateIndustryDraft(index, { symbolsText: event.target.value })}
+                                  placeholder="2330, 2454, NVDA"
+                                  rows={2}
+                                  className="min-h-11 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm text-slate-700 outline-none transition focus:border-rose-300 focus:ring-2 focus:ring-rose-100"
+                                />
+                                <span className="mt-1 block text-[9px] text-slate-400">使用逗號、空格或換行分隔代號</span>
+                              </label>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIndustryDrafts((drafts) => drafts.filter((_, draftIndex) => draftIndex !== index));
+                                setExpandedIndustryDraftId(null);
+                                setIndustryEditorError('');
+                              }}
+                              className="mt-3 inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-bold text-slate-400 transition hover:bg-rose-50 hover:text-rose-500"
+                              aria-label={`刪除${draft.name || '此'}類別`}
+                            >
+                              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-3.5 w-3.5" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 6h11M8 6V4.5h4V6m-6 0 .7 9h6.6l.7-9" /></svg>
+                              刪除此類別
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const id = `industry_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+                    setIndustryDrafts((drafts) => [...drafts, { id, name: '', symbolsText: '' }]);
+                    setExpandedIndustryDraftId(id);
+                    setIndustryEditorError('');
+                  }}
+                  className="rounded-xl bg-rose-50 px-3 py-2.5 text-xs font-black text-rose-600 transition hover:bg-rose-100"
+                >
+                  ＋ 新增類別
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIndustryDrafts(createDefaultIndustryCategories().map((category, index) => ({
+                      id: `industry_default_${Date.now()}_${index}`,
+                      name: category.name,
+                      symbolsText: category.symbols.join(', '),
+                    })));
+                    setExpandedIndustryDraftId(null);
+                    setIndustryEditorError('');
+                  }}
+                  className="rounded-xl bg-white px-3 py-2.5 text-xs font-bold text-slate-500 ring-1 ring-slate-200 transition hover:bg-slate-50"
+                >
+                  恢復預設
+                </button>
+              </div>
+
+              {activePositions.length > 0 && (
+                <details className="mt-4 rounded-2xl border border-slate-200/80 bg-white px-3.5 py-3">
+                  <summary className="cursor-pointer list-none text-[11px] font-bold text-slate-500">查看目前持股代號（{activePositions.length}）</summary>
+                  <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
+                    {activePositions.map((position) => (
+                      <span key={`${position.market}-${position.symbol}`} className="rounded-lg bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold text-slate-600">{position.symbol}</span>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {industryEditorError && (
+                <p role="alert" className="mt-4 rounded-xl border border-rose-100 bg-rose-50 px-3 py-2.5 text-xs font-bold text-rose-600">{industryEditorError}</p>
+              )}
+            </div>
+
+            <div className="grid shrink-0 grid-cols-[0.7fr_1.3fr] gap-2 border-t border-slate-100 bg-white px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 sm:flex sm:justify-end sm:px-5 sm:pb-3">
+              <button
+                type="button"
+                disabled={isSavingIndustryCategories}
+                onClick={() => setShowIndustryEditor(false)}
+                className="h-11 rounded-xl bg-slate-100 px-4 text-xs font-bold text-slate-600 transition hover:bg-slate-200 disabled:opacity-50 sm:h-9"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={!isSheetsConnected || isSavingIndustryCategories}
+                onClick={saveIndustryCategories}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 text-xs font-black text-white shadow-md shadow-rose-200 transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9"
+              >
+                {isSavingIndustryCategories && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />}
+                {isSavingIndustryCategories ? '保存中' : '保存分類'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showHoldingSnapshotModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">

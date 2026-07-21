@@ -1,9 +1,10 @@
-// 更新日期：2026-07-21（修改本檔案時請同步更新）
+// 更新日期：2026-07-21｜版本：V1.0.0（修改本檔案時請同步更新；同日持續修改時依序遞增修訂號）
 const SHEET_ASSETS = 'assets';
 const SHEET_TRANSACTIONS = 'transactions';
 const SHEET_MONTHLY_ASSETS = 'monthly_assets';
 const SHEET_STOCK_HOLDING_SNAPSHOTS = 'monthly_stock_holdings';
 const SHEET_COST_BASIS_ADJUSTMENTS = 'cost_basis_adjustments';
+const SHEET_INDUSTRY_CATEGORIES = 'stock_industry_categories';
 
 const ASSET_HEADERS = ['id', 'category', 'name', 'balance', 'isLiability', 'currency', 'amount'];
 const TX_HEADERS = [
@@ -23,6 +24,7 @@ const TX_HEADERS = [
 const MONTHLY_ASSET_HEADERS = ['monthKey'].concat(ASSET_HEADERS);
 const STOCK_HOLDING_SNAPSHOT_HEADERS = ['id', 'monthKey', 'market', 'symbol', 'stock', 'holdingQty', 'avgCost', 'note'];
 const COST_BASIS_ADJUSTMENT_HEADERS = ['id', 'stock', 'market', 'effectiveAt', 'avgCost', 'holdingQty', 'totalCostBasis'];
+const INDUSTRY_CATEGORY_HEADERS = ['category', 'symbols'];
 
 function jsonResponse(payload) {
   return ContentService
@@ -154,16 +156,36 @@ function normalizeStockHoldingSnapshot_(snapshot) {
   };
 }
 
+function normalizeIndustryCategory_(category) {
+  const rawSymbols = Array.isArray(category.symbols)
+    ? category.symbols
+    : String(category.symbols || '').split(/[\s,，、;；]+/);
+  const seen = {};
+  const symbols = rawSymbols.map(function(symbol) {
+    return String(symbol || '').trim().toUpperCase();
+  }).filter(function(symbol) {
+    if (!symbol || seen[symbol]) return false;
+    seen[symbol] = true;
+    return true;
+  });
+  return {
+    category: String(category.name || category.category || '').trim(),
+    symbols: symbols.join(', '),
+  };
+}
+
 function getAll_() {
   const assetsSheet = getOrCreateSheet_(SHEET_ASSETS, ASSET_HEADERS);
   const txSheet = getOrCreateSheet_(SHEET_TRANSACTIONS, TX_HEADERS);
   const costSheet = getOrCreateSheet_(SHEET_COST_BASIS_ADJUSTMENTS, COST_BASIS_ADJUSTMENT_HEADERS);
   const holdingSheet = getOrCreateSheet_(SHEET_STOCK_HOLDING_SNAPSHOTS, STOCK_HOLDING_SNAPSHOT_HEADERS);
+  const industrySheet = getOrCreateSheet_(SHEET_INDUSTRY_CATEGORIES, INDUSTRY_CATEGORY_HEADERS);
 
   const assetLastRow = assetsSheet.getLastRow();
   const txLastRow = txSheet.getLastRow();
   const costLastRow = costSheet.getLastRow();
   const holdingLastRow = holdingSheet.getLastRow();
+  const industryLastRow = industrySheet.getLastRow();
 
   const assetsRows = assetLastRow > 1
     ? assetsSheet.getRange(2, 1, assetLastRow - 1, ASSET_HEADERS.length).getValues()
@@ -177,13 +199,37 @@ function getAll_() {
   const holdingRows = holdingLastRow > 1
     ? holdingSheet.getRange(2, 1, holdingLastRow - 1, STOCK_HOLDING_SNAPSHOT_HEADERS.length).getValues()
     : [];
+  const industryRows = industryLastRow > 1
+    ? industrySheet.getRange(2, 1, industryLastRow - 1, INDUSTRY_CATEGORY_HEADERS.length).getValues()
+    : [];
+  const industryCategories = rowsToObjects_(industryRows, INDUSTRY_CATEGORY_HEADERS).map(function(category) {
+    return {
+      name: String(category.category || '').trim(),
+      symbols: String(category.symbols || '').split(/[\s,，、;；]+/).filter(Boolean),
+    };
+  }).filter(function(category) {
+    return category.name;
+  });
 
   return {
     assets: rowsToObjects_(assetsRows, ASSET_HEADERS),
     transactions: rowsToObjects_(txRows, TX_HEADERS),
     costBasisAdjustments: rowsToObjects_(costRows, COST_BASIS_ADJUSTMENT_HEADERS),
     stockHoldingSnapshots: rowsToObjects_(holdingRows, STOCK_HOLDING_SNAPSHOT_HEADERS),
+    industryCategories: industryCategories.length > 0 ? industryCategories : null,
   };
+}
+
+function saveIndustryCategories_(categories) {
+  const normalized = (categories || []).map(normalizeIndustryCategory_).filter(function(category) {
+    return category.category;
+  });
+  if (normalized.length === 0) {
+    throw new Error('至少需要保留一個產業類別');
+  }
+  const sheet = getOrCreateSheet_(SHEET_INDUSTRY_CATEGORIES, INDUSTRY_CATEGORY_HEADERS);
+  clearAndWriteObjects_(sheet, INDUSTRY_CATEGORY_HEADERS, normalized);
+  return { count: normalized.length };
 }
 
 function upsertStockHoldingSnapshots_(monthKey, snapshots) {
@@ -450,6 +496,10 @@ function doPost(e) {
 
     if (action === 'upsertStockHoldingSnapshots') {
       return jsonResponse({ ok: true, data: upsertStockHoldingSnapshots_(payload.monthKey, payload.snapshots || []) });
+    }
+
+    if (action === 'saveIndustryCategories') {
+      return jsonResponse({ ok: true, data: saveIndustryCategories_(payload.categories || []) });
     }
 
     if (action === 'getMonthlyAssets') {

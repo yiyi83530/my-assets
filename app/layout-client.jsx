@@ -15,6 +15,7 @@ import {
   fetchMonthlyAssetsFromSheets,
   fetchSheetsData,
   removeTransactionFromSheets,
+  saveIndustryCategoriesToSheets,
   saveMonthlyAssetsToSheets,
   saveStockHoldingSnapshotsToSheets,
   updateTransactionInSheets,
@@ -125,6 +126,7 @@ export default function RootLayoutClient({ children }) {
   const exchangeRatePendingRef = useRef(new Set());
   const saveAssetsInProgressRef = useRef(false);
   const [costBasisAdjustments, setCostBasisAdjustments] = useState([]);
+  const [industryCategories, setIndustryCategories] = useState(null);
   const [lastMonthNetWorth, setLastMonthNetWorth] = useState(0);
   const [stockFeeSettings, setStockFeeSettings] = useState(DEFAULT_STOCK_FEE_SETTINGS);
   const [usdToTwdRate, setUsdToTwdRate] = useState(null);
@@ -314,6 +316,7 @@ export default function RootLayoutClient({ children }) {
       if (Array.isArray(data.stockHoldingSnapshots)) {
         setRealStockHoldingSnapshots(data.stockHoldingSnapshots);
       }
+      setIndustryCategories(Array.isArray(data.industryCategories) ? data.industryCategories : null);
       if (data.stockMarketPrices && typeof data.stockMarketPrices === 'object') {
         setStockMarketPrices(data.stockMarketPrices);
       }
@@ -481,6 +484,31 @@ export default function RootLayoutClient({ children }) {
     }
   }, [displayToast, isSheetsConnected, setStockHoldingSnapshots, sheetsApiUrl, stockHoldingSnapshots]);
 
+  const saveIndustryCategories = useCallback(async (categories) => {
+    if (!isSheetsConnected || !sheetsApiUrl) {
+      throw new Error('請先連接 Google Sheets，再保存產業分類');
+    }
+    const snapshot = industryCategories;
+    const normalized = (Array.isArray(categories) ? categories : []).map((category) => ({
+      name: String(category?.name || '').trim(),
+      symbols: [...new Set((Array.isArray(category?.symbols) ? category.symbols : [])
+        .map((symbol) => String(symbol || '').trim().toUpperCase())
+        .filter(Boolean))],
+    })).filter((category) => category.name);
+    if (normalized.length === 0) {
+      throw new Error('至少需要保留一個產業類別');
+    }
+    setIndustryCategories(normalized);
+    try {
+      await saveIndustryCategoriesToSheets(sheetsApiUrl, normalized);
+      displayToast('產業分類已保存至 Google Sheets', 'success');
+      return normalized;
+    } catch (error) {
+      setIndustryCategories(snapshot);
+      throw error;
+    }
+  }, [displayToast, industryCategories, isSheetsConnected, sheetsApiUrl]);
+
   const connectSheets = useCallback(async (apiUrl) => {
     const nextUrl = String(apiUrl || '').trim();
     await syncFromSheets(nextUrl, { silent: true });
@@ -494,6 +522,7 @@ export default function RootLayoutClient({ children }) {
     window.localStorage.removeItem(SHEETS_URL_STORAGE_KEY);
     setSheetsApiUrl('');
     setIsSheetsConnected(false);
+    setIndustryCategories(null);
     setTransactions(demoTransactions.map((tx) => ({ ...tx })));
     displayToast('已成功結束連線！', 'success');
   }, [displayToast]);
@@ -764,6 +793,7 @@ export default function RootLayoutClient({ children }) {
       stockMarketPrices={stockMarketPrices}
       stockMonthlyClosePrices={stockMonthlyClosePrices}
       stockHoldingSnapshots={stockHoldingSnapshots}
+      industryCategories={industryCategories}
       stockQuoteMeta={stockQuoteMeta}
       isStockPricesLoading={isStockPricesLoading}
       refreshStockPrices={refreshStockPrices}
@@ -781,6 +811,7 @@ export default function RootLayoutClient({ children }) {
       removeTransaction={removeTransaction}
       addCostBasisAdjustment={addCostBasisAdjustment}
       saveStockHoldingSnapshots={saveStockHoldingSnapshots}
+      saveIndustryCategories={saveIndustryCategories}
       saveStockFeeSettings={handleSaveSettings}
       usdToTwdRate={usdToTwdRate}
     >
