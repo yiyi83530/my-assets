@@ -6,9 +6,9 @@ import { useState, useEffect } from 'react';
 
 function tabClass(isActive) {
   return [
-    'w-full rounded-lg px-4 py-2.5 text-center text-xs font-bold transition-all duration-200 md:px-6 md:py-3 md:text-sm',
+    'relative z-10 w-full rounded-lg px-4 py-2.5 text-center text-xs font-bold transition-colors duration-200 md:px-6 md:py-3 md:text-sm',
     isActive
-      ? 'bg-white text-slate-700 shadow-sm ring-0'
+      ? 'text-slate-700'
       : 'text-slate-500 md:hover:bg-white/70 md:hover:text-slate-800',
   ].join(' ');
 }
@@ -58,7 +58,13 @@ export default function TabNav({ activeTab }) {
         </button>
       </div>
 
-      <div className="grid w-full grid-cols-2 gap-2 rounded-xl bg-slate-100/90 p-1.5 md:gap-2.5 md:p-2">
+      <div className="relative grid w-full grid-cols-2 rounded-xl bg-slate-100/90 p-1.5 md:p-2">
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-y-1.5 left-1.5 w-[calc(50%_-_6px)] rounded-lg bg-white shadow-sm transition-transform duration-200 ease-out md:inset-y-2 md:left-2 md:w-[calc(50%_-_8px)] ${
+            optimisticTab === 'stocks' ? 'translate-x-full' : 'translate-x-0'
+          }`}
+        />
         <Link
           href="/assets"
           onClick={() => setOptimisticTab('assets')}
