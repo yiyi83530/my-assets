@@ -15,6 +15,39 @@ const TWSE_DAILY_URL = 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_
 const TPEX_DAILY_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes';
 const TPEX_ESB_STATS_URL = 'https://www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics';
 
+function getTaipeiDateTime(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  return Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+}
+
+function getTwTradedPriceStatus(asOf, now = new Date()) {
+  const current = getTaipeiDateTime(now);
+  const minutes = Number(current.hour) * 60 + Number(current.minute);
+  const isWeekday = !['Sat', 'Sun'].includes(current.weekday);
+  const isTradingHours = minutes >= 9 * 60 && minutes <= 13 * 60 + 30;
+
+  // MIS keeps the final traded price in `z` after the market closes. Only call it
+  // realtime when both the server clock and the quote timestamp are in today's
+  // regular session; otherwise it is the latest completed-session price.
+  const timestamp = Number(asOf);
+  const quoted = Number.isFinite(timestamp) ? getTaipeiDateTime(new Date(timestamp)) : null;
+  const isToday = quoted
+    && quoted.year === current.year
+    && quoted.month === current.month
+    && quoted.day === current.day;
+
+  return isWeekday && isTradingHours && isToday ? 'realtime' : 'daily_close';
+}
+
 async function fetchRealtimeTwQuote(symbol, exchange) {
   const channel = `${exchange}_${symbol}.tw`;
   try {
@@ -40,7 +73,7 @@ async function fetchRealtimeTwQuote(symbol, exchange) {
     const upperLimit = toNumberMaybe(row.u);
     const lowerLimit = toNumberMaybe(row.w);
     if (traded !== null) {
-      return { price: traded, status: 'realtime', limitStatus: getLimitStatus(traded, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
+      return { price: traded, status: getTwTradedPriceStatus(row.tlong), limitStatus: getLimitStatus(traded, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };
     }
     if (opening !== null) {
       return { price: opening, status: 'opening_price', limitStatus: getLimitStatus(opening, upperLimit, lowerLimit), source: exchange === 'tse' ? 'TWSE' : 'TPEx', asOf: row.tlong || null };

@@ -44,6 +44,29 @@ function ChevronDownIcon({ className = '' }) {
   );
 }
 
+function SummaryValueSkeleton({ className = '' }) {
+  return <span className={`block animate-pulse rounded-lg bg-slate-200/80 ${className || 'h-10 w-44'}`} aria-label="資料載入中" />;
+}
+
+function AssetListLoading() {
+  return (
+    <div className="card p-5" aria-label="資產資料載入中">
+      <div className="mb-3 flex items-start justify-between border-b border-slate-100 pb-2">
+        <span className="h-5 w-20 animate-pulse rounded-md bg-slate-200/80" />
+        <span className="h-4 w-24 animate-pulse rounded-md bg-slate-200/80" />
+      </div>
+      <div className="space-y-2">
+        {[0, 1, 2].map((item) => (
+          <div key={item} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+            <span className="h-4 w-28 animate-pulse rounded-md bg-slate-200/80" />
+            <span className="h-4 w-20 animate-pulse rounded-md bg-slate-200/80" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function getMonthEndDateString(monthKey) {
   const [year, month] = String(monthKey || '').split('-').map(Number);
   if (!Number.isInteger(year) || !Number.isInteger(month)) return `${monthKey}-31`;
@@ -399,24 +422,12 @@ export function AssetsContent() {
   const displayNetGrowth = activeSummary?.netGrowth ?? 0;
   const displayGrowthRate = activeSummary?.growthRate ?? 0;
 
-  // 外部報價或匯率較慢時沿用既有／fallback 數值，不阻擋整個資產頁面。
+  // 初始資料尚未完成時保留完整頁面結構，只遮住依賴遠端資料的數值。
   const isAssetScreenLoading = isAppInitializing;
-
-  if (isAssetScreenLoading) {
-    return (
-      <div className="flex min-h-[55vh] w-full flex-col items-center justify-center rounded-2xl border border-rose-100 bg-white/70 px-6 text-center shadow-sm">
-        <div className="relative flex items-center justify-center">
-          <div className="h-14 w-14 animate-spin rounded-full border-4 border-rose-100 border-t-rose-500" />
-          <span className="absolute text-xl" aria-hidden="true">🐷</span>
-        </div>
-        <p className="mt-4 text-sm font-bold text-slate-600">正在搬運您的資產...</p>
-      </div>
-    );
-  }
 
   return (
     <>
-      {!isSheetsConnected && (
+      {!isAssetScreenLoading && !isSheetsConnected && (
         <div className={`mb-4 rounded-2xl border p-4 shadow-sm border-rose-100 bg-rose-50/70`}>
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div className="flex items-start gap-3">
@@ -440,7 +451,9 @@ export function AssetsContent() {
             <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500 md:text-sm md:text-slate-700">個人淨資產</p>
           </div>
           <p className="text-4xl font-black text-slate-900">
-            {displayNetWorth !== 0 ? (
+            {isAssetScreenLoading ? (
+              <SummaryValueSkeleton />
+            ) : displayNetWorth !== 0 ? (
               `$${displayNetWorth.toLocaleString()}`
             ) : (contextLastMonthNetWorth !== 0 && contextLastMonthNetWorth !== undefined) ? (
               `$${contextLastMonthNetWorth.toLocaleString()} (上月數值)`
@@ -448,9 +461,13 @@ export function AssetsContent() {
               `$0`
             )}
           </p>
-          <p className={`mt-3 flex items-center text-xs font-bold ${displayNetGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            較上月 <span className="mx-1 text-[10px]">{displayNetGrowth >= 0 ? '▲' : '▼'}</span> ${displayNetGrowth.toLocaleString()} ({displayGrowthRate.toFixed(2)}%)
-          </p>
+          {isAssetScreenLoading ? (
+            <SummaryValueSkeleton className="mt-3 h-4 w-40" />
+          ) : (
+            <p className={`mt-3 flex items-center text-xs font-bold ${displayNetGrowth >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              較上月 <span className="mx-1 text-[10px]">{displayNetGrowth >= 0 ? '▲' : '▼'}</span> ${displayNetGrowth.toLocaleString()} ({displayGrowthRate.toFixed(2)}%)
+            </p>
+          )}
 
           <button type="button" onClick={() => setIsTrendOpen((prev) => !prev)} className="mt-3 flex w-full justify-center md:hidden">
             <ChevronDownIcon className={`h-6 w-6 text-slate-400 transition-transform ${isTrendOpen ? 'rotate-180' : ''}`} />
@@ -463,7 +480,9 @@ export function AssetsContent() {
                 <span className="text-[10px] font-medium text-slate-400">單位：新台幣</span>
               </div>
               <div className="h-44 flex items-center justify-center">
-                {chartData.length > 0 ? (
+                {isAssetScreenLoading ? (
+                  <div className="h-full w-full animate-pulse rounded-lg bg-rose-100/70" aria-label="趨勢資料載入中" />
+                ) : chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
@@ -489,7 +508,9 @@ export function AssetsContent() {
           <p className="mt-3 mb-3 hidden text-left text-[11px] text-slate-400 md:block">將滑鼠移動到圓餅圖上，即可顯示該資產名稱及餘額！</p>
           <div className="h-40 w-full flex items-center justify-center">
             <div className="h-full w-full scale-[0.78] transition-transform md:scale-100">
-              {allocationData.length > 0 ? (
+              {isAssetScreenLoading ? (
+                <div className="mx-auto h-32 w-32 animate-pulse rounded-full border-[22px] border-slate-200/80" aria-label="配置資料載入中" />
+              ) : allocationData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={allocationData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={5} dataKey="value">
@@ -506,7 +527,12 @@ export function AssetsContent() {
 
           {/* 簡易圖例與數值 */}
           <div className="mt-2 w-full space-y-1.5">
-            {allocationData.map((item) => {
+            {isAssetScreenLoading ? [0, 1, 2].map((item) => (
+              <div key={item} className="flex items-center justify-between">
+                <span className="h-3 w-20 animate-pulse rounded bg-slate-200/80" />
+                <span className="h-3 w-24 animate-pulse rounded bg-slate-200/80" />
+              </div>
+            )) : allocationData.map((item) => {
               const percent = totalAssets > 0 ? (item.value / totalAssets) * 100 : 0;
               return (
                 <div key={item.name} className="flex items-center justify-between">
@@ -590,7 +616,8 @@ export function AssetsContent() {
         {/* 管理帳戶按鈕 */}
         <button
           onClick={() => openManageModal({ year: selectedYear, month: selectedMonth })}
-          className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-rose-200 bg-white px-5 py-4 text-left shadow-sm ring-1 ring-rose-100/70 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-100/60"
+          disabled={isAssetScreenLoading}
+          className="group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl border border-rose-200 bg-white px-5 py-4 text-left shadow-sm ring-1 ring-rose-100/70 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-rose-100/60 disabled:cursor-wait disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
         >
           {/* 動態小豬圖標 */}
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-rose-50 text-2xl shadow-md shadow-rose-100 transition-transform group-hover:rotate-12 group-hover:scale-110">
@@ -610,7 +637,11 @@ export function AssetsContent() {
         </button>
       </div>
 
-      {hasNoAssets ? (
+      {isAssetScreenLoading ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {[0, 1, 2, 3].map((item) => <AssetListLoading key={item} />)}
+        </div>
+      ) : hasNoAssets ? (
         <div className="card p-8 text-center">
           <div className="mb-4 flex justify-center"><div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-3xl">📝</div></div>
           <h3 className="text-lg font-bold text-slate-700">尚無資產負債資料</h3>
