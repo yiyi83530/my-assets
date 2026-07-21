@@ -46,7 +46,7 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
-      <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl">
+      <div className="flex h-[78vh] max-h-[78vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between border-b border-rose-100 px-6 py-4">
           <h3 className="icon-label flex items-center text-sm font-bold text-slate-900"><span aria-hidden="true">⚙️</span><span>交易設定</span></h3>
           <button onClick={onClose} className="text-slate-400 transition hover:text-slate-600">
@@ -54,22 +54,34 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
           </button>
         </div>
 
-        <div className="border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center justify-center gap-1 rounded-xl bg-slate-100 p-0.5">
+        <div className="shrink-0 border-b border-slate-100 px-4 py-4 sm:px-6">
+          <div
+            role="tablist"
+            aria-label="選擇交易市場"
+            className="grid w-full grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1"
+          >
             <button
               type="button"
+              role="tab"
+              aria-selected={selectedMarket === 'TWSE'}
               onClick={() => setSelectedMarket('TWSE')}
-              className={`icon-label inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                selectedMarket === 'TWSE' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              className={`icon-label flex min-h-11 w-full items-center justify-center rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-1 ${
+                selectedMarket === 'TWSE'
+                  ? 'border-rose-100 bg-white text-slate-900 shadow-sm'
+                  : 'border-transparent text-slate-500 hover:bg-white/60 hover:text-slate-700'
               }`}
             >
               <span aria-hidden="true">📈</span><span>台股設定</span>
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={selectedMarket === 'US'}
               onClick={() => setSelectedMarket('US')}
-              className={`icon-label inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                selectedMarket === 'US' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              className={`icon-label flex min-h-11 w-full items-center justify-center rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 focus-visible:ring-offset-1 ${
+                selectedMarket === 'US'
+                  ? 'border-rose-100 bg-white text-slate-900 shadow-sm'
+                  : 'border-transparent text-slate-500 hover:bg-white/60 hover:text-slate-700'
               }`}
             >
               <span aria-hidden="true">🇺🇸</span><span>美股設定</span>
@@ -77,7 +89,7 @@ export function SettingsModal({ isOpen, onClose, onSave, initialSettings, isSavi
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 p-6">
+        <form onSubmit={handleSubmit} className="flex-1 space-y-4 overflow-y-auto p-6">
           {selectedMarket === 'US' && (
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-500">
