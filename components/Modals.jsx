@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useApp } from '@/lib/app-context';
+import { memo, useEffect, useRef, useState } from 'react';
+import { useTransactionSettings } from '@/lib/app-context';
 import { getAutomaticTransactionTaxRate, TWSE_COMMISSION_RATE } from '@/lib/trading-fees';
 
 function inferSymbolFromStockText(stockText, market) {
@@ -11,8 +11,8 @@ function inferSymbolFromStockText(stockText, market) {
   return /^0?\d{4,6}[A-Z]?$/.test(firstToken) ? firstToken.toUpperCase() : '';
 }
 
-export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSaving }) {
-  const { stockFeeSettings, openSettingsModal } = useApp();
+export const TransactionModal = memo(function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSaving }) {
+  const { stockFeeSettings, openSettingsModal } = useTransactionSettings();
   const [market, setMarket] = useState('TWSE');
   const [type, setType] = useState('buy');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -673,7 +673,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
       </div>
     </div>
   );
-}
+});
 
 export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialApiUrl = '', isConnected }) {
   const [apiUrl, setApiUrl] = useState('');

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useApp } from '@/lib/app-context';
+import { useAppChrome } from '@/lib/app-context';
 import { useState, useEffect } from 'react';
 
 function tabClass(isActive) {
@@ -14,7 +14,7 @@ function tabClass(isActive) {
 }
 
 export default function TabNav({ activeTab }) {
-  const { openConfigModal, isSheetsConnected } = useApp();
+  const { openConfigModal, isSheetsConnected } = useAppChrome();
   const [mounted, setMounted] = useState(false);
   const [optimisticTab, setOptimisticTab] = useState(activeTab);
 

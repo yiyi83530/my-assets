@@ -616,7 +616,7 @@ export default function RootLayoutClient({ children }) {
     }
   }, [isSheetsConnected, sheetsApiUrl]);
 
-  const handleTransactionSubmit = async (txData) => {
+  const handleTransactionSubmit = useCallback(async (txData) => {
     setIsTransactionSaving(true);
     try {
       if (txData.id) {
@@ -633,7 +633,7 @@ export default function RootLayoutClient({ children }) {
     } finally {
       setIsTransactionSaving(false);
     }
-  };
+  }, [addTransaction, editTransaction, displayToast]);
 
   const handleConfigConnect = async (apiUrl) => {
     try {
@@ -768,6 +768,20 @@ export default function RootLayoutClient({ children }) {
     setSettingsModalSource(null);
   }, [settingsModalSource]);
 
+  const handleOpenConfigModal = useCallback(() => {
+    setShowConfigModal(true);
+  }, []);
+
+  const handleOpenSettingsModal = useCallback((source = null) => {
+    setSettingsModalSource(source);
+    setShowSettingsModal(true);
+  }, []);
+
+  const handleCloseTransactionModal = useCallback(() => {
+    setShowTransactionModal(false);
+    setEditingTransaction(null);
+  }, []);
+
   return (
     <AppProvider
       isAppInitializing={isAppInitializing}
@@ -775,11 +789,8 @@ export default function RootLayoutClient({ children }) {
         setEditingTransaction(transaction);
         setShowTransactionModal(true);
       }}
-      openConfigModal={() => setShowConfigModal(true)}
-      openSettingsModal={(source = null) => {
-        setSettingsModalSource(source);
-        setShowSettingsModal(true);
-      }}
+      openConfigModal={handleOpenConfigModal}
+      openSettingsModal={handleOpenSettingsModal}
       openManageModal={(context) => {
         const today = new Date();
         const currentYear = today.getFullYear();
@@ -874,16 +885,15 @@ export default function RootLayoutClient({ children }) {
         <span aria-hidden="true">🐷</span><span>記一筆股票</span>
       </button>
 
-      <TransactionModal
-        isOpen={showTransactionModal}
-        onClose={() => {
-          setShowTransactionModal(false);
-          setEditingTransaction(null); // Clear editing transaction on close
-        }}
-        onSubmit={handleTransactionSubmit}
-        initialData={editingTransaction}
-        isSaving={isTransactionSaving}
-      />
+      {showTransactionModal && (
+        <TransactionModal
+          isOpen
+          onClose={handleCloseTransactionModal}
+          onSubmit={handleTransactionSubmit}
+          initialData={editingTransaction}
+          isSaving={isTransactionSaving}
+        />
+      )}
       <ConfigModal
         isOpen={showConfigModal}
         onClose={() => setShowConfigModal(false)}

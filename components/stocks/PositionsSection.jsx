@@ -1,8 +1,20 @@
 'use client';
 
-import { IndustryDistribution } from '@/components/stocks/IndustryDistribution';
+import dynamic from 'next/dynamic';
 import { PositionHoldings } from '@/components/stocks/PositionHoldings';
 import { fmtCurrency, fmtTime, MarketFlag, POSITION_SORT_OPTIONS } from '@/components/stocks/stock-ui';
+
+const IndustryDistribution = dynamic(
+  () => import('@/components/stocks/IndustryDistribution').then((module) => module.IndustryDistribution),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="border-b border-slate-100 px-4 py-6 sm:px-6" aria-label="產業分佈圖載入中">
+        <div className="h-48 animate-pulse rounded-2xl bg-slate-100" />
+      </div>
+    ),
+  }
+);
 
 export function PositionsSection(props) {
   const {
@@ -257,11 +269,13 @@ export function PositionsSection(props) {
           )}
         </div>
 
-        <IndustryDistribution {...{
-          isPortfolioLoading, showChart, industryData, isCompactIndustryChart,
-          openIndustryCategoryEditor, selectedIndustry, setSelectedIndustry,
-          currentTabTotalValue, posTab, displayCurrency,
-        }} />
+        {!isPortfolioLoading && showChart && industryData.length > 0 && (
+          <IndustryDistribution {...{
+            isPortfolioLoading, showChart, industryData, isCompactIndustryChart,
+            openIndustryCategoryEditor, selectedIndustry, setSelectedIndustry,
+            currentTabTotalValue, posTab, displayCurrency,
+          }} />
+        )}
 
         <PositionHoldings {...{
           posTab, isPortfolioLoading, activePositions, currentTabRawTotalValue,
