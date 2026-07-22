@@ -348,9 +348,9 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-xs sm:items-center">
-      <div className="flex max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl sm:h-[78vh] sm:max-h-[78vh]">
-        <div className="flex shrink-0 items-center justify-between border-b border-rose-100 px-6 py-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-900/40 p-4 backdrop-blur-xs">
+      <div className="flex h-[90vh] max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl sm:h-[76vh] sm:max-h-[76vh]">
+        <div className="flex shrink-0 items-center justify-between border-b border-rose-100 px-5 py-3.5 sm:px-6 sm:py-4">
           <h3 className="icon-label flex items-center text-sm font-bold text-slate-900">
             <span aria-hidden="true">{initialData ? '✍️' : '➕'}</span><span>{initialData ? '編輯股票交易' : '記錄股票交易'}</span>
           </h3>
@@ -359,7 +359,8 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto p-6">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4 sm:space-y-4 sm:px-6">
           <div>
             <label className="mb-2 block text-xs font-semibold text-slate-500">選擇交易類型</label>
             <div className="grid grid-cols-2 gap-3">
@@ -585,7 +586,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
           </div>
 
           {/* New Fee Section */}
-          <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-4">
+          <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50 p-3.5 sm:p-4">
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-500">成交金額：</span>
@@ -645,7 +646,9 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
             />
           </div>
 
-          <div className="flex gap-3 pt-2">
+          </div>
+
+          <div className="flex shrink-0 gap-3 border-t border-slate-100 bg-white px-5 py-3.5 shadow-[0_-8px_18px_rgba(15,23,42,0.04)] sm:px-6">
             <button
               type="button"
               onClick={onClose}
