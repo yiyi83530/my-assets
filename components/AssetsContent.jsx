@@ -27,13 +27,11 @@ import { normalizeStockSymbol } from '@/lib/stock-symbol';
 import { calculatePortfolioValuation } from '@/lib/trading-fees';
 import { ValuationModeControl } from '@/components/stocks/ValuationModeControl';
 
-function MonthTick({ x, y, payload, currentMonth }) {
+function MonthTick({ x, y, payload, isCurrent }) {
   const month = String(payload?.value ?? '');
-  const isCurrent = month === currentMonth;
   return (
     <g transform={`translate(${x},${y})`}>
-      {isCurrent && <rect x={-16} y={4} width={32} height={16} rx={8} fill="#fee2e2" />}
-      <text x={0} y={16} textAnchor="middle" fontSize={11} fontWeight={isCurrent ? 700 : 500} fill={isCurrent ? '#e11d48' : '#64748b'}>{month}</text>
+      <text x={0} y={16} textAnchor="middle" fontSize={11} fontWeight={isCurrent ? 800 : 500} fill={isCurrent ? '#f43f5e' : '#64748b'}>{month}</text>
     </g>
   );
 }
@@ -444,17 +442,22 @@ export function AssetsContent() {
   ].filter(d => d.value > 0);
 
   const chartData = useMemo(() => {
-    return activeMonthlyNetWorth.filter((item) => {
-      const itemYear = Number(item.yearMonth.split('-')[0]);
-      if (itemYear !== selectedYear) return false;
-      
-      if (itemYear === currentYearReal) {
-        return Number(item.month) <= Math.max(selectedMonth, currentMonthReal);
-      }
-      return true;
+    const netWorthByMonth = new Map(
+      activeMonthlyNetWorth.map((item) => [item.yearMonth, item.netWorth])
+    );
+
+    return Array.from({ length: 12 }, (_, index) => {
+      const month = index + 1;
+      const yearMonth = `${selectedYear}-${String(month).padStart(2, '0')}`;
+
+      return {
+        yearMonth,
+        monthLabel: String(month),
+        netWorth: netWorthByMonth.has(yearMonth) ? netWorthByMonth.get(yearMonth) : null,
+      };
     });
-  }, [activeMonthlyNetWorth, selectedYear, selectedMonth, currentYearReal, currentMonthReal]);
-  const currentMonthStr = String(currentMonthReal);
+  }, [activeMonthlyNetWorth, selectedYear]);
+  const chartDataPointCount = chartData.filter((item) => item.netWorth != null).length;
 
   const displayNetWorth = activeSummary?.netWorth ?? 0;
   const displayNetGrowth = activeSummary?.netGrowth ?? 0;
@@ -530,16 +533,31 @@ export function AssetsContent() {
                 <h4 className="icon-label inline-flex items-center text-s font-bold uppercase tracking-wider text-slate-500"><span aria-hidden="true">📈</span><span>資產淨值變動趨勢</span></h4>
                 <span className="text-[10px] font-medium text-slate-400">單位：新台幣</span>
               </div>
-              <div className="h-44 flex items-center justify-center">
+              <div className={`${chartDataPointCount === 1 ? 'h-40' : 'h-44'} flex items-center justify-center`}>
                 {isNetWorthLoading ? (
                   <div className="h-full w-full animate-pulse rounded-lg bg-rose-100/70" aria-label="趨勢資料載入中" />
-                ) : chartData.length > 0 ? (
+                ) : chartDataPointCount > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={(props) => <MonthTick {...props} currentMonth={currentMonthStr} />} />
+                      <XAxis
+                        dataKey="monthLabel"
+                        axisLine={false}
+                        tickLine={false}
+                        interval={0}
+                        tick={(props) => (
+                          <MonthTick
+                            {...props}
+                            isCurrent={chartData[props.index]?.yearMonth === currentMonthKey}
+                          />
+                        )}
+                      />
                       <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(value) => `${Math.round(value / 10000)}萬`} />
-                      <Tooltip formatter={(value) => [`$${Number(value).toLocaleString('zh-TW')}`, '淨值']} labelFormatter={(label) => `${label}月`} contentStyle={{ borderRadius: '0.75rem', border: '1px solid #fecdd3', boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }} />
+                      <Tooltip
+                        formatter={(value) => [`$${Number(value).toLocaleString('zh-TW')}`, '淨值']}
+                        labelFormatter={(label, payload) => payload?.[0]?.payload?.yearMonth || label}
+                        contentStyle={{ borderRadius: '0.75rem', border: '1px solid #fecdd3', boxShadow: '0 6px 18px rgba(15, 23, 42, 0.08)' }}
+                      />
                       <Line type="monotone" dataKey="netWorth" stroke="#f43f5e" strokeWidth={2.5} dot={{ r: 5, fill: '#f43f5e' }} activeDot={{ r: 5 }} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -547,6 +565,11 @@ export function AssetsContent() {
                   <p className="text-sm text-slate-400">尚無資產淨值變動資料</p>
                 )}
               </div>
+              {!isNetWorthLoading && chartDataPointCount === 1 && (
+                <p className="mt-3 text-center text-[11px] font-bold text-slate-400">
+                  再努力記錄一個月，就能看到資產變化趨勢囉！
+                </p>
+              )}
             </div>
           </div>
         </div>
