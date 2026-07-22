@@ -275,33 +275,39 @@ export function StocksContent() {
     if (posTab === 'US') setDisplayCurrency('TWD');
   }, [posTab]);
 
-  const availableYears = [...new Set(
+  const availableYears = useMemo(() => [...new Set(
     transactions
       .map((tx) => Number(String(tx.date || '').slice(0, 4)))
       .filter((year) => Number.isFinite(year) && year > 0)
-  )].sort((a, b) => b - a);
+  )].sort((a, b) => b - a), [transactions]);
 
   const now = new Date();
   const currentFilterYear = String(now.getFullYear());
   const currentFilterMonth = String(now.getMonth() + 1).padStart(2, '0');
-  const yearOptions = ['ALL', ...new Set([currentFilterYear, ...availableYears.map((year) => String(year))])];
+  const yearOptions = useMemo(
+    () => ['ALL', ...new Set([currentFilterYear, ...availableYears.map((year) => String(year))])],
+    [availableYears, currentFilterYear]
+  );
   const yearLabel = selectedYear === 'ALL' ? '全部年份' : `${selectedYear} 年`;
 
-  const transactionsInSelectedYear = selectedYear === 'ALL'
-    ? transactions
-    : transactions.filter((tx) => String(tx.date || '').slice(0, 4) === selectedYear);
-  const availableMonths = [...new Set(
+  const transactionsInSelectedYear = useMemo(
+    () => selectedYear === 'ALL'
+      ? transactions
+      : transactions.filter((tx) => String(tx.date || '').slice(0, 4) === selectedYear),
+    [selectedYear, transactions]
+  );
+  const availableMonths = useMemo(() => [...new Set(
     transactionsInSelectedYear
       .map((tx) => Number(String(tx.date || '').slice(5, 7)))
       .filter((month) => Number.isFinite(month) && month >= 1 && month <= 12)
-  )].sort((a, b) => a - b);
-  const monthOptions = [
+  )].sort((a, b) => a - b), [transactionsInSelectedYear]);
+  const monthOptions = useMemo(() => [
     'ALL',
     ...[...new Set([
       ...(selectedYear === currentFilterYear ? [currentFilterMonth] : []),
       ...availableMonths.map((month) => String(month).padStart(2, '0')),
     ])].sort((a, b) => Number(a) - Number(b)),
-  ];
+  ], [availableMonths, currentFilterMonth, currentFilterYear, selectedYear]);
   const monthLabel = selectedMonth === 'ALL' ? '全部月份' : `${Number(selectedMonth)} 月`;
 
   useEffect(() => {
@@ -316,16 +322,19 @@ export function StocksContent() {
     }
   }, [selectedMonth, monthOptions]);
 
-  const filteredTransactions = transactionsInSelectedYear.filter((tx) => (
-    selectedMonth === 'ALL' || String(tx.date || '').slice(5, 7) === selectedMonth
-  ));
+  const filteredTransactions = useMemo(
+    () => transactionsInSelectedYear.filter((tx) => (
+      selectedMonth === 'ALL' || String(tx.date || '').slice(5, 7) === selectedMonth
+    )),
+    [selectedMonth, transactionsInSelectedYear]
+  );
 
   // ── derive positions (必須在報價抓取邏輯之前，因為報價邏輯依賴這些數據) ──────────────────────────────────────────────────────
   const basePositions = useMemo(
     () => buildBasePositions(transactions, costBasisAdjustments, stockHoldingSnapshots),
     [transactions, costBasisAdjustments, stockHoldingSnapshots]
   );
-  const positionKeys = basePositions.map((p) => p.name).join('|');
+  const positionKeys = useMemo(() => basePositions.map((p) => p.name).join('|'), [basePositions]);
 
   // 自動抓取新持股的報價
   useEffect(() => {
@@ -537,7 +546,7 @@ export function StocksContent() {
   const valuationLabel = usesNetLiquidationValue ? '預估可取回' : '帳面現值';
   const valuationShareLabel = usesNetLiquidationValue ? '淨值占比' : '市值占比';
 
-  const allPositions = basePositions.map((p) => {
+  const allPositions = useMemo(() => basePositions.map((p) => {
     const marketPrice = priceMap[p.name] ?? null;
     const hasQuote = marketPrice !== null;
     const meta = quoteMeta[p.name];
@@ -591,11 +600,22 @@ export function StocksContent() {
       dailyProfit,
       dailyProfitPercent,
     };
-  });
+  }), [
+    basePositions,
+    fallbackQuoteFirstSeenAt,
+    isSheetsConnected,
+    liveQuoteClock,
+    priceMap,
+    quoteMeta,
+    stockFeeSettings,
+    usesNetLiquidationValue,
+  ]);
 
-  const twsePositions = allPositions.filter((p) => p.market === 'TWSE');
-  const usPositions = allPositions.filter((p) => p.market === 'US');
-  const activePositions = [...(posTab === 'TWSE' ? twsePositions : usPositions)].sort((a, b) => {
+  const { twsePositions, usPositions } = useMemo(() => ({
+    twsePositions: allPositions.filter((p) => p.market === 'TWSE'),
+    usPositions: allPositions.filter((p) => p.market === 'US'),
+  }), [allPositions]);
+  const activePositions = useMemo(() => [...(posTab === 'TWSE' ? twsePositions : usPositions)].sort((a, b) => {
     if (a.hasQuote !== b.hasQuote) return a.hasQuote ? -1 : 1;
     const aValue = getPositionSortValue(a, positionSortKey);
     const bValue = getPositionSortValue(b, positionSortKey);
@@ -606,16 +626,19 @@ export function StocksContent() {
       return positionSortDirection === 'asc' ? aValue - bValue : bValue - aValue;
     }
     return a.symbol.localeCompare(b.symbol, 'zh-Hant');
-  });
+  }), [posTab, positionSortDirection, positionSortKey, twsePositions, usPositions]);
   const selectedPositionSortOption = POSITION_SORT_OPTIONS.find((option) => option.value === positionSortKey);
-  const activePositionSortOption = selectedPositionSortOption?.value === 'marketValue'
-    ? { ...selectedPositionSortOption, label: valuationShareLabel }
-    : selectedPositionSortOption;
+  const activePositionSortOption = useMemo(
+    () => selectedPositionSortOption?.value === 'marketValue'
+      ? { ...selectedPositionSortOption, label: valuationShareLabel }
+      : selectedPositionSortOption,
+    [selectedPositionSortOption, valuationShareLabel]
+  );
 
-  const retryableTwQuoteRevision = activePositions
+  const retryableTwQuoteRevision = useMemo(() => activePositions
     .filter((pos) => pos.market === 'TWSE' && TW_LIVE_RETRY_STATUSES.has(quoteMeta[pos.name]?.status))
     .map((pos) => `${pos.name}:${quoteMeta[pos.name]?.status}:${quoteMeta[pos.name]?.fetchedAt}`)
-    .join('|');
+    .join('|'), [activePositions, quoteMeta]);
 
   useEffect(() => {
     if (!isSheetsConnected || posTab !== 'TWSE' || !retryableTwQuoteRevision || !isTwMarketRefreshWindow()) {
@@ -633,38 +656,41 @@ export function StocksContent() {
   }, [activePositions, isFetchingPrices, isSheetsConnected, posTab, quoteMeta, refreshStockPrices, retryableTwQuoteRevision]);
 
   // 台股 + 美股（美股轉換成 TWD）的總和
-  const totalOverallValue = useMemo(() => {
-    return allPositions.reduce((sum, pos) => {
+  const {
+    totalOverallValue,
+    totalOverallCost,
+    totalEstimatedSellFees,
+    totalOverallDailyProfit,
+  } = useMemo(() => {
+    let nextOverallValue = 0;
+    let nextOverallCost = 0;
+    let nextEstimatedSellFees = 0;
+    let nextDailyProfit = 0;
+    let hasCompleteDailyProfit = allPositions.length > 0;
+
+    allPositions.forEach((pos) => {
       const isUSStock = pos.market === 'US';
       const rate = isUSStock ? (usdToTwdRate || 1) : 1;
-      return sum + (pos.marketValue * rate);
-    }, 0);
-  }, [allPositions, usdToTwdRate]);
+      nextOverallValue += pos.marketValue * rate;
+      if (pos.hasQuote) nextOverallCost += pos.totalBuyCost * rate;
+      nextEstimatedSellFees += pos.estimatedSellFees * rate;
+      if (pos.dailyProfit == null) {
+        hasCompleteDailyProfit = false;
+      } else {
+        nextDailyProfit += pos.dailyProfit * rate;
+      }
+    });
 
-  const totalOverallCost = useMemo(() => {
-    return allPositions.reduce((sum, pos) => {
-      const isUSStock = pos.market === 'US';
-      const rate = isUSStock ? (usdToTwdRate || 1) : 1;
-      return sum + (pos.hasQuote ? pos.totalBuyCost * rate : 0);
-    }, 0);
-  }, [allPositions, usdToTwdRate]);
-
-  const totalEstimatedSellFees = useMemo(() => {
-    return allPositions.reduce((sum, pos) => {
-      const rate = pos.market === 'US' ? (usdToTwdRate || 1) : 1;
-      return sum + pos.estimatedSellFees * rate;
-    }, 0);
+    return {
+      totalOverallValue: nextOverallValue,
+      totalOverallCost: nextOverallCost,
+      totalEstimatedSellFees: nextEstimatedSellFees,
+      totalOverallDailyProfit: hasCompleteDailyProfit ? nextDailyProfit : null,
+    };
   }, [allPositions, usdToTwdRate]);
 
   const totalOverallUnrealized = totalOverallValue - totalOverallCost;
   const totalOverallReturnRate = totalOverallCost > 0 ? (totalOverallUnrealized / totalOverallCost) * 100 : 0;
-  const hasCompleteDailyProfit = allPositions.length > 0 && allPositions.every((pos) => pos.dailyProfit != null);
-  const totalOverallDailyProfit = hasCompleteDailyProfit
-    ? allPositions.reduce((sum, pos) => {
-      const rate = pos.market === 'US' ? (usdToTwdRate || 1) : 1;
-      return sum + pos.dailyProfit * rate;
-    }, 0)
-    : null;
   const previousOverallValue = totalOverallDailyProfit == null ? null : totalOverallValue - totalOverallDailyProfit;
   const totalOverallDailyProfitPercent = previousOverallValue > 0
     ? (totalOverallDailyProfit / previousOverallValue) * 100
@@ -672,7 +698,7 @@ export function StocksContent() {
 
   // ✅ 修正：当前 tab 的总计（用于表格显示）
   // 当在美股 tab 且选择 TWD 时，美股数据转换成 TWD
-  const summaryPositions = activePositions.map(pos => {
+  const summaryPositions = useMemo(() => activePositions.map(pos => {
     const isUSStock = pos.market === 'US';
     const rate = isUSStock ? (usdToTwdRate || 1) : 1;
 
@@ -685,17 +711,22 @@ export function StocksContent() {
       };
     }
     return pos;
-  });
+  }), [activePositions, displayCurrency, usdToTwdRate]);
 
-  const currentTabTotalValue = summaryPositions.reduce((s, p) => s + p.marketValue, 0);
-  // 占比固定使用原始市值計算，幣別切換只影響金額顯示。
-  const currentTabRawTotalValue = activePositions.reduce((sum, pos) => sum + pos.marketValue, 0);
-  const currentTabTotalCost = summaryPositions.reduce((s, p) => s + (p.hasQuote ? p.totalBuyCost : 0), 0);
+  const { currentTabTotalValue, currentTabRawTotalValue, currentTabTotalCost } = useMemo(() => ({
+    currentTabTotalValue: summaryPositions.reduce((sum, position) => sum + position.marketValue, 0),
+    // 占比固定使用原始市值計算，幣別切換只影響金額顯示。
+    currentTabRawTotalValue: activePositions.reduce((sum, position) => sum + position.marketValue, 0),
+    currentTabTotalCost: summaryPositions.reduce(
+      (sum, position) => sum + (position.hasQuote ? position.totalBuyCost : 0),
+      0
+    ),
+  }), [activePositions, summaryPositions]);
   const currentTabTotalUnrealized = currentTabTotalValue - currentTabTotalCost;
-  const lastQuoteUpdatedAt = Object.values(quoteMeta).reduce(
+  const lastQuoteUpdatedAt = useMemo(() => Object.values(quoteMeta).reduce(
     (latest, meta) => Math.max(latest, Number(meta?.fetchedAt) || 0),
     0
-  );
+  ), [quoteMeta]);
 
   // 顯示限制：一開始最多顯示 20 筆（第 21 筆起透過滾動查看）
   const MAX_VISIBLE = 20;
@@ -763,16 +794,17 @@ export function StocksContent() {
 
   // ── transaction history ───────────────────────────────────────────────────
 
-  const twseTx = filteredTransactions.filter((tx) => (tx.market || 'TWSE') === 'TWSE');
-  const usTx = filteredTransactions.filter((tx) => tx.market === 'US');
-  const activeTx = [...(histTab === 'TWSE' ? twseTx : usTx)].sort(
-    (a, b) => new Date(b.date) - new Date(a.date)
-  );
+  const activeTx = useMemo(() => filteredTransactions
+    .filter((tx) => (tx.market || 'TWSE') === histTab)
+    .sort((a, b) => new Date(b.date) - new Date(a.date)), [filteredTransactions, histTab]);
 
   // 交易紀錄分頁設定（每頁 10 筆）
   const TX_PER_PAGE = 10;
   const totalTxPages = Math.max(1, Math.ceil(activeTx.length / TX_PER_PAGE));
-  const paginatedTx = activeTx.slice((currentTxPage - 1) * TX_PER_PAGE, currentTxPage * TX_PER_PAGE);
+  const paginatedTx = useMemo(
+    () => activeTx.slice((currentTxPage - 1) * TX_PER_PAGE, currentTxPage * TX_PER_PAGE),
+    [activeTx, currentTxPage]
+  );
 
   // 當切換 tab 或年份時，重置到第 1 頁
   useEffect(() => {

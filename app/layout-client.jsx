@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { TransactionModal, ConfigModal, Toast } from '@/components/Modals';
-import { SettingsModal } from '@/components/SettingsModal';
-import { ManageAccountsModal, CustomDialog } from '@/components/ManageModal';
+import dynamic from 'next/dynamic';
+import { Toast } from '@/components/Toast';
 import { assetBalances as initialAssets, transactions as initialTransactions, monthlyNetWorthData as initialMonthlyData, monthlyAssetsSnapshots as initialMonthlyAssets, stockHoldingSnapshots as initialStockHoldingSnapshots } from '@/lib/data';
 import { demoMonthlyAssets } from '@/lib/demo-data';
 import { demoTransactions } from '@/lib/demo-stock-data';
@@ -22,6 +21,27 @@ import {
   upsertCostBasisAdjustmentInSheets,
   upsertAssetsToSheets,
 } from '@/lib/sheets-client';
+
+const TransactionModal = dynamic(
+  () => import('@/components/Modals').then((module) => module.TransactionModal),
+  { ssr: false }
+);
+const ConfigModal = dynamic(
+  () => import('@/components/Modals').then((module) => module.ConfigModal),
+  { ssr: false }
+);
+const SettingsModal = dynamic(
+  () => import('@/components/SettingsModal').then((module) => module.SettingsModal),
+  { ssr: false }
+);
+const ManageAccountsModal = dynamic(
+  () => import('@/components/ManageModal').then((module) => module.ManageAccountsModal),
+  { ssr: false }
+);
+const CustomDialog = dynamic(
+  () => import('@/components/ManageModal').then((module) => module.CustomDialog),
+  { ssr: false }
+);
 
 const SHEETS_URL_STORAGE_KEY = 'my_assets_google_sheets_api_url';
 const STOCK_FEE_SETTINGS_KEY = 'my_assets_stock_fee_settings';
@@ -894,40 +914,48 @@ export default function RootLayoutClient({ children }) {
           isSaving={isTransactionSaving}
         />
       )}
-      <ConfigModal
-        isOpen={showConfigModal}
-        onClose={() => setShowConfigModal(false)}
-        onConnect={handleConfigConnect}
-        onDisconnect={handleDisconnect}
-        initialApiUrl={sheetsApiUrl}
-        isConnected={isSheetsConnected}
-      />
-      <SettingsModal
-        isOpen={showSettingsModal}
-        onClose={handleCloseSettingsModal}
-        onSave={handleSaveSettings}
-        initialSettings={stockFeeSettings}
-        isSaving={isSettingsSaving}
-      />
+      {showConfigModal && (
+        <ConfigModal
+          isOpen
+          onClose={() => setShowConfigModal(false)}
+          onConnect={handleConfigConnect}
+          onDisconnect={handleDisconnect}
+          initialApiUrl={sheetsApiUrl}
+          isConnected={isSheetsConnected}
+        />
+      )}
+      {showSettingsModal && (
+        <SettingsModal
+          isOpen
+          onClose={handleCloseSettingsModal}
+          onSave={handleSaveSettings}
+          initialSettings={stockFeeSettings}
+          isSaving={isSettingsSaving}
+        />
+      )}
 
-      <ManageAccountsModal
-        isOpen={showManageModal}
-        onClose={() => setShowManageModal(false)}
-        assets={assets}
-        onSave={handleSaveAssets}
-        onAddNew={handleAddNewAsset}
-        onRemove={handleRemoveAsset}
-        onUpdate={handleUpdateAsset}
-        editingMonth={manageModalContext.year && manageModalContext.month ? `${manageModalContext.year}年${manageModalContext.month}月` : null}
-        isSaving={isSaveLoading}
-      />
-      <CustomDialog
-        isOpen={showDialog}
-        onClose={() => setShowDialog(false)}
-        title={dialog.title}
-        message={dialog.message}
-        buttons={dialog.buttons}
-      />
+      {showManageModal && (
+        <ManageAccountsModal
+          isOpen
+          onClose={() => setShowManageModal(false)}
+          assets={assets}
+          onSave={handleSaveAssets}
+          onAddNew={handleAddNewAsset}
+          onRemove={handleRemoveAsset}
+          onUpdate={handleUpdateAsset}
+          editingMonth={manageModalContext.year && manageModalContext.month ? `${manageModalContext.year}年${manageModalContext.month}月` : null}
+          isSaving={isSaveLoading}
+        />
+      )}
+      {showDialog && (
+        <CustomDialog
+          isOpen
+          onClose={() => setShowDialog(false)}
+          title={dialog.title}
+          message={dialog.message}
+          buttons={dialog.buttons}
+        />
+      )}
       <Toast message={toastMessage} isVisible={showToast} type={toastType} />
     </AppProvider>
   );
