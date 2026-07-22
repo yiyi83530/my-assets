@@ -832,7 +832,7 @@ export default function RootLayoutClient({ children }) {
       {/* 記帳按鈕 */}
       <button
         onClick={() => setShowTransactionModal(true)}
-        className="icon-label fixed bottom-6 right-6 flex items-center rounded-full bg-rose-500 px-5 py-4 text-sm font-extrabold text-white shadow-lg transition hover:scale-105 hover:bg-rose-600 hover:shadow-rose-300 z-40"
+        className="icon-label fixed bottom-6 right-6 flex items-center rounded-full bg-gradient-to-tr from-rose-600 to-rose-400 px-4 py-3 text-xs font-extrabold text-white shadow-[0_14px_30px_rgba(244,63,94,0.26),0_5px_12px_rgba(15,23,42,0.1)] transition hover:scale-105 hover:from-rose-700 hover:to-rose-500 hover:shadow-[0_18px_36px_rgba(225,29,72,0.32),0_7px_16px_rgba(15,23,42,0.12)] sm:px-5 sm:py-4 sm:text-sm sm:shadow-[0_18px_38px_rgba(244,63,94,0.28),0_6px_14px_rgba(15,23,42,0.12)] z-40"
       >
         <span aria-hidden="true">🐷</span><span>記一筆股票</span>
       </button>

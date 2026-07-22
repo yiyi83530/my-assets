@@ -71,7 +71,7 @@ export function PositionHoldings(props) {
                           {positionIndex === 0 && <span className="shrink-0" title="目前排序第一名" aria-label="目前排序第一名"><CrownIcon /></span>}
                         </div>
                         <div className="mt-1.5 text-[10px] text-slate-400">
-                          <div>持有 {pos.holdingQty.toLocaleString()} 股</div>
+                          <div>持有 <span className="font-bold text-slate-600">{pos.holdingQty.toLocaleString()}</span> 股</div>
                           <div className="mt-0.5 flex items-center gap-1.5">
                             <span className="inline-flex items-center gap-1">
                               {valuationShareLabel} {isQuoteValueLoading ? <InlineValueSkeleton className="h-3 w-8" /> : pos.hasQuote ? `${sharePercent.toFixed(1)}%` : '—'}
@@ -220,7 +220,7 @@ export function PositionHoldings(props) {
                         </td>
 
                         {/* 持有股數 */}
-                        <td className="px-4 py-3 align-middle font-mono text-sm text-slate-700">
+                        <td className="px-4 py-3 align-middle font-mono text-sm font-bold text-slate-700">
                           {pos.holdingQty.toLocaleString()}
                         </td>
 

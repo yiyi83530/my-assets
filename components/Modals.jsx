@@ -348,8 +348,8 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
-      <div className="flex h-[78vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl max-h-[78vh]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-xs sm:items-center">
+      <div className="flex max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-rose-100 bg-white shadow-xl sm:h-[78vh] sm:max-h-[78vh]">
         <div className="flex shrink-0 items-center justify-between border-b border-rose-100 px-6 py-4">
           <h3 className="icon-label flex items-center text-sm font-bold text-slate-900">
             <span aria-hidden="true">{initialData ? '✍️' : '➕'}</span><span>{initialData ? '編輯股票交易' : '記錄股票交易'}</span>
@@ -390,7 +390,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div className="min-w-0">
               <label className="mb-1 block text-xs font-semibold text-slate-500">市場</label>
               <div className="relative">
@@ -474,7 +474,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="h-10 w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none"
+                className="block h-10 w-full min-w-0 max-w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none sm:px-3 sm:text-sm"
               />
             </div>
           </div>
