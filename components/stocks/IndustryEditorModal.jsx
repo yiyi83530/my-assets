@@ -1,6 +1,39 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { getIndustryColor } from '@/components/stocks/stock-ui';
+
+function getPositionDisplayName(position) {
+  const symbol = String(position?.symbol || '').trim();
+  const fullName = String(position?.name || '').trim();
+  if (symbol && fullName.startsWith(`${symbol} `)) {
+    return fullName.slice(symbol.length).trim();
+  }
+  return fullName || '未命名股票';
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {}
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  try {
+    textarea.select();
+    textarea.setSelectionRange(0, textarea.value.length);
+    return document.execCommand('copy');
+  } finally {
+    textarea.remove();
+  }
+}
 
 export function IndustryEditorModal(props) {
   const {
@@ -20,6 +53,18 @@ export function IndustryEditorModal(props) {
     industryEditorError,
     saveIndustryCategories
   } = props;
+  const [copiedSymbol, setCopiedSymbol] = useState('');
+  const copyFeedbackTimerRef = useRef(null);
+
+  useEffect(() => () => clearTimeout(copyFeedbackTimerRef.current), []);
+
+  const copyPositionSymbol = async (symbol) => {
+    const normalizedSymbol = String(symbol || '').trim();
+    if (!normalizedSymbol || !(await copyText(normalizedSymbol))) return;
+    setCopiedSymbol(normalizedSymbol);
+    clearTimeout(copyFeedbackTimerRef.current);
+    copyFeedbackTimerRef.current = setTimeout(() => setCopiedSymbol(''), 1600);
+  };
 
   return (
     <>
@@ -30,7 +75,7 @@ export function IndustryEditorModal(props) {
               <span className="h-1 w-10 rounded-full bg-slate-200" />
             </div>
             <div className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-100 px-4 pb-4 pt-1 sm:px-5 sm:py-4">
-              <div className="icon-label flex min-w-0 items-center">
+              <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-500" aria-hidden="true">
                   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5h12M6.5 10h7M8.5 14.5h3" />
@@ -172,10 +217,23 @@ export function IndustryEditorModal(props) {
 
               {activePositions.length > 0 && (
                 <details className="mt-4 rounded-2xl border border-slate-200/80 bg-white px-3.5 py-3">
-                  <summary className="cursor-pointer list-none text-[11px] font-bold text-slate-500">查看目前持股代號（{activePositions.length}）</summary>
-                  <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-100 pt-3">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-[11px] font-bold text-slate-500">
+                    <span>查看目前持股代號與名稱（{activePositions.length}）</span>
+                    <span className="shrink-0 text-[11px] font-black text-rose-500">點選股票代號立即複製</span>
+                  </summary>
+                  <div className="mt-3 grid grid-cols-1 gap-2 border-t border-slate-100 pt-3 sm:grid-cols-2">
                     {activePositions.map((position) => (
-                      <span key={`${position.market}-${position.symbol}`} className="rounded-lg bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold text-slate-600">{position.symbol}</span>
+                      <div key={`${position.market}-${position.symbol}`} className="flex min-w-0 items-center gap-2 rounded-xl bg-slate-50 px-2.5 py-2">
+                        <button
+                          type="button"
+                          onClick={() => copyPositionSymbol(position.symbol)}
+                          className={`shrink-0 rounded-lg bg-white px-2 py-1 font-mono text-[10px] font-black shadow-sm ring-1 transition active:scale-95 ${copiedSymbol === String(position.symbol || '').trim() ? 'text-emerald-600 ring-emerald-200' : 'text-rose-600 ring-slate-200/80 hover:bg-rose-50'}`}
+                          aria-label={`複製股票代號 ${position.symbol}`}
+                        >
+                          {copiedSymbol === String(position.symbol || '').trim() ? `✓ ${position.symbol}` : position.symbol}
+                        </button>
+                        <span className="min-w-0 truncate text-xs font-bold text-slate-600" title={getPositionDisplayName(position)}>{getPositionDisplayName(position)}</span>
+                      </div>
                     ))}
                   </div>
                 </details>

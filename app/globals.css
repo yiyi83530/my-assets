@@ -17,6 +17,15 @@ body {
   column-gap: 0.125rem;
 }
 
+/* iOS Safari positions a date input's internal value at the top of fixed-height fields. */
+.trade-date-input::-webkit-date-and-time-value {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  margin: 0;
+  text-align: left;
+}
+
 @media (min-width: 768px) {
   .icon-label {
     column-gap: 0.25rem;

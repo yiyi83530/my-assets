@@ -475,7 +475,7 @@ export function TransactionModal({ isOpen, onClose, onSubmit, initialData, isSav
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="block h-10 w-full min-w-0 max-w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none sm:px-3 sm:text-sm"
+                className="trade-date-input block h-10 w-full min-w-0 max-w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs leading-5 text-slate-800 transition focus:border-rose-300 focus:bg-white focus:outline-none sm:px-3 sm:text-sm"
               />
             </div>
           </div>
