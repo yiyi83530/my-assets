@@ -11,6 +11,9 @@ export default function TabsLayout({ children }) {
     <div className={activeTab === 'stocks' ? 'space-y-3' : 'space-y-6'}>
       <TabNav activeTab={activeTab} />
       {children}
+      <footer className="pb-2 pt-8 text-center text-[10px] font-medium tracking-wide text-slate-400 sm:pt-10 sm:text-xs">
+        © {new Date().getFullYear()} Zoey Chen · All Rights Reserved
+      </footer>
     </div>
   );
 }

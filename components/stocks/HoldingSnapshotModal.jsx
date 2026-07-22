@@ -2,6 +2,18 @@
 
 import { normalizeStockSymbol } from '@/lib/stock-symbol';
 
+function DropdownChevron({ className = '' }) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className={className} aria-hidden="true">
+      <path
+        fillRule="evenodd"
+        d="M5.23 7.21a.75.75 0 011.06.02L10 11.116l3.71-3.886a.75.75 0 111.08 1.04l-4.25 4.454a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
+        clipRule="evenodd"
+      />
+    </svg>
+  );
+}
+
 export function HoldingSnapshotModal(props) {
   const {
     showHoldingSnapshotModal,
@@ -41,18 +53,21 @@ export function HoldingSnapshotModal(props) {
             <div className="shrink-0 border-b border-slate-100 px-4 py-2">
               <label className="flex max-w-[180px] flex-col gap-1 text-[11px] font-bold text-slate-500">
                 快照月份
-                <input
-                  type="month"
-                  value={holdingSnapshotMonth}
-                  onChange={(event) => {
-                    const monthKey = event.target.value;
-                    const rows = buildHoldingDraftsForMonth(monthKey);
-                    setHoldingSnapshotMonth(monthKey);
-                    setHoldingDrafts(rows.length > 0 ? rows : [createEmptyHoldingDraft()]);
-                  }}
-                  max={getLocalMonthKey()}
-                  className="h-8 rounded-lg border border-slate-200 bg-slate-50 px-2 text-xs font-semibold text-slate-800 outline-none transition focus:border-rose-200 focus:bg-white focus:ring-2 focus:ring-rose-100"
-                />
+                <span className="relative">
+                  <input
+                    type="month"
+                    value={holdingSnapshotMonth}
+                    onChange={(event) => {
+                      const monthKey = event.target.value;
+                      const rows = buildHoldingDraftsForMonth(monthKey);
+                      setHoldingSnapshotMonth(monthKey);
+                      setHoldingDrafts(rows.length > 0 ? rows : [createEmptyHoldingDraft()]);
+                    }}
+                    max={getLocalMonthKey()}
+                    className="snapshot-month-input h-8 w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 py-0 pl-2 pr-8 text-xs font-semibold text-slate-800 outline-none transition focus:border-rose-200 focus:bg-white focus:ring-2 focus:ring-rose-100"
+                  />
+                  <DropdownChevron className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                </span>
               </label>
               <p className="mt-1.5 text-[10px] leading-4 text-slate-400">
                 {holdingSnapshotMonth === getLocalMonthKey()
@@ -74,14 +89,17 @@ export function HoldingSnapshotModal(props) {
                 <div className="divide-y divide-slate-100">
                   {holdingDrafts.map((row, index) => (
                     <div key={row.id || index} className="grid grid-cols-[54px_70px_minmax(100px,1fr)_70px_88px_30px] gap-1.5 py-1.5">
-                      <select
-                        value={row.market}
-                        onChange={(event) => updateHoldingDraft(index, { market: event.target.value })}
-                        className="h-8 rounded-md border border-slate-200 bg-white px-1 text-[11px] font-bold text-slate-700 outline-none focus:border-rose-200 focus:ring-2 focus:ring-rose-100"
-                      >
-                        <option value="TWSE">台股</option>
-                        <option value="US">美股</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          value={row.market}
+                          onChange={(event) => updateHoldingDraft(index, { market: event.target.value })}
+                          className="h-8 w-full appearance-none rounded-md border border-slate-200 bg-white py-0 pl-1.5 pr-5 text-[11px] font-bold text-slate-700 outline-none focus:border-rose-200 focus:ring-2 focus:ring-rose-100"
+                        >
+                          <option value="TWSE">台股</option>
+                          <option value="US">美股</option>
+                        </select>
+                        <DropdownChevron className="pointer-events-none absolute right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+                      </div>
                       <input
                         value={row.symbol}
                         onChange={(event) => updateHoldingDraft(index, { symbol: event.target.value })}

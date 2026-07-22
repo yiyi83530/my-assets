@@ -794,7 +794,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
     <div className="fixed inset-0 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-xs z-50">
       <div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-rose-100 px-6 py-4">
-          <h3 className="icon-label flex items-center text-sm font-bold text-slate-900">
+          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900">
             <span aria-hidden="true">☁️</span><span>設置 Google 試算表同步資料</span>
           </h3>
           <button onClick={onClose} className="text-slate-400 transition hover:text-slate-600">
@@ -804,8 +804,8 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
 
         <div className="space-y-4 overflow-y-auto p-6 max-h-[calc(80vh-120px)]">
           <div className="rounded-xl border border-rose-100 bg-rose-50/50 p-4 text-xs leading-relaxed text-slate-700">
-            <p className="icon-label flex items-center text-sm font-bold text-rose-950"><span aria-hidden="true">💡</span><span>Google Sheet Apps Script 三分鐘極速架設法：</span></p>
-            <div className={`relative mt-2 overflow-hidden transition-all duration-300 ${isSetupStepsExpanded ? 'max-h-[420px]' : 'max-h-[118px]'}`}>
+            <p className="icon-label flex items-center text-sm font-bold text-rose-950"><span>💡 Google Sheet Apps Script 三分鐘極速架設法：</span></p>
+            <div className={`relative mt-2 overflow-hidden transition-all duration-300 ${isSetupStepsExpanded ? 'max-h-[1200px] sm:max-h-[700px]' : 'max-h-[118px]'}`}>
               <ol className="list-inside list-decimal space-y-1.5 text-slate-600">
                 <li>登入 Google 試算表，點選上方選單「擴充功能」-&gt;「Apps Script」。</li>
                 <li>清除編輯器裡的預設程式碼，貼入下方完整後端 script 代碼。</li>
@@ -819,7 +819,7 @@ export function ConfigModal({ isOpen, onClose, onConnect, onDisconnect, initialA
                 <li>部署完成後，複製結尾為「/exec」的「網頁應用程式 URL」，貼到下方欄位後點「開始連線」。</li>
               </ol>
               <p className="mt-2 text-[11px] font-semibold text-amber-700">
-                日後若有更新 script 代碼，請到「部署」-&gt;「管理部署作業」-&gt; 點鉛筆圖示，版本選「新增版本」後再按「部署」。
+                日後若有更新 script 代碼，請貼上新代碼，到「部署」-&gt;「管理部署作業」-&gt; 點鉛筆圖示，版本選「新增版本」後再按「部署」。
               </p>
               {!isSetupStepsExpanded && (
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-b from-rose-50/0 to-rose-50" />

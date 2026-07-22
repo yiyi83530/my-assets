@@ -32,7 +32,7 @@ export default function TabNav({ activeTab }) {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="icon-label inline-flex items-center text-base font-extrabold tracking-tight text-slate-900">
-              <span>我的小豬存錢筒</span><span className="text-rose-500" aria-hidden="true">🐷</span>
+              <span>小豬存錢筒</span><span className="text-rose-500" aria-hidden="true">🐷</span>
             </h1>
             {mounted && (
               <span
@@ -50,11 +50,14 @@ export default function TabNav({ activeTab }) {
         </div>
         <button
           onClick={openConfigModal}
-          className=" p-1.5 text-slate-500 transition hover:text-slate-900"
-          title="連線設定"
-          aria-label="連線設定"
+          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-slate-50 px-2 text-[10px] font-bold text-slate-600 shadow-sm ring-1 ring-slate-200/80 transition hover:bg-rose-50 hover:text-rose-600 hover:ring-rose-200 md:h-8 md:gap-1.5 md:rounded-xl md:px-2.5 md:text-[11px]"
+          title={mounted && isSheetsConnected ? '管理 Google Sheets 連線' : '設定 Google Sheets 連線'}
+          aria-label={mounted && isSheetsConnected ? '管理 Google Sheets 連線' : '設定 Google Sheets 連線'}
         >
-          ⚙️
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-3.5 w-3.5 md:h-4 md:w-4" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 15.25h9.25a3 3 0 00.45-5.97A5.25 5.25 0 005 7.75a3.75 3.75 0 00.25 7.5z" />
+          </svg>
+          <span>{mounted && isSheetsConnected ? '管理連線' : '設定連線'}</span>
         </button>
       </div>
 

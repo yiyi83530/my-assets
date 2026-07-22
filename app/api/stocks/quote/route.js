@@ -159,19 +159,6 @@ async function fetchUsQuote(symbol) {
   }
 }
 
-async function firstAvailableQuote(requests) {
-  try {
-    return await Promise.any(
-      requests.map((request) => request.then((quote) => {
-        if (quote) return quote;
-        throw new Error('quote_unavailable');
-      }))
-    );
-  } catch {
-    return null;
-  }
-}
-
 export async function GET(request) {
   if (process.env.GITHUB_PAGES === 'true') return Response.json({ price: null, status: 'unavailable' });
 
@@ -184,19 +171,15 @@ export async function GET(request) {
   if (isUs) {
     quote = await fetchUsQuote(symbol);
   } else {
-    // 即時上市、上櫃與興櫃並行查詢，避免興櫃股票等待其他市場依序逾時。
-    // 官方日收盤資料只在前三者都沒有報價時使用，以維持盤中即時價的優先級。
-    quote = await firstAvailableQuote([
-      fetchRealtimeTwQuote(symbol, 'tse'),
-      fetchRealtimeTwQuote(symbol, 'otc'),
-      fetchEsbQuote(symbol),
-    ]);
-    if (!quote) {
-      quote = await firstAvailableQuote([
-        fetchDailyClose(symbol, TWSE_DAILY_URL, 'TWSE'),
-        fetchDailyClose(symbol, TPEX_DAILY_URL, 'TPEx'),
-      ]);
-    }
+    // 依最常見的上市、上櫃、興櫃順序逐級查找；找到報價即停止，
+    // 避免每檔股票無條件同時打三個官方來源。
+    quote = await fetchRealtimeTwQuote(symbol, 'tse');
+    if (!quote) quote = await fetchRealtimeTwQuote(symbol, 'otc');
+    if (!quote) quote = await fetchEsbQuote(symbol);
+
+    // 只有即時來源皆無資料時才依序使用官方日收盤資料。
+    if (!quote) quote = await fetchDailyClose(symbol, TWSE_DAILY_URL, 'TWSE');
+    if (!quote) quote = await fetchDailyClose(symbol, TPEX_DAILY_URL, 'TPEx');
   }
 
   return Response.json(quote || { price: null, status: 'unavailable', source: null, asOf: null });

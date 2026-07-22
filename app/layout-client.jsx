@@ -28,6 +28,29 @@ const STOCK_FEE_SETTINGS_KEY = 'my_assets_stock_fee_settings';
 const COST_BASIS_ADJUSTMENTS_KEY = 'my_assets_cost_basis_adjustments';
 const LIVE_DATA_CACHE_MS = 5 * 60 * 1000;
 const STOCK_QUOTE_TIMEOUT_MS = 8000;
+const STOCK_QUOTE_CONCURRENCY = 4;
+const MONTHLY_QUOTE_CONCURRENCY = 4;
+
+async function allSettledWithConcurrency(items, concurrency, mapper) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  const worker = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = { status: 'fulfilled', value: await mapper(items[index], index) };
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason };
+      }
+    }
+  };
+
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, worker));
+  return results;
+}
 
 function hasAssetContent(asset) {
   const name = String(asset?.name || '').trim();
@@ -212,7 +235,11 @@ export default function RootLayoutClient({ children }) {
         }
         return { name: target.name, ...data };
       };
-      const results = await Promise.allSettled(toFetch.map(requestQuote));
+      const results = await allSettledWithConcurrency(
+        toFetch,
+        STOCK_QUOTE_CONCURRENCY,
+        requestQuote
+      );
       const nextPrices = {};
       const nextMeta = {};
       const fetchedAt = Date.now();
@@ -250,9 +277,10 @@ export default function RootLayoutClient({ children }) {
         .filter((monthKey) => /^\d{4}-\d{2}$/.test(monthKey))
     )];
 
-    const requests = [];
-    normalizedMonths.forEach((monthKey) => {
-      normalizedTargets.forEach((target) => {
+    const requests = normalizedTargets.map((target) => {
+      const months = [];
+      const requestKeys = [];
+      normalizedMonths.forEach((monthKey) => {
         const requestKey = `${monthKey}:${target.name}`;
         if (!force && stockMonthlyClosePrices?.[monthKey]?.[target.name] != null) {
           monthlyQuoteFetchedRef.current.add(requestKey);
@@ -261,29 +289,36 @@ export default function RootLayoutClient({ children }) {
         if (!force && monthlyQuoteFetchedRef.current.has(requestKey)) return;
         if (monthlyQuotePendingRef.current.has(requestKey)) return;
         monthlyQuotePendingRef.current.add(requestKey);
-        requests.push({ monthKey, target, requestKey });
+        months.push(monthKey);
+        requestKeys.push(requestKey);
       });
-    });
+      return { target, months, requestKeys };
+    }).filter((request) => request.months.length > 0);
     if (requests.length === 0) return;
 
     try {
-      const requestQuote = async ({ monthKey, target, requestKey }) => {
+      const requestQuote = async ({ months, target }) => {
         const data = await fetchJsonWithTimeout(
-          `/api/stocks/month-close?symbol=${encodeURIComponent(target.symbol)}&market=${target.market}&month=${monthKey}`
+          `/api/stocks/month-close?symbol=${encodeURIComponent(target.symbol)}&market=${target.market}&months=${encodeURIComponent(months.join(','))}`
         );
-        return { monthKey, name: target.name, requestKey, ...data };
+        return { name: target.name, prices: data.prices || {} };
       };
-      const results = await Promise.allSettled(requests.map(requestQuote));
+      const results = await allSettledWithConcurrency(
+        requests,
+        MONTHLY_QUOTE_CONCURRENCY,
+        requestQuote
+      );
       const nextMonthlyPrices = {};
 
       results.forEach((result, index) => {
         const request = requests[index];
-        monthlyQuoteFetchedRef.current.add(request.requestKey);
-        if (result.status === 'fulfilled' && result.value.price != null) {
-          if (!nextMonthlyPrices[result.value.monthKey]) {
-            nextMonthlyPrices[result.value.monthKey] = {};
-          }
-          nextMonthlyPrices[result.value.monthKey][result.value.name] = result.value.price;
+        request.requestKeys.forEach((requestKey) => monthlyQuoteFetchedRef.current.add(requestKey));
+        if (result.status === 'fulfilled') {
+          Object.entries(result.value.prices).forEach(([monthKey, quote]) => {
+            if (quote?.price == null) return;
+            if (!nextMonthlyPrices[monthKey]) nextMonthlyPrices[monthKey] = {};
+            nextMonthlyPrices[monthKey][result.value.name] = quote.price;
+          });
         }
       });
 
@@ -297,7 +332,9 @@ export default function RootLayoutClient({ children }) {
         });
       }
     } finally {
-      requests.forEach((request) => monthlyQuotePendingRef.current.delete(request.requestKey));
+      requests.forEach((request) => {
+        request.requestKeys.forEach((requestKey) => monthlyQuotePendingRef.current.delete(requestKey));
+      });
     }
   }, [isSheetsConnected, stockMonthlyClosePrices]);
 

@@ -469,11 +469,11 @@ export function AssetsContent() {
       {!isAssetScreenLoading && !isSheetsConnected && (
         <div className={`mb-4 rounded-2xl border p-4 shadow-sm border-rose-100 bg-rose-50/70`}>
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div className="icon-label flex items-start">
-              <div className="mt-0.5 rounded-lg border bg-white p-1 border-rose-100 text-rose-500">☁️</div>
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 rounded-lg">☁️</div>
               <div>
                 <h4 className="text-sm font-semibold text-rose-950">目前為單機演示模式</h4>
-                <p className="mt-0.5 text-xs text-rose-700/80">小提醒！此模式尚未串接後端，請點擊按鈕設定 Google Sheets 來連線！</p>
+                <p className="mt-0.5 text-xs text-rose-700/80">小提醒！此模式尚未串接個人資料庫，是假資料！請點擊按鈕設定 Google Sheets 來進行私人連線～所以現在的狀態下新增什麼儲存什麼，沒有連線都會消失的🥺</p>
               </div>
             </div>
             <button onClick={openConfigModal} className="shrink-0 rounded-xl px-4 py-2 text-xs font-bold text-white shadow-sm transition bg-rose-500 hover:bg-rose-600">
@@ -567,7 +567,7 @@ export function AssetsContent() {
                     <Pie data={allocationData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={5} dataKey="value">
                       {allocationData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />)}
                     </Pie>
-                    <Tooltip formatter={(value) => `$${value.toLocaleString()}`} contentStyle={{ borderRadius: '0.5rem', fontSize: '12px' }} />
+                    <Tooltip formatter={(value) => formatMoney(value)} contentStyle={{ borderRadius: '0.5rem', fontSize: '12px' }} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -592,7 +592,7 @@ export function AssetsContent() {
                     <span className="text-[11px] font-medium text-slate-500">{item.name}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="font-mono text-[11px] font-bold text-slate-700">${item.value.toLocaleString()}</span>
+                    <span className="font-mono text-[11px] font-bold text-slate-700">{formatMoney(item.value)}</span>
                     <span className="w-8 text-right font-mono text-[10px] text-slate-400">{percent.toFixed(0)}%</span>
                   </div>
                 </div>
